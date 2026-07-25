@@ -63,7 +63,9 @@
             "enum": [
               "uppercase",
               "fail-closed",
-              "validator-audit"
+              "validator-audit",
+              "fleet-runner",
+              "fleet-policy"
             ]
           },
           "input": {
@@ -77,6 +79,9 @@
                 "type": "string"
               },
               "contract": {
+                "type": "string"
+              },
+              "case": {
                 "type": "string"
               }
             }

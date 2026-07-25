@@ -141,6 +141,28 @@ the public behavior validator. Qualification evidence records only allowlisted
 runtime facts and component hashes, never credential or arbitrary environment
 values. `provider` reports that no optional providers are configured.
 
+The offline campaign also qualifies the deterministic FleetRunner boundary.
+Jobs can select only a manifest adapter, allowed activity, bounded prompt and
+timeout, and a named strict output contract. Command, argv, shell, tools,
+environment, working directory, and recursive delegation are fixed outside the
+job. FleetRunner launches with `shell=false`, passes only allowlisted
+environment variables, and runs in either an isolated empty directory or a
+controlled workspace copy under the run.
+
+Every FleetRunner execution creates a new run containing normalized `job.json`,
+public `metadata.json`, bounded raw `stdout.txt` and `stderr.txt`, and a final
+`receipt.json`. A run succeeds only after a zero exit code and strict JSON
+contract validation. The only normalization is one complete JSON fence;
+trailing prose, multiple fences, malformed or internally invalid payloads,
+timeouts, process failures, and stdout/stderr floods have stable fail-closed
+states. Timeout handling terminates the complete process group. Qualification
+continues to require native runtime entry points and all native workers to be
+disabled, the native and write gates to be blocked, and the external writer
+count to remain zero; those blocked gates do not prevent an independently
+qualified core leaf fixture from passing.
+The runtime fingerprint binds that allowlisted native-entry state, so changing
+either switch makes earlier evidence `qualification-drifted`.
+
 ## Matt Pocock skills provenance
 
 `release-lock.json` records the upstream repository, exact revision, install

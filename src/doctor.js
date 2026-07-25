@@ -237,41 +237,44 @@ function enabledRuntimeEntries(contents) {
   return [...enabled].sort();
 }
 
-function inspectCodexConfig(homeDirectory) {
+export function inspectNativeRuntimeBoundary(homeDirectory) {
   try {
     const file = inspectFile(homeDirectory, ".codex/config.toml");
     if (file.state === "absent") {
-      return finding(
-        "runtime.codex-config",
-        "info",
-        "healthy",
-        "core",
-        "native entry points are not enabled",
-        "No action required.",
-      );
+      return {
+        status: "blocked",
+        enabledEntryPoints: [],
+      };
     }
-    const enabled = enabledRuntimeEntries(
+    const enabledEntryPoints = enabledRuntimeEntries(
       file.contents.toString("utf8"),
     );
-    if (enabled.length > 0) {
-      return finding(
-        "runtime.codex-config",
-        "critical",
-        "conflicted",
-        "native",
-        `${enabled.join(" and ")} enabled`,
-        "Set agents.enabled and features.multi_agent to false, then start a fresh Codex session.",
-      );
-    }
+    return {
+      status:
+        enabledEntryPoints.length === 0 ? "blocked" : "enabled",
+      enabledEntryPoints,
+    };
+  } catch {
+    return {
+      status: "conflicted",
+      enabledEntryPoints: [],
+    };
+  }
+}
+
+function inspectCodexConfig(homeDirectory) {
+  const boundary = inspectNativeRuntimeBoundary(homeDirectory);
+  if (boundary.status === "enabled") {
     return finding(
       "runtime.codex-config",
-      "info",
-      "healthy",
-      "core",
-      "native entry points are not enabled",
-      "No action required.",
+      "critical",
+      "conflicted",
+      "native",
+      `${boundary.enabledEntryPoints.join(" and ")} enabled`,
+      "Set agents.enabled and features.multi_agent to false, then start a fresh Codex session.",
     );
-  } catch {
+  }
+  if (boundary.status === "conflicted") {
     return finding(
       "runtime.codex-config",
       "critical",
@@ -281,6 +284,14 @@ function inspectCodexConfig(homeDirectory) {
       "Replace symlinked or unsafe ~/.codex config paths, then run doctor again.",
     );
   }
+  return finding(
+    "runtime.codex-config",
+    "info",
+    "healthy",
+    "core",
+    "native entry points are not enabled",
+    "No action required.",
+  );
 }
 
 function providerFinding(provider, version, credentialState) {

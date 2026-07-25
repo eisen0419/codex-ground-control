@@ -48,6 +48,216 @@
         "reason": null
       },
       "nextAction": "Reconcile the versioned schema, public validator and audit corpus."
+    },
+    {
+      "id": "fleet-raw-shell-env",
+      "category": "fleet-runner",
+      "severity": "critical",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "raw-shell-env"
+      },
+      "expected": {
+        "terminalState": "passed",
+        "output": "succeeded:raw-json",
+        "reason": null
+      },
+      "nextAction": "Restore fixed argv, shell isolation, environment filtering and FleetRunner evidence."
+    },
+    {
+      "id": "fleet-job-authority",
+      "category": "fleet-runner",
+      "severity": "critical",
+      "driver": "fleet-policy",
+      "input": {
+        "case": "job-authority"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "job-contract-rejected"
+      },
+      "nextAction": "Reject job-controlled commands, argv, shell, tools, environment, cwd, recursion and unbounded inputs."
+    },
+    {
+      "id": "fleet-adapter-state",
+      "category": "fleet-runner",
+      "severity": "critical",
+      "driver": "fleet-policy",
+      "input": {
+        "case": "adapter-state"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "adapter-state-rejected"
+      },
+      "nextAction": "Require a known enabled leaf adapter with current qualification and a passed gate."
+    },
+    {
+      "id": "fleet-native-write-boundaries",
+      "category": "governance",
+      "severity": "critical",
+      "driver": "fleet-policy",
+      "input": {
+        "case": "native-write-boundaries"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "native-write-disabled"
+      },
+      "nextAction": "Keep native entry points disabled, native workers disabled and external writer count at zero."
+    },
+    {
+      "id": "fleet-fenced-normalization",
+      "category": "fleet-runner",
+      "severity": "high",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "fenced-normalization"
+      },
+      "expected": {
+        "terminalState": "passed",
+        "output": "succeeded:single-json-fence",
+        "reason": null
+      },
+      "nextAction": "Allow only one complete JSON fence and record the normalization."
+    },
+    {
+      "id": "fleet-workspace-copy",
+      "category": "fleet-runner",
+      "severity": "critical",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "workspace-copy"
+      },
+      "expected": {
+        "terminalState": "passed",
+        "output": "succeeded:workspace-copy",
+        "reason": null
+      },
+      "nextAction": "Restore the controlled workspace-copy policy under the FleetRunner run."
+    },
+    {
+      "id": "fleet-nonzero-exit",
+      "category": "fleet-runner",
+      "severity": "high",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "nonzero-exit"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "process-failed"
+      },
+      "nextAction": "Require a zero adapter exit code before accepting output."
+    },
+    {
+      "id": "fleet-invalid-json",
+      "category": "fleet-runner",
+      "severity": "high",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "invalid-json"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "invalid-output"
+      },
+      "nextAction": "Reject output that is not valid JSON."
+    },
+    {
+      "id": "fleet-trailing-prose",
+      "category": "fleet-runner",
+      "severity": "high",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "trailing-prose"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "invalid-output"
+      },
+      "nextAction": "Reject JSON followed by trailing prose."
+    },
+    {
+      "id": "fleet-multiple-fences",
+      "category": "fleet-runner",
+      "severity": "high",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "multiple-fences"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "invalid-output"
+      },
+      "nextAction": "Reject multiple JSON fences."
+    },
+    {
+      "id": "fleet-corrupt-payload",
+      "category": "fleet-runner",
+      "severity": "high",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "corrupt-payload"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "invalid-output"
+      },
+      "nextAction": "Reject JSON objects whose keys or value types violate the strict output contract."
+    },
+    {
+      "id": "fleet-timeout-process-group",
+      "category": "fleet-runner",
+      "severity": "critical",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "timeout-process-group"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "timeout"
+      },
+      "nextAction": "Terminate the complete adapter process group on timeout."
+    },
+    {
+      "id": "fleet-stdout-limit",
+      "category": "fleet-runner",
+      "severity": "high",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "stdout-limit"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "stdout-limit-exceeded"
+      },
+      "nextAction": "Enforce the stdout byte limit and preserve only the bounded evidence."
+    },
+    {
+      "id": "fleet-stderr-limit",
+      "category": "fleet-runner",
+      "severity": "high",
+      "driver": "fleet-runner",
+      "input": {
+        "case": "stderr-limit"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "stderr-limit-exceeded"
+      },
+      "nextAction": "Enforce the stderr byte limit and preserve only the bounded evidence."
     }
   ]
 }

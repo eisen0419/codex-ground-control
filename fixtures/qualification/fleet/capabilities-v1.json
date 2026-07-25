@@ -1,0 +1,445 @@
+{
+  "schemaVersion": "1",
+  "architecture": "single-codex-coordinator",
+  "coordinator": {
+    "id": "codex-main",
+    "soleWriter": true,
+    "soleCompletionAuthority": true
+  },
+  "runtime": {
+    "nativeAgentsEnabled": false,
+    "multiAgentEnabled": false
+  },
+  "gates": {
+    "core": {
+      "status": "passed"
+    },
+    "native": {
+      "status": "blocked"
+    },
+    "write": {
+      "status": "blocked"
+    }
+  },
+  "limits": {
+    "maxPromptBytes": 4096,
+    "maxTimeoutMilliseconds": 2000,
+    "maxStdoutBytes": 4096,
+    "maxStderrBytes": 4096,
+    "externalWriterCount": 0
+  },
+  "recursiveDelegation": {
+    "allowed": false
+  },
+  "outputContracts": {
+    "fixture-result-v1": {
+      "type": "object",
+      "required": {
+        "ok": "boolean",
+        "marker": "string",
+        "prompt": "string",
+        "secretPresent": "boolean",
+        "workspaceMarkerPresent": "boolean"
+      },
+      "additionalProperties": false
+    }
+  },
+  "adapters": {
+    "fixture-raw": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "raw",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-fenced": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "fenced",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-workspace-copy": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "raw",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "workspace-copy",
+          "source": "{manifest_dir}/workspace"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-nonzero": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "nonzero",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-invalid-json": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "invalid-json",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-trailing-prose": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "trailing-prose",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-multiple-fences": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "multiple-fences",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-corrupt-payload": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "corrupt-payload",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-timeout-process-group": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "timeout-process-group",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-stdout-flood": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "stdout-flood",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-stderr-flood": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "stderr-flood",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-disabled": {
+      "kind": "leaf-adapter",
+      "enabled": false,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "disabledReason": "negative fixture",
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "raw",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-stale": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "stale",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "raw",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-blocked-gate": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "native",
+      "mode": "no-tools",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/adapter.mjs",
+          "raw",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": []
+      }
+    },
+    "fixture-native": {
+      "kind": "native-subagent",
+      "enabled": false,
+      "qualification": "stale",
+      "gate": "native",
+      "mode": "read-only",
+      "activities": [
+        "qualification"
+      ],
+      "outputContracts": [
+        "fixture-result-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "disabledReason": "native gate is blocked"
+    }
+  }
+}

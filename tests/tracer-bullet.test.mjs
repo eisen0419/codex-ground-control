@@ -225,6 +225,9 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "assets/overlays/multi-agent-router/SKILL.md",
       "assets/overlays/multi-agent-router/agents/openai.yaml",
       "bin/codex-ground-control.js",
+      "fixtures/qualification/fleet/adapter.mjs",
+      "fixtures/qualification/fleet/capabilities-v1.json",
+      "fixtures/qualification/fleet/workspace/fixture.txt",
       "fixtures/qualification/offline-core-v1.json",
       "fixtures/qualification/public-receipt-audit-v1.json",
       "package.json",
@@ -235,6 +238,8 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "schemas/qualification/result.schema.json",
       "src/cli.js",
       "src/doctor.js",
+      "src/fleet-runner-worker.js",
+      "src/fleet-runner.js",
       "src/global-workflow.js",
       "src/managed-workflow.js",
       "src/project-state.js",
@@ -413,7 +418,14 @@ test("packed CLI completes an offline reversible lifecycle", () => {
       );
 
       rmSync(codexInvocation, { force: true });
-      const qualified = runJson(cli, ["qualify"], context);
+      const unauthorizedFleetSecret = "ticket06-fleet-secret-value";
+      const qualified = runJson(cli, ["qualify"], {
+        ...context,
+        environment: {
+          FLEETRUNNER_UNAUTHORIZED_SECRET:
+            unauthorizedFleetSecret,
+        },
+      });
       assert.equal(qualified.status, 0);
       assert.equal(
         existsSync(codexInvocation),
@@ -435,8 +447,8 @@ test("packed CLI completes an offline reversible lifecycle", () => {
         "release-full",
       );
       assert.deepEqual(qualified.receipt.result.counts, {
-        total: 3,
-        passed: 3,
+        total: 17,
+        passed: 17,
         failed: 0,
       });
       assert.match(
@@ -474,6 +486,301 @@ test("packed CLI completes an offline reversible lifecycle", () => {
           true,
           `missing qualification evidence: ${evidenceFile}`,
         );
+      }
+      const fleetResult = JSON.parse(
+        readFileSync(join(qualificationRun, "results.json"), "utf8"),
+      ).results.find(
+        ({ scenario }) => scenario === "fleet-raw-shell-env",
+      );
+      assert.deepEqual(fleetResult.observed, {
+        terminalState: "passed",
+        output: "succeeded:raw-json",
+        reason: null,
+      });
+      const fleetRunsRoot = join(
+        qualificationRun,
+        "scenarios",
+        "fleet-raw-shell-env",
+        "fleet-runs",
+      );
+      const fleetRunIdentities = readdirSync(fleetRunsRoot);
+      assert.equal(fleetRunIdentities.length, 1);
+      const fleetRun = join(fleetRunsRoot, fleetRunIdentities[0]);
+      for (const evidenceFile of [
+        "job.json",
+        "metadata.json",
+        "stdout.txt",
+        "stderr.txt",
+        "receipt.json",
+      ]) {
+        assert.equal(
+          existsSync(join(fleetRun, evidenceFile)),
+          true,
+          `missing FleetRunner evidence: ${evidenceFile}`,
+        );
+      }
+      const fleetJob = JSON.parse(
+        readFileSync(join(fleetRun, "job.json"), "utf8"),
+      );
+      assert.equal(
+        fleetJob.prompt,
+        "literal $(touch fleet-shell-injection)",
+      );
+      const fleetMetadata = JSON.parse(
+        readFileSync(join(fleetRun, "metadata.json"), "utf8"),
+      );
+      assert.deepEqual(fleetMetadata.environmentVariableNames, [
+        "NO_COLOR",
+        "TERM",
+      ]);
+      assert.equal(fleetMetadata.command, "node");
+      assert.equal(fleetMetadata.shell, false);
+      assert.equal(
+        fleetMetadata.workingDirectory,
+        "isolated-under-run-directory",
+      );
+      const fleetOutput = JSON.parse(
+        readFileSync(join(fleetRun, "stdout.txt"), "utf8"),
+      );
+      assert.equal(fleetOutput.secretPresent, false);
+      assert.equal(
+        fleetOutput.prompt,
+        "literal $(touch fleet-shell-injection)",
+      );
+      assert.equal(
+        Object.values(snapshotFiles(qualificationRun))
+          .join("\n")
+          .includes(unauthorizedFleetSecret),
+        false,
+      );
+      assert.equal(
+        qualified.stdout.includes(unauthorizedFleetSecret),
+        false,
+      );
+      assert.equal(
+        existsSync(join(fleetRun, "workspace", "fleet-shell-injection")),
+        false,
+      );
+      const fleetReceipt = JSON.parse(
+        readFileSync(join(fleetRun, "receipt.json"), "utf8"),
+      );
+      assert.equal(fleetReceipt.status, "succeeded");
+      assert.equal(
+        fleetReceipt.outputContract.normalization,
+        "raw-json",
+      );
+      const qualificationResults = JSON.parse(
+        readFileSync(join(qualificationRun, "results.json"), "utf8"),
+      ).results;
+      for (const [scenario, expected] of Object.entries({
+        "fleet-job-authority": {
+          terminalState: "blocked",
+          output: null,
+          reason: "job-contract-rejected",
+        },
+        "fleet-adapter-state": {
+          terminalState: "blocked",
+          output: null,
+          reason: "adapter-state-rejected",
+        },
+        "fleet-native-write-boundaries": {
+          terminalState: "blocked",
+          output: null,
+          reason: "native-write-disabled",
+        },
+      })) {
+        assert.deepEqual(
+          qualificationResults.find(
+            (result) => result.scenario === scenario,
+          ).observed,
+          expected,
+        );
+        assert.equal(
+          existsSync(
+            join(
+              qualificationRun,
+              "scenarios",
+              scenario,
+              "policy-checks.json",
+            ),
+          ),
+          true,
+        );
+      }
+      const fleetExecutionExpectations = {
+        "fleet-fenced-normalization": {
+          observed: {
+            terminalState: "passed",
+            output: "succeeded:single-json-fence",
+            reason: null,
+          },
+          status: "succeeded",
+          normalization: "single-json-fence",
+        },
+        "fleet-workspace-copy": {
+          observed: {
+            terminalState: "passed",
+            output: "succeeded:workspace-copy",
+            reason: null,
+          },
+          status: "succeeded",
+          normalization: "raw-json",
+        },
+        "fleet-nonzero-exit": {
+          observed: {
+            terminalState: "blocked",
+            output: null,
+            reason: "process-failed",
+          },
+          status: "process-failed",
+          normalization: "raw-json",
+        },
+        "fleet-invalid-json": {
+          observed: {
+            terminalState: "blocked",
+            output: null,
+            reason: "invalid-output",
+          },
+          status: "invalid-output",
+          normalization: "raw-json",
+        },
+        "fleet-trailing-prose": {
+          observed: {
+            terminalState: "blocked",
+            output: null,
+            reason: "invalid-output",
+          },
+          status: "invalid-output",
+          normalization: "raw-json",
+        },
+        "fleet-multiple-fences": {
+          observed: {
+            terminalState: "blocked",
+            output: null,
+            reason: "invalid-output",
+          },
+          status: "invalid-output",
+          normalization: "raw-json",
+        },
+        "fleet-corrupt-payload": {
+          observed: {
+            terminalState: "blocked",
+            output: null,
+            reason: "invalid-output",
+          },
+          status: "invalid-output",
+          normalization: "raw-json",
+        },
+      };
+      for (
+        const [scenario, expectation] of Object.entries(
+          fleetExecutionExpectations,
+        )
+      ) {
+        assert.deepEqual(
+          qualificationResults.find(
+            (result) => result.scenario === scenario,
+          ).observed,
+          expectation.observed,
+        );
+        const scenarioRunsRoot = join(
+          qualificationRun,
+          "scenarios",
+          scenario,
+          "fleet-runs",
+        );
+        const [scenarioRunIdentity] = readdirSync(scenarioRunsRoot);
+        const scenarioRun = join(
+          scenarioRunsRoot,
+          scenarioRunIdentity,
+        );
+        const scenarioReceipt = JSON.parse(
+          readFileSync(join(scenarioRun, "receipt.json"), "utf8"),
+        );
+        assert.equal(scenarioReceipt.status, expectation.status);
+        assert.equal(
+          scenarioReceipt.outputContract.normalization,
+          expectation.normalization,
+        );
+        if (scenario === "fleet-workspace-copy") {
+          assert.equal(
+            existsSync(join(scenarioRun, "workspace", "fixture.txt")),
+            true,
+          );
+          const scenarioMetadata = JSON.parse(
+            readFileSync(join(scenarioRun, "metadata.json"), "utf8"),
+          );
+          assert.equal(
+            scenarioMetadata.workingDirectoryPolicy,
+            "workspace-copy",
+          );
+          assert.equal(
+            scenarioMetadata.workingDirectory,
+            "copy-under-run-directory",
+          );
+        }
+      }
+      for (const [scenario, expectation] of Object.entries({
+        "fleet-timeout-process-group": {
+          reason: "timeout",
+          status: "timeout",
+        },
+        "fleet-stdout-limit": {
+          reason: "stdout-limit-exceeded",
+          status: "stdout-limit-exceeded",
+          evidenceFile: "stdout.txt",
+        },
+        "fleet-stderr-limit": {
+          reason: "stderr-limit-exceeded",
+          status: "stderr-limit-exceeded",
+          evidenceFile: "stderr.txt",
+        },
+      })) {
+        assert.deepEqual(
+          qualificationResults.find(
+            (result) => result.scenario === scenario,
+          ).observed,
+          {
+            terminalState: "blocked",
+            output: null,
+            reason: expectation.reason,
+          },
+        );
+        const scenarioRunsRoot = join(
+          qualificationRun,
+          "scenarios",
+          scenario,
+          "fleet-runs",
+        );
+        const [scenarioRunIdentity] = readdirSync(scenarioRunsRoot);
+        const scenarioRun = join(
+          scenarioRunsRoot,
+          scenarioRunIdentity,
+        );
+        const scenarioReceipt = JSON.parse(
+          readFileSync(join(scenarioRun, "receipt.json"), "utf8"),
+        );
+        assert.equal(scenarioReceipt.status, expectation.status);
+        if (expectation.evidenceFile) {
+          assert.equal(
+            statSync(
+              join(scenarioRun, expectation.evidenceFile),
+            ).size,
+            4096,
+          );
+        }
+        if (scenario === "fleet-timeout-process-group") {
+          assert.equal(
+            existsSync(
+              join(
+                scenarioRun,
+                "workspace",
+                "descendant-survived.txt",
+              ),
+            ),
+            false,
+          );
+        }
       }
 
       const providers = runJson(cli, ["provider"], context);
@@ -516,6 +823,109 @@ test("packed CLI completes an offline reversible lifecycle", () => {
       assert.equal(blockedInit.receipt.error.code, "GIT_WORKTREE_REQUIRED");
       assert.deepEqual(snapshotFiles(notARepository), {});
       assert.equal(statSync(notARepository).isDirectory(), true);
+    },
+  );
+});
+
+test("packed qualification fails closed when native runtime entry points are enabled", () => {
+  withPackedCli(
+    ({
+      cli,
+      codexInvocation,
+      homeDirectory,
+      networkTrap,
+      projectDirectory,
+      runtimePath,
+    }) => {
+      const context = {
+        homeDirectory,
+        networkTrap,
+        projectDirectory,
+        runtimePath,
+      };
+      assert.equal(runJson(cli, ["init"], context).status, 0);
+      mkdirSync(join(homeDirectory, ".codex"));
+      writeFileSync(
+        join(homeDirectory, ".codex", "config.toml"),
+        [
+          "[agents]",
+          "enabled = true",
+          "[features]",
+          "multi_agent = true",
+          "",
+        ].join("\n"),
+      );
+      rmSync(codexInvocation, { force: true });
+
+      const qualified = runJson(cli, ["qualify"], context);
+      assert.equal(qualified.status, 2);
+      assert.equal(existsSync(codexInvocation), false);
+      assert.equal(
+        qualified.receipt.error.code,
+        "OFFLINE_QUALIFICATION_MISMATCH",
+      );
+      assert.deepEqual(qualified.receipt.result.counts, {
+        total: 17,
+        passed: 16,
+        failed: 1,
+      });
+      const runDirectory = join(
+        homeDirectory,
+        ".codex-ground-control",
+        "evidence",
+        "qualification",
+        qualified.receipt.result.runIdentity,
+      );
+      const issues = JSON.parse(
+        readFileSync(join(runDirectory, "issues.json"), "utf8"),
+      );
+      assert.equal(issues.openCount, 1);
+      assert.equal(
+        issues.issues[0].scenario,
+        "fleet-native-write-boundaries",
+      );
+      const policy = JSON.parse(
+        readFileSync(
+          join(
+            runDirectory,
+            "scenarios",
+            "fleet-native-write-boundaries",
+            "policy-checks.json",
+          ),
+          "utf8",
+        ),
+      );
+      assert.equal(
+        policy.checks.find(
+          ({ label }) => label === "ambient-native-runtime",
+        ).observedCode,
+        "enabled",
+      );
+      writeFileSync(
+        join(homeDirectory, ".codex", "config.toml"),
+        [
+          "[agents]",
+          "enabled = false",
+          "[features]",
+          "multi_agent = false",
+          "",
+        ].join("\n"),
+      );
+      const drifted = runJson(
+        cli,
+        [
+          "qualify",
+          "verify",
+          qualified.receipt.result.runIdentity,
+          qualified.receipt.result.evidence.anchor,
+        ],
+        context,
+      );
+      assert.equal(drifted.status, 2);
+      assert.equal(
+        drifted.receipt.error.code,
+        "QUALIFICATION_DRIFTED",
+      );
     },
   );
 });
@@ -563,8 +973,8 @@ test("qualification mismatches create stable reproducible issues", () => {
         "release-failed",
       );
       assert.deepEqual(failed.receipt.result.counts, {
-        total: 3,
-        passed: 2,
+        total: 17,
+        passed: 16,
         failed: 1,
       });
       assert.equal(
@@ -1051,7 +1461,7 @@ test("packed CLI keeps human lifecycle output concise and stable", () => {
       assert.equal(qualified.status, 0);
       assert.match(
         qualified.stdout,
-        /^Offline qualification passed: offline-core-v1 \(3\/3\); run [a-zA-Z0-9-]+; evidence [0-9a-f]{64}\.\n$/,
+        /^Offline qualification passed: offline-core-v1 \(17\/17\); run [a-zA-Z0-9-]+; evidence [0-9a-f]{64}\.\n$/,
       );
       assert.equal(qualified.stderr, "");
       const runIdentity = qualified.stdout.match(

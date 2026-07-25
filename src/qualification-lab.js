@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import {
   lstatSync,
   mkdirSync,
@@ -21,6 +22,11 @@ import {
   auditQualificationReceiptValidators,
   qualificationSchemaUrls,
 } from "./qualification-contract.js";
+import {
+  FleetRunnerError,
+  validateFleetJob,
+} from "./fleet-runner.js";
+import { inspectNativeRuntimeBoundary } from "./doctor.js";
 import { inspectFile } from "./safe-files.js";
 
 const PACKAGE_VERSION = "0.1.0";
@@ -33,6 +39,22 @@ const RECEIPT_AUDIT_URL = new URL(
   "../fixtures/qualification/public-receipt-audit-v1.json",
   import.meta.url,
 );
+const FLEET_MANIFEST_URL = new URL(
+  "../fixtures/qualification/fleet/capabilities-v1.json",
+  import.meta.url,
+);
+const FLEET_ADAPTER_URL = new URL(
+  "../fixtures/qualification/fleet/adapter.mjs",
+  import.meta.url,
+);
+const FLEET_WORKSPACE_URL = new URL(
+  "../fixtures/qualification/fleet/workspace/fixture.txt",
+  import.meta.url,
+);
+const FLEET_WORKER_URL = new URL(
+  "./fleet-runner-worker.js",
+  import.meta.url,
+);
 
 const COMPONENTS = [
   ["package", new URL("../package.json", import.meta.url)],
@@ -43,6 +65,11 @@ const COMPONENTS = [
   ],
   ["cli", new URL("./cli.js", import.meta.url)],
   ["doctor", new URL("./doctor.js", import.meta.url)],
+  ["fleet-runner", new URL("./fleet-runner.js", import.meta.url)],
+  ["fleet-runner-worker", FLEET_WORKER_URL],
+  ["fleet-manifest", FLEET_MANIFEST_URL],
+  ["fleet-adapter", FLEET_ADAPTER_URL],
+  ["fleet-workspace-fixture", FLEET_WORKSPACE_URL],
   ["global-workflow", new URL("./global-workflow.js", import.meta.url)],
   ["managed-workflow", new URL("./managed-workflow.js", import.meta.url)],
   ["project-state", new URL("./project-state.js", import.meta.url)],
@@ -216,6 +243,8 @@ function validateCampaignSemantics(campaign) {
       uppercase: ["value"],
       "fail-closed": ["boundary"],
       "validator-audit": ["contract"],
+      "fleet-runner": ["case"],
+      "fleet-policy": ["case"],
     }[scenario.driver];
     if (
       !expectedKeys ||
@@ -243,7 +272,7 @@ function loadCampaign() {
   return campaign;
 }
 
-function captureRuntime() {
+function captureRuntime(homeDirectory) {
   const components = COMPONENTS.map(([id, url]) => {
     const path = fileURLToPath(url);
     const contents = readFileSync(path);
@@ -259,6 +288,8 @@ function captureRuntime() {
     platform: process.platform,
     architecture: process.arch,
     packageVersion: PACKAGE_VERSION,
+    nativeRuntime:
+      inspectNativeRuntimeBoundary(homeDirectory),
     components,
   };
   return {
@@ -278,6 +309,27 @@ function hasExactKeys(value, required) {
   );
 }
 
+function validNativeRuntimeBoundary(value) {
+  if (
+    !hasExactKeys(value, ["status", "enabledEntryPoints"]) ||
+    !["blocked", "conflicted", "enabled"].includes(value.status) ||
+    !Array.isArray(value.enabledEntryPoints) ||
+    value.enabledEntryPoints.some(
+      (entry) =>
+        !["agents.enabled", "features.multi_agent"].includes(entry)
+    ) ||
+    new Set(value.enabledEntryPoints).size !==
+      value.enabledEntryPoints.length ||
+    canonicalJson([...value.enabledEntryPoints].sort()) !==
+      canonicalJson(value.enabledEntryPoints)
+  ) {
+    return false;
+  }
+  return value.status === "enabled"
+    ? value.enabledEntryPoints.length > 0
+    : value.enabledEntryPoints.length === 0;
+}
+
 function validEvidencePath(path) {
   return (
     typeof path === "string" &&
@@ -289,7 +341,427 @@ function validEvidencePath(path) {
   );
 }
 
-function executeScenario(scenario) {
+function executeFleetScenario(scenario, scenarioDirectory) {
+  const fleetCases = {
+    "raw-shell-env": {
+      adapter: "fixture-raw",
+      prompt: "literal $(touch fleet-shell-injection)",
+      expectedStatus: "succeeded",
+      expectedNormalization: "raw-json",
+      successOutput: "succeeded:raw-json",
+    },
+    "fenced-normalization": {
+      adapter: "fixture-fenced",
+      prompt: "bounded fenced output",
+      expectedStatus: "succeeded",
+      expectedNormalization: "single-json-fence",
+      successOutput: "succeeded:single-json-fence",
+    },
+    "workspace-copy": {
+      adapter: "fixture-workspace-copy",
+      prompt: "bounded workspace copy",
+      expectedStatus: "succeeded",
+      expectedNormalization: "raw-json",
+      successOutput: "succeeded:workspace-copy",
+    },
+    "nonzero-exit": {
+      adapter: "fixture-nonzero",
+      prompt: "bounded nonzero exit",
+      expectedStatus: "process-failed",
+    },
+    "invalid-json": {
+      adapter: "fixture-invalid-json",
+      prompt: "bounded invalid JSON",
+      expectedStatus: "invalid-output",
+    },
+    "trailing-prose": {
+      adapter: "fixture-trailing-prose",
+      prompt: "bounded trailing prose",
+      expectedStatus: "invalid-output",
+    },
+    "multiple-fences": {
+      adapter: "fixture-multiple-fences",
+      prompt: "bounded multiple fences",
+      expectedStatus: "invalid-output",
+    },
+    "corrupt-payload": {
+      adapter: "fixture-corrupt-payload",
+      prompt: "bounded corrupt payload",
+      expectedStatus: "invalid-output",
+    },
+    "timeout-process-group": {
+      adapter: "fixture-timeout-process-group",
+      prompt: "bounded timeout",
+      expectedStatus: "timeout",
+      timeoutMilliseconds: 100,
+    },
+    "stdout-limit": {
+      adapter: "fixture-stdout-flood",
+      prompt: "bounded stdout flood",
+      expectedStatus: "stdout-limit-exceeded",
+    },
+    "stderr-limit": {
+      adapter: "fixture-stderr-flood",
+      prompt: "bounded stderr flood",
+      expectedStatus: "stderr-limit-exceeded",
+    },
+  };
+  const selectedCase = fleetCases[scenario.input.case];
+  if (!selectedCase) {
+    throw new QualificationLabError(
+      "QUALIFICATION_CAMPAIGN_INVALID",
+      `Unsupported FleetRunner case: ${scenario.input.case}`,
+    );
+  }
+  const runsRoot = join(scenarioDirectory, "fleet-runs");
+  mkdirSync(runsRoot, { mode: 0o700 });
+  const jobPath = join(scenarioDirectory, "fleet-job.json");
+  writeExclusiveJson(jobPath, {
+    schemaVersion: "1",
+    adapter: selectedCase.adapter,
+    activity: "qualification",
+    prompt: selectedCase.prompt,
+    timeoutMilliseconds:
+      selectedCase.timeoutMilliseconds ?? 1000,
+    outputContract: "fixture-result-v1",
+  });
+  const execution = spawnSync(
+    process.execPath,
+    [
+      fileURLToPath(FLEET_WORKER_URL),
+      jobPath,
+      runsRoot,
+      fileURLToPath(FLEET_MANIFEST_URL),
+    ],
+    {
+      cwd: scenarioDirectory,
+      encoding: "utf8",
+      env: process.env,
+      maxBuffer: 1024 * 1024,
+    },
+  );
+  let receipt;
+  try {
+    receipt = JSON.parse(execution.stdout);
+  } catch {
+    return {
+      terminalState: "blocked",
+      output: null,
+      reason: "fleet-runner-invalid-receipt",
+    };
+  }
+  if (
+    receipt === null ||
+    Array.isArray(receipt) ||
+    typeof receipt !== "object"
+  ) {
+    return {
+      terminalState: "blocked",
+      output: null,
+      reason: "fleet-runner-invalid-receipt",
+    };
+  }
+  if (
+    receipt.status !== selectedCase.expectedStatus ||
+    (selectedCase.expectedNormalization &&
+      receipt.outputContract?.normalization !==
+        selectedCase.expectedNormalization)
+  ) {
+    return {
+      terminalState: "blocked",
+      output: null,
+      reason: receipt.status ?? receipt.error?.code ??
+        "fleet-runner-failed",
+    };
+  }
+  if (selectedCase.expectedStatus !== "succeeded") {
+    if (execution.status !== 1) {
+      return {
+        terminalState: "blocked",
+        output: null,
+        reason: "fleet-runner-worker-exit-mismatch",
+      };
+    }
+    if (selectedCase.expectedStatus === "timeout") {
+      spawnSync(
+        process.execPath,
+        ["-e", "setTimeout(() => {}, 700)"],
+        {
+          cwd: scenarioDirectory,
+          env: {
+            NO_COLOR: "1",
+            TERM: "dumb",
+          },
+          timeout: 1000,
+        },
+      );
+      const descendantMarker = join(
+        runsRoot,
+        receipt.runIdentity,
+        "workspace",
+        "descendant-survived.txt",
+      );
+      if (metadata(descendantMarker) !== null) {
+        return {
+          terminalState: "blocked",
+          output: null,
+          reason: "timeout-descendant-survived",
+        };
+      }
+    }
+    return {
+      terminalState: "blocked",
+      output: null,
+      reason: selectedCase.expectedStatus,
+    };
+  }
+  if (execution.status !== 0) {
+    return {
+      terminalState: "blocked",
+      output: null,
+      reason: "fleet-runner-worker-failed",
+    };
+  }
+  return {
+    terminalState: "passed",
+    output: selectedCase.successOutput,
+    reason: null,
+  };
+}
+
+function fleetJob(adapter = "fixture-raw") {
+  return {
+    schemaVersion: "1",
+    adapter,
+    activity: "qualification",
+    prompt: "bounded qualification prompt",
+    timeoutMilliseconds: 1000,
+    outputContract: "fixture-result-v1",
+  };
+}
+
+function fleetPolicyCheck(
+  label,
+  job,
+  manifest,
+  expectedCode,
+  manifestDirectory,
+) {
+  try {
+    validateFleetJob(job, manifest, { manifestDirectory });
+    return {
+      label,
+      expectedCode,
+      observedCode: "accepted",
+      matched: false,
+    };
+  } catch (error) {
+    const observedCode = error instanceof FleetRunnerError
+      ? error.code
+      : "unexpected-error";
+    return {
+      label,
+      expectedCode,
+      observedCode,
+      matched: observedCode === expectedCode,
+    };
+  }
+}
+
+function executeFleetPolicyScenario(
+  scenario,
+  scenarioDirectory,
+  context,
+) {
+  const manifest = readJson(
+    FLEET_MANIFEST_URL,
+    "FleetRunner capability manifest",
+  );
+  const manifestDirectory = dirname(
+    fileURLToPath(FLEET_MANIFEST_URL),
+  );
+  let checks;
+  let reason;
+  if (scenario.input.case === "job-authority") {
+    const forbiddenFields = [
+      "command",
+      "argv",
+      "shell",
+      "tools",
+      "environment",
+      "workingDirectory",
+      "recursiveDelegation",
+    ];
+    checks = forbiddenFields.map((field) => {
+      const job = fleetJob();
+      job[field] = field === "shell" ? true : "forbidden";
+      return fleetPolicyCheck(
+        `forbidden-${field}`,
+        job,
+        manifest,
+        "FLEET_CONTRACT_INVALID",
+        manifestDirectory,
+      );
+    });
+    const promptJob = fleetJob();
+    promptJob.prompt = "x".repeat(
+      manifest.limits.maxPromptBytes + 1,
+    );
+    checks.push(
+      fleetPolicyCheck(
+        "prompt-limit",
+        promptJob,
+        manifest,
+        "FLEET_PROMPT_LIMIT",
+        manifestDirectory,
+      ),
+    );
+    const timeoutJob = fleetJob();
+    timeoutJob.timeoutMilliseconds =
+      manifest.limits.maxTimeoutMilliseconds + 1;
+    checks.push(
+      fleetPolicyCheck(
+        "timeout-limit",
+        timeoutJob,
+        manifest,
+        "FLEET_TIMEOUT_INVALID",
+        manifestDirectory,
+      ),
+    );
+    const activityJob = fleetJob();
+    activityJob.activity = "implementation";
+    checks.push(
+      fleetPolicyCheck(
+        "activity",
+        activityJob,
+        manifest,
+        "FLEET_ACTIVITY_BLOCKED",
+        manifestDirectory,
+      ),
+    );
+    const contractJob = fleetJob();
+    contractJob.outputContract = "arbitrary-output";
+    checks.push(
+      fleetPolicyCheck(
+        "output-contract",
+        contractJob,
+        manifest,
+        "FLEET_OUTPUT_CONTRACT_BLOCKED",
+        manifestDirectory,
+      ),
+    );
+    reason = "job-contract-rejected";
+  } else if (scenario.input.case === "adapter-state") {
+    checks = [
+      ["unknown-adapter", "FLEET_ADAPTER_UNKNOWN"],
+      ["fixture-disabled", "FLEET_ADAPTER_DISABLED"],
+      ["fixture-stale", "FLEET_ADAPTER_STALE"],
+      ["fixture-blocked-gate", "FLEET_GATE_BLOCKED"],
+      ["fixture-native", "FLEET_ADAPTER_NOT_LEAF"],
+    ].map(([adapter, expectedCode]) =>
+      fleetPolicyCheck(
+        adapter,
+        fleetJob(adapter),
+        manifest,
+        expectedCode,
+        manifestDirectory,
+      )
+    );
+    reason = "adapter-state-rejected";
+  } else if (scenario.input.case === "native-write-boundaries") {
+    const ambientNative = inspectNativeRuntimeBoundary(
+      context.homeDirectory,
+    );
+    const nativeAdapters = Object.values(manifest.adapters).filter(
+      ({ kind }) => kind === "native-subagent",
+    );
+    const externalWriters = Object.values(manifest.adapters).filter(
+      ({ writeAccess }) => writeAccess === true,
+    );
+    checks = [
+      {
+        label: "native-gate",
+        expectedCode: "blocked",
+        observedCode: manifest.gates.native.status,
+        matched: manifest.gates.native.status === "blocked",
+      },
+      {
+        label: "write-gate",
+        expectedCode: "blocked",
+        observedCode: manifest.gates.write.status,
+        matched: manifest.gates.write.status === "blocked",
+      },
+      {
+        label: "native-runtime-switches",
+        expectedCode: "disabled",
+        observedCode:
+          manifest.runtime.nativeAgentsEnabled === false &&
+            manifest.runtime.multiAgentEnabled === false
+            ? "disabled"
+            : "enabled",
+        matched:
+          manifest.runtime.nativeAgentsEnabled === false &&
+          manifest.runtime.multiAgentEnabled === false,
+      },
+      {
+        label: "ambient-native-runtime",
+        expectedCode: "blocked",
+        observedCode: ambientNative.status,
+        matched:
+          ambientNative.status === "blocked" &&
+          ambientNative.enabledEntryPoints.length === 0,
+      },
+      {
+        label: "native-workers",
+        expectedCode: "disabled",
+        observedCode:
+          nativeAdapters.length > 0 &&
+            nativeAdapters.every(({ enabled }) => enabled === false)
+            ? "disabled"
+            : "enabled-or-missing",
+        matched:
+          nativeAdapters.length > 0 &&
+          nativeAdapters.every(({ enabled }) => enabled === false),
+      },
+      {
+        label: "external-writers",
+        expectedCode: "zero",
+        observedCode: String(externalWriters.length),
+        matched:
+          manifest.limits.externalWriterCount === 0 &&
+          externalWriters.length === 0,
+      },
+    ];
+    reason = "native-write-disabled";
+  } else {
+    throw new QualificationLabError(
+      "QUALIFICATION_CAMPAIGN_INVALID",
+      `Unsupported FleetRunner policy case: ${scenario.input.case}`,
+    );
+  }
+  writeExclusiveJson(
+    join(scenarioDirectory, "policy-checks.json"),
+    {
+      schemaVersion: "1",
+      case: scenario.input.case,
+      checks,
+    },
+  );
+  if (!checks.every(({ matched }) => matched)) {
+    return {
+      terminalState: "blocked",
+      output: null,
+      reason: "fleet-policy-mismatch",
+    };
+  }
+  return {
+    terminalState: "blocked",
+    output: null,
+    reason,
+  };
+}
+
+function executeScenario(scenario, scenarioDirectory, context) {
   if (scenario.driver === "uppercase") {
     return {
       terminalState: "passed",
@@ -311,6 +783,16 @@ function executeScenario(scenario) {
       output: "schema-and-behavior-audited",
       reason: null,
     };
+  }
+  if (scenario.driver === "fleet-runner") {
+    return executeFleetScenario(scenario, scenarioDirectory);
+  }
+  if (scenario.driver === "fleet-policy") {
+    return executeFleetPolicyScenario(
+      scenario,
+      scenarioDirectory,
+      context,
+    );
   }
   throw new QualificationLabError(
     "QUALIFICATION_CAMPAIGN_INVALID",
@@ -759,6 +1241,7 @@ export function verifyOfflineQualification(options = {}) {
       "platform",
       "architecture",
       "packageVersion",
+      "nativeRuntime",
       "components",
       "fingerprint",
     ]) ||
@@ -767,6 +1250,7 @@ export function verifyOfflineQualification(options = {}) {
     typeof runtime.platform !== "string" ||
     typeof runtime.architecture !== "string" ||
     runtime.packageVersion !== PACKAGE_VERSION ||
+    !validNativeRuntimeBoundary(runtime.nativeRuntime) ||
     !/^[0-9a-f]{64}$/.test(runtime.fingerprint) ||
     !Array.isArray(runtime.components) ||
     runtime.components.some(
@@ -791,6 +1275,7 @@ export function verifyOfflineQualification(options = {}) {
         platform: runtime.platform,
         architecture: runtime.architecture,
         packageVersion: runtime.packageVersion,
+        nativeRuntime: runtime.nativeRuntime,
         components: runtime.components,
       }),
     ) !== runtime.fingerprint ||
@@ -801,7 +1286,9 @@ export function verifyOfflineQualification(options = {}) {
       "Qualification runtime evidence has an invalid structure.",
     );
   }
-  const currentFingerprint = captureRuntime().fingerprint;
+  const currentFingerprint = captureRuntime(
+    options.homeDirectory,
+  ).fingerprint;
   const drifted = currentFingerprint !== runtime.fingerprint;
   return {
     schemaVersion: "1",
@@ -908,7 +1395,7 @@ export function runOfflineQualification(options = {}) {
   mkdirSync(runDirectory, { mode: 0o700 });
   mkdirSync(join(runDirectory, "scenarios"), { mode: 0o700 });
 
-  const runtime = captureRuntime();
+  const runtime = captureRuntime(options.homeDirectory);
   const request = {
     schemaVersion: "1",
     operation,
@@ -938,7 +1425,13 @@ export function runOfflineQualification(options = {}) {
       scenario.id,
     );
     mkdirSync(scenarioDirectory, { mode: 0o700 });
-    const observed = executeScenario(scenario);
+    const observed = executeScenario(
+      scenario,
+      scenarioDirectory,
+      {
+        homeDirectory: options.homeDirectory,
+      },
+    );
     const mismatches = compareObservation(
       scenario.expected,
       observed,

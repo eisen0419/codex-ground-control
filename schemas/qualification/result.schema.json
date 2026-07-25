@@ -104,7 +104,9 @@
             "enum": [
               "uppercase",
               "fail-closed",
-              "validator-audit"
+              "validator-audit",
+              "fleet-runner",
+              "fleet-policy"
             ]
           },
           "matched": {
