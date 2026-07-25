@@ -230,8 +230,12 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "fixtures/qualification/fleet/workspace/fixture.txt",
       "fixtures/qualification/offline-core-v1.json",
       "fixtures/qualification/public-receipt-audit-v1.json",
+      "fixtures/providers/capabilities-v1.json",
+      "fixtures/providers/probe-adapter.mjs",
+      "fixtures/providers/public-probes-v1.json",
       "package.json",
       "release-lock.json",
+      "schemas/provider/live-probe-output.schema.json",
       "schemas/qualification/campaign.schema.json",
       "schemas/qualification/issue-ledger.schema.json",
       "schemas/qualification/public-receipt.schema.json",
@@ -243,6 +247,7 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "src/global-workflow.js",
       "src/managed-workflow.js",
       "src/project-state.js",
+      "src/provider-lifecycle.js",
       "src/qualification-contract.js",
       "src/qualification-lab.js",
       "src/safe-files.js",
@@ -291,6 +296,12 @@ test("packed CLI exposes stable help and version output", () => {
         "  qualify",
         "  qualify verify <run-identity> <evidence-anchor>",
         "  qualify reproduce <run-identity> <scenario-id>",
+        "",
+        "Providers:",
+        "  provider list",
+        "  provider enable <pi|agy|grok>",
+        "  provider disable <pi|agy|grok>",
+        "  provider qualify <pi|agy|grok> --allow-live",
         "",
         "Options:",
         "  --json     Emit exactly one JSON receipt",
@@ -785,10 +796,18 @@ test("packed CLI completes an offline reversible lifecycle", () => {
 
       const providers = runJson(cli, ["provider"], context);
       assert.equal(providers.status, 0);
-      assert.deepEqual(providers.receipt.result, {
-        providers: [],
-        summary: "No optional providers are configured.",
-      });
+      assert.equal(providers.receipt.result.schemaVersion, "1");
+      assert.equal(providers.receipt.result.operation, "list");
+      assert.equal(providers.receipt.result.providers.length, 3);
+      assert.equal(
+        providers.receipt.result.providers.every(
+          (provider) =>
+            provider.disabled &&
+            !provider.qualified &&
+            provider.blocked,
+        ),
+        true,
+      );
 
       const uninstalled = runJson(cli, ["uninstall"], context);
       assert.equal(uninstalled.status, 0);
@@ -1439,7 +1458,11 @@ test("packed CLI keeps human lifecycle output concise and stable", () => {
       const canonicalProject = realpathSync(projectDirectory);
 
       const initialized = invoke("init");
-      assert.equal(initialized.status, 0);
+      assert.equal(
+        initialized.status,
+        0,
+        `init failed\nstdout:\n${initialized.stdout}\nstderr:\n${initialized.stderr}`,
+      );
       assert.equal(
         initialized.stdout,
         `Initialized Ground Control in ${canonicalProject}.\n`,
@@ -1483,9 +1506,13 @@ test("packed CLI keeps human lifecycle output concise and stable", () => {
 
       const providers = invoke("provider", "list");
       assert.equal(providers.status, 0);
-      assert.equal(
+      assert.match(
         providers.stdout,
-        "No optional providers are configured.\n",
+        /^Ground Control providers:\n/,
+      );
+      assert.match(
+        providers.stdout,
+        /^  pi: blocked/m,
       );
       assert.equal(providers.stderr, "");
 

@@ -19,6 +19,10 @@ import {
   runOfflineQualification,
   verifyOfflineQualification,
 } from "./qualification-lab.js";
+import {
+  ProviderLifecycleError,
+  runProviderOperation,
+} from "./provider-lifecycle.js";
 
 const EXIT_SUCCESS = 0;
 const EXIT_BLOCKED = 2;
@@ -361,10 +365,39 @@ export function inspectProviders(startDirectory, options = {}) {
     return project.error;
   }
 
-  return success(project.projectRoot, false, {
-    providers: [],
-    summary: "No optional providers are configured.",
-  });
+  let outcome;
+  try {
+    outcome = runProviderOperation({
+      cwd: project.projectRoot,
+      projectRoot: project.projectRoot,
+      homeDirectory: options.homeDirectory,
+      environment: options.environment ?? process.env,
+      ...options.provider,
+    });
+  } catch (error) {
+    if (!(error instanceof ProviderLifecycleError)) {
+      throw error;
+    }
+    return blocked(project.projectRoot, error.code, error.message);
+  }
+  if (outcome.blocked) {
+    return {
+      status: "blocked",
+      exitCode: EXIT_BLOCKED,
+      projectRoot: project.projectRoot,
+      changed: outcome.changed,
+      result: outcome.result,
+      error: {
+        code: "PROVIDER_QUALIFICATION_FAILED",
+        message: "Provider live qualification failed.",
+      },
+    };
+  }
+  return success(
+    project.projectRoot,
+    outcome.changed,
+    outcome.result,
+  );
 }
 
 export function uninstallProject(startDirectory, options = {}) {

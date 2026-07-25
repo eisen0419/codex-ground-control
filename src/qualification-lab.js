@@ -55,6 +55,22 @@ const FLEET_WORKER_URL = new URL(
   "./fleet-runner-worker.js",
   import.meta.url,
 );
+const PROVIDER_MANIFEST_URL = new URL(
+  "../fixtures/providers/capabilities-v1.json",
+  import.meta.url,
+);
+const PROVIDER_PROBES_URL = new URL(
+  "../fixtures/providers/public-probes-v1.json",
+  import.meta.url,
+);
+const PROVIDER_ADAPTER_URL = new URL(
+  "../fixtures/providers/probe-adapter.mjs",
+  import.meta.url,
+);
+const PROVIDER_SCHEMA_URL = new URL(
+  "../schemas/provider/live-probe-output.schema.json",
+  import.meta.url,
+);
 
 const COMPONENTS = [
   ["package", new URL("../package.json", import.meta.url)],
@@ -73,6 +89,14 @@ const COMPONENTS = [
   ["global-workflow", new URL("./global-workflow.js", import.meta.url)],
   ["managed-workflow", new URL("./managed-workflow.js", import.meta.url)],
   ["project-state", new URL("./project-state.js", import.meta.url)],
+  [
+    "provider-lifecycle",
+    new URL("./provider-lifecycle.js", import.meta.url),
+  ],
+  ["provider-manifest", PROVIDER_MANIFEST_URL],
+  ["provider-probes", PROVIDER_PROBES_URL],
+  ["provider-probe-adapter", PROVIDER_ADAPTER_URL],
+  ["provider-probe-schema", PROVIDER_SCHEMA_URL],
   ["qualification-lab", new URL("./qualification-lab.js", import.meta.url)],
   [
     "qualification-contract",

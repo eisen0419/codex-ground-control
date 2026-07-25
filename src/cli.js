@@ -32,6 +32,12 @@ export const HELP_TEXT = [
   "  qualify verify <run-identity> <evidence-anchor>",
   "  qualify reproduce <run-identity> <scenario-id>",
   "",
+  "Providers:",
+  "  provider list",
+  "  provider enable <pi|agy|grok>",
+  "  provider disable <pi|agy|grok>",
+  "  provider qualify <pi|agy|grok> --allow-live",
+  "",
   "Options:",
   "  --json     Emit exactly one JSON receipt",
   "  --dry-run  Preview init without changing files",
@@ -68,10 +74,22 @@ function writeJson(output, value) {
 function invalidUsage(commandArgs, json, output, errors) {
   const unknownCommand = commandArgs[0];
   const knownCommand = COMMANDS.has(unknownCommand);
-  const message = knownCommand
-    ? `Unexpected arguments for command: ${unknownCommand}`
-    : `Unknown command: ${unknownCommand}`;
-  const code = knownCommand ? "UNEXPECTED_ARGUMENTS" : "UNKNOWN_COMMAND";
+  const unknownProviderOperation =
+    unknownCommand === "provider" &&
+    commandArgs.length > 1 &&
+    !["list", "enable", "disable", "qualify"].includes(
+      commandArgs[1],
+    );
+  const message = unknownProviderOperation
+    ? `Unknown provider operation: ${commandArgs[1]}`
+    : knownCommand
+      ? `Unexpected arguments for command: ${unknownCommand}`
+      : `Unknown command: ${unknownCommand}`;
+  const code = unknownProviderOperation
+    ? "PROVIDER_OPERATION_INVALID"
+    : knownCommand
+      ? "UNEXPECTED_ARGUMENTS"
+      : "UNKNOWN_COMMAND";
 
   if (json) {
     writeJson(output, {
@@ -197,9 +215,41 @@ function renderQualification(result) {
   );
 }
 
+function renderProvider(result) {
+  const providers = result.result.providers ??
+    [result.result.provider];
+  const yesNo = (value) => value ? "yes" : "no";
+  return [
+    "Ground Control providers:",
+    ...providers.map(
+      (provider) =>
+        `  ${provider.id}: ${provider.decision} ` +
+        `(${provider.reason ?? "qualification-current"}); ` +
+        `detected=${yesNo(provider.detected)} ` +
+        `configured=${yesNo(provider.configured)} ` +
+        `enabled=${yesNo(provider.enabled)} ` +
+        `qualified=${yesNo(provider.qualified)} ` +
+        `drifted=${yesNo(provider.drifted)} ` +
+        `disabled=${yesNo(provider.disabled)} ` +
+        `blocked=${yesNo(provider.blocked)}`,
+    ),
+    `Decision: ${result.result.summary}`,
+  ].join("\n");
+}
+
 function renderHuman(result, output, errors) {
   if (result.command === "doctor" && result.result?.findings) {
     output.write(`${renderDoctor(result)}\n`);
+    if (result.exitCode !== EXIT_SUCCESS) {
+      errors.write(`${result.error.message}\n`);
+    }
+    return;
+  }
+  if (
+    result.command === "provider" &&
+    (result.result?.providers || result.result?.provider)
+  ) {
+    output.write(`${renderProvider(result)}\n`);
     if (result.exitCode !== EXIT_SUCCESS) {
       errors.write(`${result.error.message}\n`);
     }
@@ -222,7 +272,10 @@ function renderHuman(result, output, errors) {
       result.command === "qualify"
         ? renderQualification(result)
         : null,
-    provider: result.result.summary,
+    provider:
+      result.command === "provider"
+        ? renderProvider(result)
+        : null,
     uninstall:
       result.scope === "global"
         ? result.result.installation === "removed"
@@ -269,6 +322,37 @@ function qualificationArguments(commandArgs) {
   return null;
 }
 
+function providerArguments(commandArgs) {
+  if (
+    commandArgs.length === 1 ||
+    (commandArgs.length === 2 && commandArgs[1] === "list")
+  ) {
+    return { operation: "list" };
+  }
+  if (
+    commandArgs.length === 3 &&
+    ["enable", "disable"].includes(commandArgs[1])
+  ) {
+    return {
+      operation: commandArgs[1],
+      providerId: commandArgs[2],
+    };
+  }
+  if (
+    (commandArgs.length === 3 ||
+      (commandArgs.length === 4 &&
+        commandArgs[3] === "--allow-live")) &&
+    commandArgs[1] === "qualify"
+  ) {
+    return {
+      operation: "qualify",
+      providerId: commandArgs[2],
+      allowLive: commandArgs.includes("--allow-live"),
+    };
+  }
+  return null;
+}
+
 function commandArgumentsAreValid(commandArgs) {
   return (
     commandArgs.length === 1 ||
@@ -290,8 +374,7 @@ function commandArgumentsAreValid(commandArgs) {
       commandArgs.length === 2 &&
       commandArgs[1] === "--global") ||
     (commandArgs[0] === "provider" &&
-      commandArgs.length === 2 &&
-      commandArgs[1] === "list") ||
+      providerArguments(commandArgs) !== null) ||
     (commandArgs[0] === "qualify" &&
       qualificationArguments(commandArgs) !== null)
   );
@@ -359,6 +442,10 @@ export function runCli(
       qualification:
         command === "qualify"
           ? qualificationArguments(commandArgs)
+          : undefined,
+      provider:
+        command === "provider"
+          ? providerArguments(commandArgs)
           : undefined,
     };
     const needsInteractiveGlobalConfirmation =

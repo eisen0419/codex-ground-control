@@ -40,7 +40,10 @@ codex-ground-control doctor
 codex-ground-control qualify
 codex-ground-control qualify verify <run-identity> <evidence-anchor>
 codex-ground-control qualify reproduce <run-identity> <scenario-id>
-codex-ground-control provider
+codex-ground-control provider list
+codex-ground-control provider enable pi
+codex-ground-control provider qualify pi --allow-live
+codex-ground-control provider disable pi
 codex-ground-control uninstall
 ```
 
@@ -75,11 +78,14 @@ live qualification.
 the exact pre-install project instructions. Drift fails closed and is left
 untouched for the user to resolve.
 
-Project-local installation remains the default. Without `--global`, lifecycle
-commands do not modify `~/.codex`, `~/.agents/skills`, or other user-level
-targets. The read-only `doctor` command is the deliberate exception: it
-inspects the presence and shape of `~/.codex/hooks.json` and the two native
-entry-point flags in `~/.codex/config.toml`, without printing their contents.
+Project-local installation remains the default. Without `--global`, `init` and
+`uninstall` do not modify `~/.codex`, `~/.agents/skills`, or other user-owned
+configuration. `doctor` only reads the presence and shape of
+`~/.codex/hooks.json` and the two native entry-point flags in
+`~/.codex/config.toml`, without printing their contents. Qualification evidence
+and project-scoped provider preferences are the explicit product-owned
+exception under `~/.codex-ground-control/`; they do not alter Codex or provider
+configuration.
 
 ### Explicit global installation
 
@@ -139,7 +145,42 @@ under `schemas/qualification/`. Unknown fields and illegal states are rejected,
 and a packaged audit fixture detects drift between receipt-schema decisions and
 the public behavior validator. Qualification evidence records only allowlisted
 runtime facts and component hashes, never credential or arbitrary environment
-values. `provider` reports that no optional providers are configured.
+values.
+
+### Optional provider lifecycle
+
+Pi, AGY, and Grok are independent optional gates. `provider list` reports the
+same detected, configured, enabled, qualified, drifted, disabled, blocked, and
+execution-decision fields in JSON and human modes. `configured` means only
+that a documented credential environment variable was observed; Ground
+Control does not read provider credential values or private CLI credential
+stores.
+
+All providers ship disabled and unqualified. `provider enable <id>` records a
+project-scoped preference but cannot authorize execution without current
+qualification evidence. `provider disable <id>` immediately blocks new
+qualification or execution while preserving credentials and historical
+evidence. Preferences are stored under
+`~/.codex-ground-control/providers/<project-key>/` without the project path or
+credential values.
+
+Live qualification is never implicit:
+
+```sh
+codex-ground-control provider qualify <pi|agy|grok> --allow-live
+```
+
+Without `--allow-live`, the command fails before starting a provider process.
+The command runs only the packaged `public-sources-v1` probe; there is no CLI
+argument for a user prompt or private repository context. Provider receipts
+bind the observed public CLI version, provider-specific FleetRunner adapter,
+model or search contract, output schema, fixed probe, source rules, and shared
+FleetRunner boundary. Evidence is append-only under
+`~/.codex-ground-control/evidence/providers/`.
+
+CLI or contract drift invalidates only providers that depend on that
+fingerprint. A provider failure updates only its own gate: other current
+providers and the default offline core qualification remain usable.
 
 The offline campaign also qualifies the deterministic FleetRunner boundary.
 Jobs can select only a manifest adapter, allowed activity, bounded prompt and

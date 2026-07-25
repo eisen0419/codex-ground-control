@@ -1,27 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { inspectFile } from "./safe-files.js";
-
-const PROVIDERS = [
-  {
-    id: "pi",
-    command: "pi",
-    credentialVariables: [
-      "ZAI_CODING_CN_API_KEY",
-      "DEEPSEEK_API_KEY",
-      "MINIMAX_API_KEY",
-    ],
-  },
-  {
-    id: "agy",
-    command: "agy",
-    credentialVariables: ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
-  },
-  {
-    id: "grok",
-    command: "grok",
-    credentialVariables: ["XAI_API_KEY", "GROK_API_KEY"],
-  },
-];
+import { providerDefinitions } from "./provider-lifecycle.js";
 
 const VERSION_ENVIRONMENT_KEYS = [
   "PATH",
@@ -527,7 +506,7 @@ export function diagnoseRuntime(options) {
     inspectCodexConfig(options.homeDirectory),
   ];
   const gates = {};
-  for (const provider of PROVIDERS) {
+  for (const provider of providerDefinitions) {
     const version = publicVersion(provider.command, {
       ...options,
       environment,
