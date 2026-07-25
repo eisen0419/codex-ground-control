@@ -1112,6 +1112,41 @@ export function initializeGlobalWorkflow(homeRoot, options = {}) {
   };
 }
 
+export function diagnoseGlobalWorkflow(homeRoot) {
+  const installation = readGlobalInstallation(homeRoot);
+  if (installation.state === "absent") {
+    throw new ManagedWorkflowError(
+      "INSTALLATION_NOT_FOUND",
+      "Ground Control is not initialized globally.",
+    );
+  }
+  if (installation.state === "partial") {
+    validatePartialGlobalInstallation(homeRoot, installation);
+    throw new ManagedWorkflowError(
+      "RECOVERY_REQUIRED",
+      "The global installation is incomplete and requires confirmed uninstall recovery.",
+    );
+  }
+  const validated = validateGlobalInstallation(
+    homeRoot,
+    installation,
+  );
+  return {
+    gitWorktree: "passed",
+    installation: "passed",
+    workflow: "passed",
+    managedBlock: "passed",
+    releaseLock: {
+      status: "passed",
+      ...releaseSummary(),
+    },
+    assets: {
+      status: "passed",
+      count: validated.manifest.assets.length,
+    },
+  };
+}
+
 export function uninstallGlobalWorkflow(homeRoot, options = {}) {
   const installation = readGlobalInstallation(homeRoot);
   if (installation.state === "absent") {

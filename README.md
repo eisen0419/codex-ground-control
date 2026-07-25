@@ -16,6 +16,7 @@ affiliated with or endorsed by OpenAI.
 - macOS
 - Node.js 22 or newer
 - Git
+- Codex CLI
 
 ## Local package smoke test
 
@@ -54,15 +55,29 @@ unchanged and performs no writes. A normal project-local installation:
 - records ownership, before/after SHA-256 hashes, release provenance, and the
   `AGENTS.md` backup association in `.codex-ground-control/manifest.json`.
 
-Re-running `init` against the same release is idempotent. `doctor` verifies the
-installed workflow, managed block, vendored bytes, release lock, and MIT license
-hash. `uninstall` removes only unchanged files owned by Ground Control and
-restores the exact pre-install project instructions. Drift fails closed and is
-left untouched for the user to resolve.
+Re-running `init` against the same release is idempotent. `doctor` is read-only:
+it verifies macOS, Node.js, the Git boundary, Codex CLI, the installation
+manifest, managed block, vendored skills and release lock. It also reports
+ambient hooks, native Codex entry points, Pi/AGY/Grok public CLI versions, and
+the independent `core`, provider, `native`, and `write` gates. Provider
+detection or credential presence never means enabled, authorized, or qualified.
+Optional provider absence does not fail `core`.
 
-Project-local installation remains the default. Without `--global`, commands
-do not read or modify `~/.codex`, `~/.agents/skills`, or other user-level
-targets.
+Each doctor finding has a stable ID, severity, state, scope, observed summary,
+and next action. Human output groups core, provider, and fail-closed boundary
+findings; `--json` emits the same decision as one versioned object. Doctor does
+not repair configuration, install providers, inspect credential values, or run
+live qualification.
+
+`uninstall` removes only unchanged files owned by Ground Control and restores
+the exact pre-install project instructions. Drift fails closed and is left
+untouched for the user to resolve.
+
+Project-local installation remains the default. Without `--global`, lifecycle
+commands do not modify `~/.codex`, `~/.agents/skills`, or other user-level
+targets. The read-only `doctor` command is the deliberate exception: it
+inspects the presence and shape of `~/.codex/hooks.json` and the two native
+entry-point flags in `~/.codex/config.toml`, without printing their contents.
 
 ### Explicit global installation
 
@@ -71,6 +86,7 @@ Use global scope only when the workflow should apply across projects:
 ```sh
 codex-ground-control init --global --dry-run
 codex-ground-control init --global
+codex-ground-control doctor --global
 codex-ground-control uninstall --global
 ```
 
@@ -129,8 +145,8 @@ home, creates a fresh Git repository, denies network calls in the CLI process,
 and verifies dry-run, empty and existing project instructions, idempotent
 initialization, explicit global confirmation, private backups, interrupted
 install recovery, symlink fault injection, doctor integrity checks, drift
-refusal, evidence retention, and exact restoration through the public
-executable.
+refusal, runtime incompatibility, provider isolation, secret non-disclosure,
+evidence retention, and exact restoration through the public executable.
 
 ## License
 

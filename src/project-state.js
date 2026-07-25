@@ -12,9 +12,11 @@ import {
 } from "./managed-workflow.js";
 import { ManagedWorkflowError } from "./workflow-error.js";
 import {
+  diagnoseGlobalWorkflow,
   initializeGlobalWorkflow,
   uninstallGlobalWorkflow,
 } from "./global-workflow.js";
+import { diagnoseRuntime } from "./doctor.js";
 
 const EXIT_SUCCESS = 0;
 const EXIT_BLOCKED = 2;
@@ -58,6 +60,26 @@ function globalBlocked(code, message, result) {
     changed: false,
     ...(result ? { result } : {}),
     error: { code, message },
+  };
+}
+
+function doctorOutcome(projectRoot, options, diagnosis, error) {
+  const isBlocked = Boolean(error) || diagnosis.health === "blocked";
+  if (!isBlocked) {
+    return options.global
+      ? globalSuccess(false, diagnosis)
+      : success(projectRoot, false, diagnosis);
+  }
+  const code = error?.code ?? "DOCTOR_BLOCKED";
+  const message =
+    error?.message ??
+    "Ground Control doctor found operational blockers.";
+  if (options.global) {
+    return globalBlocked(code, message, diagnosis);
+  }
+  return {
+    ...blocked(projectRoot, code, message),
+    result: diagnosis,
   };
 }
 
@@ -192,20 +214,58 @@ export function diagnoseProject(startDirectory, options = {}) {
     options.homeDirectory,
   );
   if (project.error) {
-    return project.error;
+    if (project.error.error.code !== "GIT_WORKTREE_REQUIRED") {
+      return project.error;
+    }
+    const diagnosis = diagnoseRuntime({
+      scope: options.global ? "global" : "project",
+      cwd: resolve(startDirectory),
+      homeDirectory: options.homeDirectory,
+      gitWorktree: false,
+    });
+    return doctorOutcome(
+      project.error.projectRoot,
+      options,
+      diagnosis,
+      project.error.error,
+    );
   }
 
   try {
-    return success(
+    const installation = options.global
+      ? diagnoseGlobalWorkflow(options.homeDirectory)
+      : diagnoseManagedWorkflow(project.projectRoot);
+    const diagnosis = diagnoseRuntime({
+      scope: options.global ? "global" : "project",
+      projectRoot: project.projectRoot,
+      cwd: project.projectRoot,
+      homeDirectory: options.homeDirectory,
+      gitWorktree: true,
+      installation,
+    });
+    return doctorOutcome(
       project.projectRoot,
-      false,
-      diagnoseManagedWorkflow(project.projectRoot),
+      options,
+      diagnosis,
     );
   } catch (error) {
     if (!(error instanceof ManagedWorkflowError)) {
       throw error;
     }
-    return blocked(project.projectRoot, error.code, error.message);
+    const diagnosis = diagnoseRuntime({
+      scope: options.global ? "global" : "project",
+      projectRoot: project.projectRoot,
+      cwd: project.projectRoot,
+      homeDirectory: options.homeDirectory,
+      gitWorktree: true,
+      installationError: error,
+    });
+    return doctorOutcome(
+      project.projectRoot,
+      options,
+      diagnosis,
+      error,
+    );
   }
 }
 

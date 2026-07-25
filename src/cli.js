@@ -131,7 +131,52 @@ function renderGlobalPlan(result) {
   ].join("\n");
 }
 
+function renderDoctor(result) {
+  const findings = result.result.findings;
+  const groups = [
+    [
+      `Core (${result.result.gates.core.status}):`,
+      findings.filter(
+        ({ scope, id }) =>
+          scope === "core" && !id.startsWith("provider."),
+      ),
+    ],
+    [
+      "Optional providers:",
+      findings.filter(({ id }) => id.startsWith("provider.")),
+    ],
+    [
+      "Fail-closed boundaries:",
+      findings.filter(
+        ({ scope, id }) =>
+          ["native", "write"].includes(scope) ||
+          id.startsWith("gate."),
+      ),
+    ],
+  ];
+  return [
+    `Ground Control doctor: ${result.result.health} (${result.result.scope})`,
+    ...groups.flatMap(([heading, entries]) => [
+      heading,
+      ...entries.map(
+        ({ state, id, observed, action }) =>
+          `  ${state.toUpperCase()} ${id}: ${observed}` +
+          (state === "healthy" || state === "blocked"
+            ? ""
+            : `; next: ${action}`),
+      ),
+    ]),
+  ].join("\n");
+}
+
 function renderHuman(result, output, errors) {
+  if (result.command === "doctor" && result.result?.findings) {
+    output.write(`${renderDoctor(result)}\n`);
+    if (result.exitCode !== EXIT_SUCCESS) {
+      errors.write(`${result.error.message}\n`);
+    }
+    return;
+  }
   if (result.exitCode !== EXIT_SUCCESS) {
     if (
       result.scope === "global" &&
@@ -145,7 +190,6 @@ function renderHuman(result, output, errors) {
 
   const messages = {
     init: renderInit(result),
-    doctor: "Ground Control doctor: passed.",
     qualify: `Offline qualification passed: ${result.result.fixture}.`,
     provider: result.result.summary,
     uninstall:
@@ -180,6 +224,9 @@ function commandArgumentsAreValid(commandArgs) {
       new Set(commandArgs.slice(1)).size === commandArgs.length - 1 &&
       (!commandArgs.includes("--confirm-global") ||
         commandArgs.includes("--global"))) ||
+    (commandArgs[0] === "doctor" &&
+      commandArgs.length === 2 &&
+      commandArgs[1] === "--global") ||
     (commandArgs[0] === "provider" &&
       commandArgs.length === 2 &&
       commandArgs[1] === "list")

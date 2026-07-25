@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -9,6 +10,7 @@ import {
   realpathSync,
   readdirSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,7 +23,7 @@ let packedCli;
 
 function isolatedEnvironment(homeDirectory) {
   return {
-    PATH: process.env.PATH,
+    PATH: packedCli?.runtimePath ?? process.env.PATH,
     HOME: homeDirectory,
     TMPDIR: tmpdir(),
     LANG: "C",
@@ -127,6 +129,14 @@ before(() => {
     },
   );
 
+  const runtimeBin = join(sandbox, "runtime-bin");
+  mkdirSync(runtimeBin);
+  symlinkSync(process.execPath, join(runtimeBin, "node"));
+  writeFileSync(
+    join(runtimeBin, "codex"),
+    "#!/bin/sh\nprintf 'codex-cli 0.145.0\\n'\n",
+  );
+  chmodSync(join(runtimeBin, "codex"), 0o755);
   packedCli = {
     cli: join(
       installDirectory,
@@ -140,6 +150,7 @@ before(() => {
       "node_modules",
       "codex-ground-control",
     ),
+    runtimePath: `${runtimeBin}:/usr/bin:/bin`,
     sandbox,
   };
 });
@@ -346,24 +357,21 @@ test("init installs and restores the project-local workflow in an empty project"
 
     const diagnosed = runJson(["doctor"], context);
     assert.equal(diagnosed.status, 0);
-    assert.deepEqual(diagnosed.receipt.result, {
-      gitWorktree: "passed",
-      installation: "passed",
-      workflow: "passed",
-      managedBlock: "passed",
-      releaseLock: {
-        status: "passed",
-        repository: "https://github.com/mattpocock/skills.git",
-        revision: "ed37663cc5fbef691ddfecd080dff42f7e7e350d",
-        contentSha256:
-          "db518afff5120358bb751eadab8a3c0ee498f35cedd4e29abd108eb28d560934",
-        license: "MIT",
-      },
-      assets: {
-        status: "passed",
-        count: manifest.assets.length,
-      },
-    });
+    assert.equal(diagnosed.receipt.result.schemaVersion, "1");
+    assert.equal(diagnosed.receipt.result.health, "healthy");
+    assert.equal(diagnosed.receipt.result.scope, "project");
+    assert.equal(diagnosed.receipt.result.gates.core.status, "passed");
+    assert.equal(diagnosed.receipt.result.gates.pi.status, "unavailable");
+    assert.equal(diagnosed.receipt.result.gates.agy.status, "unavailable");
+    assert.equal(diagnosed.receipt.result.gates.grok.status, "unavailable");
+    assert.equal(diagnosed.receipt.result.gates.native.status, "blocked");
+    assert.equal(diagnosed.receipt.result.gates.write.status, "blocked");
+    assert.equal(
+      diagnosed.receipt.result.findings.find(
+        ({ id }) => id === "installation.skills",
+      ).observed,
+      `${manifest.assets.length} managed assets verified`,
+    );
 
     const uninstalled = runJson(["uninstall"], context);
     assert.equal(uninstalled.status, 0);

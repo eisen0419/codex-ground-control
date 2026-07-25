@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdtempSync,
   mkdirSync,
@@ -9,6 +10,7 @@ import {
   readdirSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -77,10 +79,18 @@ function withPackedCli(callback) {
   const homeDirectory = join(sandbox, "home");
   const projectDirectory = join(sandbox, "project");
   const networkTrap = join(sandbox, "deny-network.mjs");
+  const runtimeBin = join(sandbox, "runtime-bin");
 
   mkdirSync(packDirectory);
   mkdirSync(homeDirectory);
   mkdirSync(projectDirectory);
+  mkdirSync(runtimeBin);
+  symlinkSync(process.execPath, join(runtimeBin, "node"));
+  writeFileSync(
+    join(runtimeBin, "codex"),
+    "#!/bin/sh\nprintf 'codex-cli 0.145.0\\n'\n",
+  );
+  chmodSync(join(runtimeBin, "codex"), 0o755);
   writeFileSync(
     networkTrap,
     [
@@ -133,10 +143,14 @@ function withPackedCli(callback) {
       `tarball install failed\nstdout:\n${install.stdout}\nstderr:\n${install.stderr}`,
     );
 
-    execFileSync("git", ["init", "-b", "main"], {
+    const runtimePath = `${runtimeBin}:/usr/bin:/bin`;
+    execFileSync("/usr/bin/git", ["init", "-b", "main"], {
       cwd: projectDirectory,
       encoding: "utf8",
-      env: isolatedEnvironment(homeDirectory),
+      env: {
+        ...isolatedEnvironment(homeDirectory),
+        PATH: runtimePath,
+      },
     });
 
     callback({
@@ -150,6 +164,7 @@ function withPackedCli(callback) {
       installDirectory,
       networkTrap,
       projectDirectory,
+      runtimePath,
       sandbox,
     });
   } finally {
@@ -206,6 +221,7 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "package.json",
       "release-lock.json",
       "src/cli.js",
+      "src/doctor.js",
       "src/global-workflow.js",
       "src/managed-workflow.js",
       "src/project-state.js",
@@ -223,9 +239,9 @@ test("package metadata and tarball contents define the public CLI contract", () 
 });
 
 test("packed CLI exposes stable help and version output", () => {
-  withPackedCli(({ cli, homeDirectory, projectDirectory }) => {
+  withPackedCli(({ cli, homeDirectory, projectDirectory, runtimePath }) => {
     const environment = {
-      PATH: process.env.PATH,
+      PATH: runtimePath,
       HOME: homeDirectory,
       TMPDIR: tmpdir(),
     };
@@ -272,7 +288,7 @@ function runJson(cli, command, context) {
   const result = run(cli, [...command, "--json"], {
     cwd: context.projectDirectory,
     env: {
-      PATH: process.env.PATH,
+      PATH: context.runtimePath ?? process.env.PATH,
       HOME: context.homeDirectory,
       TMPDIR: tmpdir(),
       NODE_OPTIONS: `--import=${pathToFileURL(context.networkTrap).href}`,
@@ -298,13 +314,21 @@ function runJson(cli, command, context) {
 
 test("packed CLI completes an offline reversible lifecycle", () => {
   withPackedCli(
-    ({ cli, homeDirectory, networkTrap, projectDirectory, sandbox }) => {
+    ({
+      cli,
+      homeDirectory,
+      networkTrap,
+      projectDirectory,
+      runtimePath,
+      sandbox,
+    }) => {
       writeFileSync(join(projectDirectory, "user-notes.txt"), "keep me\n");
       const before = snapshotFiles(projectDirectory);
       const context = {
         homeDirectory,
         networkTrap,
         projectDirectory,
+        runtimePath,
       };
 
       const initialized = runJson(cli, ["init"], context);
@@ -350,24 +374,21 @@ test("packed CLI completes an offline reversible lifecycle", () => {
 
       const diagnosed = runJson(cli, ["doctor"], context);
       assert.equal(diagnosed.status, 0);
-      assert.deepEqual(diagnosed.receipt.result, {
-        gitWorktree: "passed",
-        installation: "passed",
-        workflow: "passed",
-        managedBlock: "passed",
-        releaseLock: {
-          status: "passed",
-          repository: "https://github.com/mattpocock/skills.git",
-          revision: "ed37663cc5fbef691ddfecd080dff42f7e7e350d",
-          contentSha256:
-            "db518afff5120358bb751eadab8a3c0ee498f35cedd4e29abd108eb28d560934",
-          license: "MIT",
-        },
-        assets: {
-          status: "passed",
-          count: manifest.assets.length,
-        },
-      });
+      assert.equal(diagnosed.receipt.result.schemaVersion, "1");
+      assert.equal(diagnosed.receipt.result.health, "healthy");
+      assert.equal(diagnosed.receipt.result.scope, "project");
+      assert.equal(diagnosed.receipt.result.gates.core.status, "passed");
+      assert.equal(diagnosed.receipt.result.gates.pi.status, "unavailable");
+      assert.equal(diagnosed.receipt.result.gates.agy.status, "unavailable");
+      assert.equal(diagnosed.receipt.result.gates.grok.status, "unavailable");
+      assert.equal(diagnosed.receipt.result.gates.native.status, "blocked");
+      assert.equal(diagnosed.receipt.result.gates.write.status, "blocked");
+      assert.equal(
+        diagnosed.receipt.result.findings.find(
+          ({ id }) => id === "installation.skills",
+        ).observed,
+        `${manifest.assets.length} managed assets verified`,
+      );
 
       const qualified = runJson(cli, ["qualify"], context);
       assert.equal(qualified.status, 0);
@@ -470,9 +491,15 @@ test("JSON mode keeps unexpected operational failures machine-readable", () => {
 
 test("packed CLI keeps human lifecycle output concise and stable", () => {
   withPackedCli(
-    ({ cli, homeDirectory, networkTrap, projectDirectory }) => {
+    ({
+      cli,
+      homeDirectory,
+      networkTrap,
+      projectDirectory,
+      runtimePath,
+    }) => {
       const environment = {
-        PATH: process.env.PATH,
+        PATH: runtimePath,
         HOME: homeDirectory,
         TMPDIR: tmpdir(),
         NODE_OPTIONS: `--import=${pathToFileURL(networkTrap).href}`,
@@ -491,7 +518,13 @@ test("packed CLI keeps human lifecycle output concise and stable", () => {
 
       const diagnosed = invoke("doctor");
       assert.equal(diagnosed.status, 0);
-      assert.equal(diagnosed.stdout, "Ground Control doctor: passed.\n");
+      assert.match(
+        diagnosed.stdout,
+        /^Ground Control doctor: healthy \(project\)\n/,
+      );
+      assert.match(diagnosed.stdout, /^Core \(passed\):$/m);
+      assert.match(diagnosed.stdout, /^Optional providers:$/m);
+      assert.match(diagnosed.stdout, /^Fail-closed boundaries:$/m);
       assert.equal(diagnosed.stderr, "");
 
       const qualified = invoke("qualify");
@@ -520,7 +553,14 @@ test("packed CLI keeps human lifecycle output concise and stable", () => {
 
       const blocked = invoke("doctor");
       assert.equal(blocked.status, 2);
-      assert.equal(blocked.stdout, "");
+      assert.match(
+        blocked.stdout,
+        /^Ground Control doctor: blocked \(project\)\n/,
+      );
+      assert.match(
+        blocked.stdout,
+        /^  MISSING installation\.manifest: installation manifest missing/m,
+      );
       assert.equal(
         blocked.stderr,
         "Ground Control is not initialized in this Git worktree.\n",
