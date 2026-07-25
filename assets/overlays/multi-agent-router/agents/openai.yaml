@@ -1,0 +1,3 @@
+interface:
+  display_name: "Ground Control Router"
+  short_description: "Route bounded work within the active Matt phase"

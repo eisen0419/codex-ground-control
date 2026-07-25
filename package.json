@@ -10,15 +10,22 @@
     "codex-ground-control": "bin/codex-ground-control.js"
   },
   "files": [
+    "assets",
     "bin",
     "fixtures",
+    "release-lock.json",
     "src",
+    "THIRD_PARTY_NOTICES.md",
+    "vendor",
     "LICENSE",
     "README.md"
   ],
   "scripts": {
+    "release-lock:generate": "node scripts/release-lock.mjs --write",
+    "release-lock:verify": "node scripts/release-lock.mjs",
     "test": "node --test --test-reporter=spec tests/*.test.mjs",
-    "test:tracer": "node --test --test-reporter=spec tests/tracer-bullet.test.mjs"
+    "test:tracer": "node --test --test-reporter=spec tests/tracer-bullet.test.mjs",
+    "typecheck": "node --check bin/codex-ground-control.js && node --check src/cli.js && node --check src/managed-workflow.js && node --check src/project-state.js && node --check src/workflow-assets.js"
   },
   "license": "MIT"
 }

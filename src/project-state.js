@@ -1,28 +1,18 @@
 import { spawnSync } from "node:child_process";
 import {
-  existsSync,
-  mkdirSync,
   readFileSync,
-  readdirSync,
-  rmdirSync,
-  unlinkSync,
-  writeFileSync,
 } from "node:fs";
-import { join, parse, resolve } from "node:path";
+import { parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  diagnoseManagedWorkflow,
+  initializeManagedWorkflow,
+  ManagedWorkflowError,
+  uninstallManagedWorkflow,
+} from "./managed-workflow.js";
 
 const EXIT_SUCCESS = 0;
 const EXIT_BLOCKED = 2;
-const MANAGED_DIRECTORY = ".codex-ground-control";
-const MANIFEST_NAME = "manifest.json";
-const MANIFEST_PATH = `${MANAGED_DIRECTORY}/${MANIFEST_NAME}`;
-const MANIFEST = {
-  schemaVersion: "1",
-  product: "codex-ground-control",
-  version: "0.1.0",
-  managedPaths: [MANIFEST_PATH],
-};
-
 function success(projectRoot, changed, result) {
   return {
     status: "ok",
@@ -83,25 +73,7 @@ function resolveProject(startDirectory) {
 
   return {
     projectRoot,
-    managedDirectory: join(projectRoot, MANAGED_DIRECTORY),
-    manifestPath: join(projectRoot, MANIFEST_PATH),
   };
-}
-
-function readManifest(project) {
-  if (!existsSync(project.manifestPath)) {
-    return { state: "absent" };
-  }
-
-  try {
-    const manifest = JSON.parse(readFileSync(project.manifestPath, "utf8"));
-    if (JSON.stringify(manifest) !== JSON.stringify(MANIFEST)) {
-      return { state: "conflict" };
-    }
-    return { state: "installed" };
-  } catch {
-    return { state: "conflict" };
-  }
 }
 
 function requireInstalled(startDirectory) {
@@ -110,22 +82,17 @@ function requireInstalled(startDirectory) {
     return project;
   }
 
-  const manifest = readManifest(project);
-  if (manifest.state === "absent") {
+  try {
+    diagnoseManagedWorkflow(project.projectRoot);
+  } catch (error) {
+    if (!(error instanceof ManagedWorkflowError)) {
+      throw error;
+    }
     return {
       error: blocked(
         project.projectRoot,
-        "INSTALLATION_NOT_FOUND",
-        "Ground Control is not initialized in this Git worktree.",
-      ),
-    };
-  }
-  if (manifest.state === "conflict") {
-    return {
-      error: blocked(
-        project.projectRoot,
-        "INSTALLATION_CONFLICT",
-        "The Ground Control manifest is invalid or has been modified.",
+        error.code,
+        error.message,
       ),
     };
   }
@@ -133,62 +100,41 @@ function requireInstalled(startDirectory) {
   return project;
 }
 
-export function initializeProject(startDirectory) {
+export function initializeProject(startDirectory, options = {}) {
   const project = resolveProject(startDirectory);
   if (project.error) {
     return project.error;
   }
 
-  const manifest = readManifest(project);
-  if (manifest.state === "installed") {
-    return success(project.projectRoot, false, {
-      installation: "unchanged",
-      manifest: MANIFEST_PATH,
-    });
+  try {
+    const outcome = initializeManagedWorkflow(project.projectRoot, options);
+    return success(project.projectRoot, outcome.changed, outcome.result);
+  } catch (error) {
+    if (!(error instanceof ManagedWorkflowError)) {
+      throw error;
+    }
+    return blocked(project.projectRoot, error.code, error.message);
   }
-  if (manifest.state === "conflict") {
-    return blocked(
-      project.projectRoot,
-      "INSTALLATION_CONFLICT",
-      "The Ground Control manifest is invalid or has been modified.",
-    );
-  }
-
-  if (existsSync(project.managedDirectory)) {
-    return blocked(
-      project.projectRoot,
-      "INSTALLATION_CONFLICT",
-      "The managed directory already exists without a valid manifest.",
-    );
-  }
-
-  mkdirSync(project.managedDirectory, { mode: 0o700 });
-  writeFileSync(
-    project.manifestPath,
-    `${JSON.stringify(MANIFEST, null, 2)}\n`,
-    {
-      encoding: "utf8",
-      flag: "wx",
-      mode: 0o600,
-    },
-  );
-
-  return success(project.projectRoot, true, {
-    installation: "created",
-    manifest: MANIFEST_PATH,
-  });
 }
 
 export function diagnoseProject(startDirectory) {
-  const project = requireInstalled(startDirectory);
+  const project = resolveProject(startDirectory);
   if (project.error) {
     return project.error;
   }
 
-  return success(project.projectRoot, false, {
-    gitWorktree: "passed",
-    installation: "passed",
-  });
+  try {
+    return success(
+      project.projectRoot,
+      false,
+      diagnoseManagedWorkflow(project.projectRoot),
+    );
+  } catch (error) {
+    if (!(error instanceof ManagedWorkflowError)) {
+      throw error;
+    }
+    return blocked(project.projectRoot, error.code, error.message);
+  }
 }
 
 export function qualifyProject(startDirectory) {
@@ -237,33 +183,13 @@ export function uninstallProject(startDirectory) {
     return project.error;
   }
 
-  const manifest = readManifest(project);
-  if (manifest.state === "absent" && !existsSync(project.managedDirectory)) {
-    return success(project.projectRoot, false, {
-      installation: "absent",
-    });
+  try {
+    const outcome = uninstallManagedWorkflow(project.projectRoot);
+    return success(project.projectRoot, outcome.changed, outcome.result);
+  } catch (error) {
+    if (!(error instanceof ManagedWorkflowError)) {
+      throw error;
+    }
+    return blocked(project.projectRoot, error.code, error.message);
   }
-  if (manifest.state !== "installed") {
-    return blocked(
-      project.projectRoot,
-      "INSTALLATION_CONFLICT",
-      "The managed state is missing, invalid, or has been modified.",
-    );
-  }
-
-  const entries = readdirSync(project.managedDirectory);
-  if (entries.length !== 1 || entries[0] !== MANIFEST_NAME) {
-    return blocked(
-      project.projectRoot,
-      "INSTALLATION_CONFLICT",
-      "The managed directory contains files that Ground Control does not own.",
-    );
-  }
-
-  unlinkSync(project.manifestPath);
-  rmdirSync(project.managedDirectory);
-
-  return success(project.projectRoot, true, {
-    installation: "removed",
-  });
 }

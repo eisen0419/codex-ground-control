@@ -24,6 +24,7 @@ export const HELP_TEXT = [
   "",
   "Options:",
   "  --json     Emit exactly one JSON receipt",
+  "  --dry-run  Preview project-local init without changing files",
   "  -h, --help Show this help",
   "  -v, --version Show the version",
   "",
@@ -74,6 +75,28 @@ function invalidUsage(commandArgs, json, output, errors) {
   return EXIT_USAGE;
 }
 
+function renderInit(result) {
+  if (result.result.installation === "preview") {
+    const { add, update, unchanged } = result.result.plan;
+    const group = (label, paths) =>
+      [
+        `${label}:`,
+        ...(paths.length > 0
+          ? paths.map((path) => `  ${path}`)
+          : ["  (none)"]),
+      ].join("\n");
+    return [
+      "Ground Control init preview:",
+      group("Add", add),
+      group("Update", update),
+      group("Unchanged", unchanged),
+    ].join("\n");
+  }
+  return result.result.installation === "created"
+    ? `Initialized Ground Control in ${result.projectRoot}.`
+    : `Ground Control is already initialized in ${result.projectRoot}.`;
+}
+
 function renderHuman(result, output, errors) {
   if (result.exitCode !== EXIT_SUCCESS) {
     errors.write(`${result.error.message}\n`);
@@ -81,10 +104,7 @@ function renderHuman(result, output, errors) {
   }
 
   const messages = {
-    init:
-      result.result.installation === "created"
-        ? `Initialized Ground Control in ${result.projectRoot}.`
-        : `Ground Control is already initialized in ${result.projectRoot}.`,
+    init: renderInit(result),
     doctor: "Ground Control doctor: passed.",
     qualify: `Offline qualification passed: ${result.result.fixture}.`,
     provider: result.result.summary,
@@ -100,6 +120,9 @@ function renderHuman(result, output, errors) {
 function commandArgumentsAreValid(commandArgs) {
   return (
     commandArgs.length === 1 ||
+    (commandArgs[0] === "init" &&
+      commandArgs.length === 2 &&
+      commandArgs[1] === "--dry-run") ||
     (commandArgs[0] === "provider" &&
       commandArgs.length === 2 &&
       commandArgs[1] === "list")
@@ -134,7 +157,9 @@ export function runCli(args, output = process.stdout, errors = process.stderr) {
 
   let outcome;
   try {
-    outcome = handler(process.cwd());
+    outcome = handler(process.cwd(), {
+      dryRun: commandArgs.includes("--dry-run"),
+    });
   } catch {
     outcome = {
       status: "blocked",

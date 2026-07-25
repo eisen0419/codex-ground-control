@@ -168,6 +168,10 @@ test("package metadata and tarball contents define the public CLI contract", () 
   assert.deepEqual(packageMetadata.bin, {
     "codex-ground-control": "bin/codex-ground-control.js",
   });
+  const releaseLock = JSON.parse(
+    readFileSync(join(repositoryRoot, "release-lock.json"), "utf8"),
+  );
+  const [mattSkills] = releaseLock.dependencies;
 
   const sandbox = mkdtempSync(join(tmpdir(), "codex-ground-control-pack-"));
   const homeDirectory = join(sandbox, "home");
@@ -188,17 +192,27 @@ test("package metadata and tarball contents define the public CLI contract", () 
       ),
     );
     assert.equal(packed.filename, "codex-ground-control-0.1.0.tgz");
+    const expectedFiles = [
+      ...mattSkills.assets.map((asset) => asset.sourcePath),
+      "vendor/mattpocock-skills/LICENSE",
+      "LICENSE",
+      "README.md",
+      "THIRD_PARTY_NOTICES.md",
+      "assets/overlays/agents-managed-block.md",
+      "assets/overlays/multi-agent-router/SKILL.md",
+      "assets/overlays/multi-agent-router/agents/openai.yaml",
+      "bin/codex-ground-control.js",
+      "fixtures/offline-uppercase.json",
+      "package.json",
+      "release-lock.json",
+      "src/cli.js",
+      "src/managed-workflow.js",
+      "src/project-state.js",
+      "src/workflow-assets.js",
+    ].sort();
     assert.deepEqual(
       packed.files.map(({ path }) => path).sort(),
-      [
-        "LICENSE",
-        "README.md",
-        "bin/codex-ground-control.js",
-        "fixtures/offline-uppercase.json",
-        "package.json",
-        "src/cli.js",
-        "src/project-state.js",
-      ],
+      expectedFiles,
     );
   } finally {
     rmSync(sandbox, { recursive: true, force: true });
@@ -236,6 +250,7 @@ test("packed CLI exposes stable help and version output", () => {
         "",
         "Options:",
         "  --json     Emit exactly one JSON receipt",
+        "  --dry-run  Preview project-local init without changing files",
         "  -h, --help Show this help",
         "  -v, --version Show the version",
         "",
@@ -301,6 +316,10 @@ test("packed CLI completes an offline reversible lifecycle", () => {
         result: {
           installation: "created",
           manifest: ".codex-ground-control/manifest.json",
+          releaseLock: {
+            revision: "ed37663cc5fbef691ddfecd080dff42f7e7e350d",
+            license: "MIT",
+          },
         },
       });
 
@@ -310,12 +329,12 @@ test("packed CLI completes an offline reversible lifecycle", () => {
         "manifest.json",
       );
       assert.equal(existsSync(manifestPath), true);
-      assert.deepEqual(JSON.parse(readFileSync(manifestPath, "utf8")), {
-        schemaVersion: "1",
-        product: "codex-ground-control",
-        version: "0.1.0",
-        managedPaths: [".codex-ground-control/manifest.json"],
-      });
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+      assert.equal(manifest.schemaVersion, "2");
+      assert.equal(manifest.product, "codex-ground-control");
+      assert.equal(manifest.version, "0.1.0");
+      assert.equal(manifest.managedBlock.path, "AGENTS.md");
+      assert.ok(manifest.assets.length > 50);
 
       const installedSnapshot = snapshotFiles(projectDirectory);
       const initializedAgain = runJson(cli, ["init"], context);
@@ -329,6 +348,20 @@ test("packed CLI completes an offline reversible lifecycle", () => {
       assert.deepEqual(diagnosed.receipt.result, {
         gitWorktree: "passed",
         installation: "passed",
+        workflow: "passed",
+        managedBlock: "passed",
+        releaseLock: {
+          status: "passed",
+          repository: "https://github.com/mattpocock/skills.git",
+          revision: "ed37663cc5fbef691ddfecd080dff42f7e7e350d",
+          contentSha256:
+            "db518afff5120358bb751eadab8a3c0ee498f35cedd4e29abd108eb28d560934",
+          license: "MIT",
+        },
+        assets: {
+          status: "passed",
+          count: manifest.assets.length,
+        },
       });
 
       const qualified = runJson(cli, ["qualify"], context);
