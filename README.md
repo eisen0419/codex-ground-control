@@ -60,9 +60,45 @@ hash. `uninstall` removes only unchanged files owned by Ground Control and
 restores the exact pre-install project instructions. Drift fails closed and is
 left untouched for the user to resolve.
 
-Project-local installation is the default and the only install scope currently
-implemented. These commands do not modify `~/.codex`, `~/.agents/skills`, or
-other user-level configuration.
+Project-local installation remains the default. Without `--global`, commands
+do not read or modify `~/.codex`, `~/.agents/skills`, or other user-level
+targets.
+
+### Explicit global installation
+
+Use global scope only when the workflow should apply across projects:
+
+```sh
+codex-ground-control init --global --dry-run
+codex-ground-control init --global
+codex-ground-control uninstall --global
+```
+
+In an interactive terminal, global `init` and `uninstall` print a path-level
+diff and require `y` or `yes`. Automation and JSON mode must add the separate
+`--confirm-global` flag:
+
+```sh
+codex-ground-control init --global --confirm-global --json
+codex-ground-control uninstall --global --confirm-global --json
+```
+
+Global scope manages only the bounded targets `~/.codex/AGENTS.md`,
+`~/.agents/skills/`, and product state under `~/.codex-ground-control/`.
+It refuses filesystem roots, a project rooted at the entire home directory,
+symlinked roots and symlinked managed paths. There is no force option.
+
+Before user configuration changes, global init creates a private, verifiable
+backup under `~/.codex-ground-control/backups/<backup-id>/`. Receipts contain
+the opaque backup ID and logical `~/` paths, never the previous instruction
+contents or absolute home path. An interrupted install leaves a transaction
+that blocks further init until confirmed global uninstall safely recovers it.
+
+Backups are retained while an installation or recoverable partial transaction
+exists and are consumed after successful restoration. Audit evidence under
+`~/.codex-ground-control/evidence/` has separate ownership and is preserved by
+ordinary uninstall. A missing or modified backup, manifest, managed block, or
+tool-owned asset produces a conflict before destructive cleanup.
 
 The `qualify` command runs a packaged deterministic fixture; `provider` reports
 that no optional providers are configured.
@@ -91,8 +127,10 @@ npm test
 The acceptance suite packs and installs the real npm tarball into a temporary
 home, creates a fresh Git repository, denies network calls in the CLI process,
 and verifies dry-run, empty and existing project instructions, idempotent
-initialization, doctor integrity checks, drift refusal, and exact restoration
-through the public executable.
+initialization, explicit global confirmation, private backups, interrupted
+install recovery, symlink fault injection, doctor integrity checks, drift
+refusal, evidence retention, and exact restoration through the public
+executable.
 
 ## License
 

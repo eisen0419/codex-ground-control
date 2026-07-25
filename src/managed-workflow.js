@@ -14,6 +14,7 @@ import {
   packagedRelease,
   packagedWorkflowAssets,
 } from "./workflow-assets.js";
+import { ManagedWorkflowError } from "./workflow-error.js";
 
 const MANAGED_DIRECTORY = ".codex-ground-control";
 const MANIFEST_PATH = `${MANAGED_DIRECTORY}/manifest.json`;
@@ -22,13 +23,7 @@ const AGENTS_BACKUP_PATH = `${MANAGED_DIRECTORY}/backups/AGENTS.md`;
 const START_MARKER = "<!-- codex-ground-control:managed:start -->";
 const END_MARKER = "<!-- codex-ground-control:managed:end -->";
 
-export class ManagedWorkflowError extends Error {
-  constructor(code, message) {
-    super(message);
-    this.name = "ManagedWorkflowError";
-    this.code = code;
-  }
-}
+export { ManagedWorkflowError } from "./workflow-error.js";
 
 function conflict(message) {
   throw new ManagedWorkflowError("INSTALLATION_CONFLICT", message);

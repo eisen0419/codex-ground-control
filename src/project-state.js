@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import {
+  realpathSync,
   readFileSync,
 } from "node:fs";
 import { parse, resolve } from "node:path";
@@ -7,9 +8,13 @@ import { fileURLToPath } from "node:url";
 import {
   diagnoseManagedWorkflow,
   initializeManagedWorkflow,
-  ManagedWorkflowError,
   uninstallManagedWorkflow,
 } from "./managed-workflow.js";
+import { ManagedWorkflowError } from "./workflow-error.js";
+import {
+  initializeGlobalWorkflow,
+  uninstallGlobalWorkflow,
+} from "./global-workflow.js";
 
 const EXIT_SUCCESS = 0;
 const EXIT_BLOCKED = 2;
@@ -33,6 +38,29 @@ function blocked(projectRoot, code, message) {
   };
 }
 
+function globalSuccess(changed, result) {
+  return {
+    status: "ok",
+    exitCode: EXIT_SUCCESS,
+    scope: "global",
+    targetRoot: "~",
+    changed,
+    result,
+  };
+}
+
+function globalBlocked(code, message, result) {
+  return {
+    status: "blocked",
+    exitCode: EXIT_BLOCKED,
+    scope: "global",
+    targetRoot: "~",
+    changed: false,
+    ...(result ? { result } : {}),
+    error: { code, message },
+  };
+}
+
 function findGitRoot(startDirectory) {
   const git = spawnSync("git", ["rev-parse", "--show-toplevel"], {
     cwd: startDirectory,
@@ -47,9 +75,20 @@ function findGitRoot(startDirectory) {
   return resolve(git.stdout.trim());
 }
 
-function resolveProject(startDirectory) {
+function resolveProject(
+  startDirectory,
+  homeDirectory = process.env.HOME,
+) {
   const requestedDirectory = resolve(startDirectory);
   const projectRoot = findGitRoot(requestedDirectory);
+  let resolvedHome = null;
+  if (typeof homeDirectory === "string") {
+    try {
+      resolvedHome = realpathSync(homeDirectory);
+    } catch {
+      resolvedHome = resolve(homeDirectory);
+    }
+  }
 
   if (!projectRoot) {
     return {
@@ -70,14 +109,26 @@ function resolveProject(startDirectory) {
       ),
     };
   }
+  if (resolvedHome && projectRoot === resolvedHome) {
+    return {
+      error: blocked(
+        projectRoot,
+        "UNSAFE_PROJECT_ROOT",
+        "Ground Control refuses to manage the entire user home as a project.",
+      ),
+    };
+  }
 
   return {
     projectRoot,
   };
 }
 
-function requireInstalled(startDirectory) {
-  const project = resolveProject(startDirectory);
+function requireInstalled(startDirectory, options = {}) {
+  const project = resolveProject(
+    startDirectory,
+    options.homeDirectory,
+  );
   if (project.error) {
     return project;
   }
@@ -101,7 +152,25 @@ function requireInstalled(startDirectory) {
 }
 
 export function initializeProject(startDirectory, options = {}) {
-  const project = resolveProject(startDirectory);
+  if (options.global) {
+    try {
+      const outcome = initializeGlobalWorkflow(
+        options.homeDirectory,
+        options,
+      );
+      return globalSuccess(outcome.changed, outcome.result);
+    } catch (error) {
+      if (!(error instanceof ManagedWorkflowError)) {
+        throw error;
+      }
+      return globalBlocked(error.code, error.message, error.result);
+    }
+  }
+
+  const project = resolveProject(
+    startDirectory,
+    options.homeDirectory,
+  );
   if (project.error) {
     return project.error;
   }
@@ -117,8 +186,11 @@ export function initializeProject(startDirectory, options = {}) {
   }
 }
 
-export function diagnoseProject(startDirectory) {
-  const project = resolveProject(startDirectory);
+export function diagnoseProject(startDirectory, options = {}) {
+  const project = resolveProject(
+    startDirectory,
+    options.homeDirectory,
+  );
   if (project.error) {
     return project.error;
   }
@@ -137,8 +209,8 @@ export function diagnoseProject(startDirectory) {
   }
 }
 
-export function qualifyProject(startDirectory) {
-  const project = requireInstalled(startDirectory);
+export function qualifyProject(startDirectory, options = {}) {
+  const project = requireInstalled(startDirectory, options);
   if (project.error) {
     return project.error;
   }
@@ -165,8 +237,8 @@ export function qualifyProject(startDirectory) {
   });
 }
 
-export function inspectProviders(startDirectory) {
-  const project = requireInstalled(startDirectory);
+export function inspectProviders(startDirectory, options = {}) {
+  const project = requireInstalled(startDirectory, options);
   if (project.error) {
     return project.error;
   }
@@ -177,8 +249,26 @@ export function inspectProviders(startDirectory) {
   });
 }
 
-export function uninstallProject(startDirectory) {
-  const project = resolveProject(startDirectory);
+export function uninstallProject(startDirectory, options = {}) {
+  if (options.global) {
+    try {
+      const outcome = uninstallGlobalWorkflow(
+        options.homeDirectory,
+        options,
+      );
+      return globalSuccess(outcome.changed, outcome.result);
+    } catch (error) {
+      if (!(error instanceof ManagedWorkflowError)) {
+        throw error;
+      }
+      return globalBlocked(error.code, error.message, error.result);
+    }
+  }
+
+  const project = resolveProject(
+    startDirectory,
+    options.homeDirectory,
+  );
   if (project.error) {
     return project.error;
   }
