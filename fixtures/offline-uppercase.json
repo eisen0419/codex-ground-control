@@ -1,0 +1,5 @@
+{
+  "id": "offline-uppercase-v1",
+  "input": "ground-control",
+  "expected": "GROUND-CONTROL"
+}
