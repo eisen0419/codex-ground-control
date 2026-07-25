@@ -8,7 +8,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, parse, resolve } from "node:path";
+import { join, parse, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const EXIT_SUCCESS = 0;
@@ -215,7 +215,7 @@ export function qualifyProject(startDirectory) {
     fixture: fixture.id,
     observed,
     qualification: "passed",
-    network: "denied",
+    network: "not-used",
   });
 }
 

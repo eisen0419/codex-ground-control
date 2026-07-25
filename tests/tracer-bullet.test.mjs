@@ -26,6 +26,26 @@ function run(command, args, options = {}) {
   });
 }
 
+function isolatedEnvironment(homeDirectory) {
+  return {
+    PATH: process.env.PATH,
+    HOME: homeDirectory,
+    TMPDIR: tmpdir(),
+    LANG: "C",
+    LC_ALL: "C",
+  };
+}
+
+function isolatedNpmEnvironment(homeDirectory, cacheDirectory) {
+  return {
+    ...isolatedEnvironment(homeDirectory),
+    npm_config_cache: cacheDirectory,
+    npm_config_offline: "true",
+    npm_config_ignore_scripts: "true",
+    npm_config_update_notifier: "false",
+  };
+}
+
 function snapshotFiles(root) {
   const files = {};
   const visit = (directory) => {
@@ -80,23 +100,27 @@ function withPackedCli(callback) {
   );
 
   try {
+    const npmEnvironment = isolatedNpmEnvironment(
+      homeDirectory,
+      join(sandbox, "npm-cache"),
+    );
     const packOutput = execFileSync(
       "npm",
-      ["pack", "--json", "--pack-destination", packDirectory],
+      [
+        "pack",
+        "--json",
+        "--ignore-scripts",
+        "--pack-destination",
+        packDirectory,
+      ],
       {
         cwd: repositoryRoot,
         encoding: "utf8",
+        env: npmEnvironment,
       },
     );
     const [{ filename }] = JSON.parse(packOutput);
     const tarball = join(packDirectory, filename);
-    const npmEnvironment = {
-      ...process.env,
-      HOME: homeDirectory,
-      npm_config_cache: join(sandbox, "npm-cache"),
-      npm_config_offline: "true",
-      npm_config_update_notifier: "false",
-    };
     const install = run(
       "npm",
       ["install", "--ignore-scripts", "--prefix", installDirectory, tarball],
@@ -112,6 +136,7 @@ function withPackedCli(callback) {
     execFileSync("git", ["init", "-b", "main"], {
       cwd: projectDirectory,
       encoding: "utf8",
+      env: isolatedEnvironment(homeDirectory),
     });
 
     callback({
@@ -144,25 +169,40 @@ test("package metadata and tarball contents define the public CLI contract", () 
     "codex-ground-control": "bin/codex-ground-control.js",
   });
 
-  const [packed] = JSON.parse(
-    execFileSync("npm", ["pack", "--json", "--dry-run"], {
-      cwd: repositoryRoot,
-      encoding: "utf8",
-    }),
-  );
-  assert.equal(packed.filename, "codex-ground-control-0.1.0.tgz");
-  assert.deepEqual(
-    packed.files.map(({ path }) => path).sort(),
-    [
-      "LICENSE",
-      "README.md",
-      "bin/codex-ground-control.js",
-      "fixtures/offline-uppercase.json",
-      "package.json",
-      "src/cli.js",
-      "src/project-state.js",
-    ],
-  );
+  const sandbox = mkdtempSync(join(tmpdir(), "codex-ground-control-pack-"));
+  const homeDirectory = join(sandbox, "home");
+  mkdirSync(homeDirectory);
+  try {
+    const [packed] = JSON.parse(
+      execFileSync(
+        "npm",
+        ["pack", "--json", "--dry-run", "--ignore-scripts"],
+        {
+          cwd: repositoryRoot,
+          encoding: "utf8",
+          env: isolatedNpmEnvironment(
+            homeDirectory,
+            join(sandbox, "npm-cache"),
+          ),
+        },
+      ),
+    );
+    assert.equal(packed.filename, "codex-ground-control-0.1.0.tgz");
+    assert.deepEqual(
+      packed.files.map(({ path }) => path).sort(),
+      [
+        "LICENSE",
+        "README.md",
+        "bin/codex-ground-control.js",
+        "fixtures/offline-uppercase.json",
+        "package.json",
+        "src/cli.js",
+        "src/project-state.js",
+      ],
+    );
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
 });
 
 test("packed CLI exposes stable help and version output", () => {
@@ -297,7 +337,7 @@ test("packed CLI completes an offline reversible lifecycle", () => {
         fixture: "offline-uppercase-v1",
         observed: "GROUND-CONTROL",
         qualification: "passed",
-        network: "denied",
+        network: "not-used",
       });
 
       const providers = runJson(cli, ["provider"], context);
