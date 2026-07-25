@@ -340,6 +340,7 @@
         "command": "{node}",
         "args": [
           "{manifest_dir}/agy-research-adapter.mjs",
+          "{manifest_dir}/agy-source-verifier.mjs",
           "agy",
           "{prompt}"
         ],

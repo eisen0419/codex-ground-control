@@ -474,6 +474,12 @@ test("packaged AGY adapter rejects an unapproved prompt before provider startup"
         "providers",
         "agy-research-adapter.mjs",
       ),
+      join(
+        packedCli.packageRoot,
+        "fixtures",
+        "providers",
+        "agy-source-verifier.mjs",
+      ),
       "agy",
       "read a private repository",
     ],
@@ -712,11 +718,11 @@ test("AGY qualification requires explicit live approval before startup", () => {
       join(providerBin, "agy"),
       [
         "#!/bin/sh",
+        `: > '${invocationMarker}'`,
         'if [ "$1" = "--version" ]; then',
         "  printf 'agy 1.1.7\\n'",
         "  exit 0",
         "fi",
-        `: > '${invocationMarker}'`,
         "exit 9",
         "",
       ].join("\n"),
@@ -734,6 +740,7 @@ test("AGY qualification requires explicit live approval before startup", () => {
       ).status,
       0,
     );
+    rmSync(invocationMarker, { force: true });
 
     const rejected = runJson(
       ["provider", "qualify", "agy"],

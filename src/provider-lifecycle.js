@@ -23,7 +23,6 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath } from "node:url";
-import { validAgySourceRules } from "../fixtures/providers/agy-source-verifier.mjs";
 import { atomicWrite, inspectFile } from "./safe-files.js";
 
 const PROBE_CATALOG_URL = new URL(
@@ -163,6 +162,47 @@ function exactKeys(value, keys) {
     typeof value === "object" &&
     Object.keys(value).length === keys.length &&
     keys.every((key) => Object.hasOwn(value, key))
+  );
+}
+
+function validAgySourceRules(rules) {
+  return (
+    exactKeys(rules, [
+      "allowedOrigins",
+      "allowedPaths",
+      "allowedIdentities",
+      "pathIdentityMap",
+      "maxObservationAgeMilliseconds",
+      "maxFutureSkewMilliseconds",
+      "fetch",
+      "contentContains",
+      "maxResponseBytes",
+      "maxRedirects",
+      "fetchTimeoutMilliseconds",
+      "privateContextAllowed",
+    ]) &&
+    Array.isArray(rules.allowedOrigins) &&
+    rules.allowedOrigins.length === 1 &&
+    rules.allowedOrigins[0] === "https://www.python.org" &&
+    Array.isArray(rules.allowedPaths) &&
+    rules.allowedPaths.length === 1 &&
+    rules.allowedPaths[0] === "/" &&
+    Array.isArray(rules.allowedIdentities) &&
+    rules.allowedIdentities.length === 1 &&
+    rules.allowedIdentities[0] ===
+      "Python Software Foundation official website" &&
+    exactKeys(rules.pathIdentityMap, ["/"]) &&
+    rules.pathIdentityMap["/"] === rules.allowedIdentities[0] &&
+    rules.maxObservationAgeMilliseconds === 3_600_000 &&
+    rules.maxFutureSkewMilliseconds === 300_000 &&
+    rules.fetch === true &&
+    Array.isArray(rules.contentContains) &&
+    rules.contentContains.length === 1 &&
+    rules.contentContains[0] === "Python" &&
+    rules.maxResponseBytes === 1_000_000 &&
+    rules.maxRedirects === 3 &&
+    rules.fetchTimeoutMilliseconds === 15_000 &&
+    rules.privateContextAllowed === false
   );
 }
 

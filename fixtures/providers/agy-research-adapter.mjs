@@ -1,14 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import {
-  validAgySourceRules,
-  verifyAgySourceObservation,
-} from "./agy-source-verifier.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const providerId = process.argv[2];
-const prompt = process.argv[3];
+const verifierPath = process.argv[2];
+const providerId = process.argv[3];
+const prompt = process.argv[4];
 const fixtureDirectory = dirname(fileURLToPath(import.meta.url));
 
 function fail(message) {
@@ -46,10 +43,22 @@ if (
 ) {
   fail("AGY public research prompt is not approved.");
 }
+let validAgySourceRules;
+let verifyAgySourceObservation;
+try {
+  const verifier = await import(pathToFileURL(verifierPath).href);
+  validAgySourceRules = verifier.validAgySourceRules;
+  verifyAgySourceObservation =
+    verifier.verifyAgySourceObservation;
+} catch {
+  fail("AGY source verifier is unavailable.");
+}
 if (
   record.contract?.kind !== "search" ||
   record.contract.model !== "gemini-3.6-flash-high" ||
   record.contract.mode !== "sandboxed-plan-google" ||
+  typeof validAgySourceRules !== "function" ||
+  typeof verifyAgySourceObservation !== "function" ||
   !validAgySourceRules(record.sourceRules)
 ) {
   fail("AGY public research contract is invalid.");
@@ -78,7 +87,7 @@ const result = spawnSync(
     encoding: "utf8",
     env: process.env,
     shell: false,
-    timeout: 110_000,
+    timeout: 100_000,
     maxBuffer: 65_536,
   },
 );
