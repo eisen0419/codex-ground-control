@@ -41,6 +41,10 @@ const AGY_PROBE_SCHEMA_URL = new URL(
   "../schemas/provider/agy-live-probe-output.schema.json",
   import.meta.url,
 );
+const GROK_PROBE_SCHEMA_URL = new URL(
+  "../schemas/provider/grok-live-probe-output.schema.json",
+  import.meta.url,
+);
 const PI_CANDIDATE_SCHEMA_URL = new URL(
   "../schemas/provider/pi-candidate-output.schema.json",
   import.meta.url,
@@ -61,6 +65,10 @@ const AGY_SOURCE_VERIFIER_URL = new URL(
   "../fixtures/providers/agy-source-verifier.mjs",
   import.meta.url,
 );
+const GROK_RESEARCH_ADAPTER_URL = new URL(
+  "../fixtures/providers/grok-research-adapter.mjs",
+  import.meta.url,
+);
 const FLEET_WORKER_URL = new URL(
   "./fleet-runner-worker.js",
   import.meta.url,
@@ -73,6 +81,7 @@ const PROVIDER_LIFECYCLE_URL = new URL(
   "./provider-lifecycle.js",
   import.meta.url,
 );
+const SAFE_FILES_URL = new URL("./safe-files.js", import.meta.url);
 
 export const providerDefinitions = Object.freeze([
   {
@@ -112,6 +121,11 @@ export const providerDefinitions = Object.freeze([
   {
     id: "grok",
     command: "grok",
+    role: "research-only",
+    researchSurface: "x.com",
+    mode: "web-only",
+    model: "grok-4.5",
+    minimumVersion: "0.2.93",
     credentialVariables: ["XAI_API_KEY", "GROK_API_KEY"],
   },
 ]);
@@ -202,6 +216,41 @@ function validAgySourceRules(rules) {
     rules.maxResponseBytes === 1_000_000 &&
     rules.maxRedirects === 3 &&
     rules.fetchTimeoutMilliseconds === 15_000 &&
+    rules.privateContextAllowed === false
+  );
+}
+
+function validGrokSourceRules(rules) {
+  return (
+    exactKeys(rules, [
+      "allowedUrls",
+      "allowedIdentities",
+      "urlIdentityMap",
+      "maxObservationAgeMilliseconds",
+      "maxFutureSkewMilliseconds",
+      "redirectsAllowed",
+      "tools",
+      "privateContextAllowed",
+    ]) &&
+    Array.isArray(rules.allowedUrls) &&
+    rules.allowedUrls.length === 2 &&
+    rules.allowedUrls[0] === "https://x.com/xai" &&
+    rules.allowedUrls[1] === "https://x.com/SpaceXAI" &&
+    Array.isArray(rules.allowedIdentities) &&
+    rules.allowedIdentities.length === 2 &&
+    rules.allowedIdentities[0] === "@xai" &&
+    rules.allowedIdentities[1] === "@spacexai" &&
+    exactKeys(rules.urlIdentityMap, rules.allowedUrls) &&
+    rules.urlIdentityMap["https://x.com/xai"] === "@xai" &&
+    rules.urlIdentityMap["https://x.com/SpaceXAI"] ===
+      "@spacexai" &&
+    rules.maxObservationAgeMilliseconds === 3_600_000 &&
+    rules.maxFutureSkewMilliseconds === 300_000 &&
+    rules.redirectsAllowed === false &&
+    Array.isArray(rules.tools) &&
+    rules.tools.length === 2 &&
+    rules.tools[0] === "web_search" &&
+    rules.tools[1] === "web_fetch" &&
     rules.privateContextAllowed === false
   );
 }
@@ -518,7 +567,9 @@ function providerContract(provider, runtime) {
   const schemaFile = readJsonFile(
     provider.id === "agy"
       ? AGY_PROBE_SCHEMA_URL
-      : PROBE_SCHEMA_URL,
+      : provider.id === "grok"
+        ? GROK_PROBE_SCHEMA_URL
+        : PROBE_SCHEMA_URL,
     "Provider probe schema",
   );
   const catalog = catalogFile.value;
@@ -555,6 +606,13 @@ function providerContract(provider, runtime) {
       record.contract.mode ===
         "sandboxed-plan-google" &&
       validAgySourceRules(agySourceRules));
+  const grokSourceRules = record?.sourceRules;
+  const grokContractMatches =
+    provider.id !== "grok" ||
+    (record.contract?.kind === "search" &&
+      record.contract.model === provider.model &&
+      record.contract.mode === "web-only" &&
+      validGrokSourceRules(grokSourceRules));
   if (
     catalog.schemaVersion !== "1" ||
     catalog.probe?.id !== "public-sources-v1" ||
@@ -565,6 +623,7 @@ function providerContract(provider, runtime) {
     !outputContract ||
     !piIdentityMatches ||
     !agyContractMatches ||
+    !grokContractMatches ||
     typeof record.prompt !== "string" ||
     record.prompt.length === 0 ||
     !Number.isInteger(record.timeoutMilliseconds)
@@ -604,7 +663,9 @@ function providerContract(provider, runtime) {
                 readFileSync(
                   provider.id === "agy"
                     ? AGY_RESEARCH_ADAPTER_URL
-                    : PROBE_ADAPTER_URL,
+                    : provider.id === "grok"
+                      ? GROK_RESEARCH_ADAPTER_URL
+                      : PROBE_ADAPTER_URL,
                 ),
               ),
               ...(provider.id === "agy"
@@ -613,6 +674,12 @@ function providerContract(provider, runtime) {
                       readFileSync(AGY_SOURCE_VERIFIER_URL),
                     ),
                   }
+                : provider.id === "grok"
+                  ? {
+                      authReaderSha256: sha256(
+                        readFileSync(SAFE_FILES_URL),
+                      ),
+                    }
                 : {}),
             },
       ),
@@ -646,7 +713,7 @@ function providerContract(provider, runtime) {
     ),
     sourceRules: sha256(
       canonicalJson(
-        provider.id === "agy"
+        provider.role === "research-only"
           ? record.sourceRules
           : catalog.probe.sourceRules,
       ),
@@ -663,7 +730,7 @@ function providerContract(provider, runtime) {
     outputContract: record.outputContract,
     prompt: record.prompt,
     sourceRules:
-      provider.id === "agy"
+      provider.role === "research-only"
         ? record.sourceRules
         : catalog.probe.sourceRules,
     timeoutMilliseconds: record.timeoutMilliseconds,
@@ -1134,6 +1201,35 @@ function probeOutputMatches(value, providerId, contract) {
       verification.verified === true
     );
   }
+  if (providerId === "grok") {
+    const source = value?.source;
+    const rules = contract.sourceRules;
+    const observedAt = Date.parse(source?.observedAt);
+    const now = Date.now();
+    return (
+      exactKeys(value, [
+        "schemaVersion",
+        "provider",
+        "probe",
+        "ok",
+        "source",
+      ]) &&
+      value.schemaVersion === "1" &&
+      value.provider === providerId &&
+      value.probe === contract.catalog.probe.id &&
+      value.ok === true &&
+      exactKeys(source, ["url", "identity", "observedAt"]) &&
+      rules.allowedUrls.includes(source.url) &&
+      rules.allowedIdentities.includes(source.identity) &&
+      rules.urlIdentityMap[source.url] === source.identity &&
+      Number.isFinite(observedAt) &&
+      source.observedAt === new Date(observedAt).toISOString() &&
+      now - observedAt <=
+        rules.maxObservationAgeMilliseconds &&
+      observedAt - now <=
+        rules.maxFutureSkewMilliseconds
+    );
+  }
   return (
     exactKeys(value, [
       "schemaVersion",
@@ -1316,7 +1412,46 @@ function runLiveQualification(
           workspaceChangesApplied: false,
         },
       }
-    : null;
+    : definition.id === "grok"
+      ? {
+          sourceIdentity: {
+            semanticIdentity: "xAI official X account",
+            approvedAccounts:
+              contract.sourceRules.allowedUrls.map((url) => ({
+                url,
+                identity:
+                  contract.sourceRules.urlIdentityMap[url],
+              })),
+          },
+          sourceVerification: {
+            source: "grok-exact-x-account-v1",
+            redirectsAllowed: false,
+            verified: outputMatches,
+          },
+          researchBoundary: {
+            tools: [...contract.sourceRules.tools],
+            workspace: "isolated-empty",
+            grokHome: "isolated-disposable",
+            compatibilityImports: false,
+            memory: false,
+            subagents: false,
+            localFiles: false,
+            shell: false,
+            authentication: {
+              policy: "isolated-run-copy-only",
+              retained: false,
+              recorded: false,
+            },
+          },
+          observation: outputMatches ? payload.source : null,
+          authority: {
+            disposition: "qualification-evidence",
+            completionAuthority: "codex-main",
+            reviewRequired: true,
+            workspaceChangesApplied: false,
+          },
+        }
+      : null;
   const qualifiedAt =
     typeof fleetReceipt.finishedAt === "string"
       ? fleetReceipt.finishedAt

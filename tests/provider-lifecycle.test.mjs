@@ -86,6 +86,38 @@ function printAgyObservation(overrides = {}) {
   return `node -e ${shellQuote(script)}`;
 }
 
+function printGrokEnvelope(sourceOverrides = {}, envelopeKind = "structured") {
+  const output = {
+    schemaVersion: "1",
+    provider: "grok",
+    probe: "public-sources-v1",
+    ok: true,
+    source: {
+      url: "https://x.com/SpaceXAI",
+      identity: "@spacexai",
+      observedAt: "current",
+      ...sourceOverrides,
+    },
+  };
+  const script = [
+    `const output = ${JSON.stringify(output)};`,
+    'if (output.source.observedAt === "current") {',
+    "  output.source.observedAt = new Date().toISOString();",
+    "}",
+    envelopeKind === "structured"
+      ? "const envelope = { text: \"\", stopReason: \"end_turn\", sessionId: \"fixture\", requestId: \"fixture\", thought: null, structuredOutput: output };"
+      : envelopeKind === "text"
+        ? "const envelope = { text: JSON.stringify(output), stopReason: \"end_turn\", sessionId: \"fixture\", requestId: \"fixture\", thought: null };"
+        : envelopeKind === "mixed"
+          ? "const envelope = { text: \"I verified the account.\", stopReason: \"end_turn\", sessionId: \"fixture\", requestId: \"fixture\", thought: null, structuredOutput: output };"
+          : envelopeKind === "unknown"
+            ? "const envelope = { payload: output };"
+            : "const envelope = output;",
+    'process.stdout.write(`${JSON.stringify(envelope)}\\n`);',
+  ].join("\n");
+  return `node -e ${shellQuote(script)}`;
+}
+
 function withAgySourceVerifierFixture(callback, options = {}) {
   const verifierPath = join(
     packedCli.packageRoot,
@@ -131,6 +163,15 @@ function environment(homeDirectory, runtimeBin) {
     LANG: "C",
     LC_ALL: "C",
   };
+}
+
+function writeGrokAuthentication(homeDirectory, contents = "fixture-auth") {
+  mkdirSync(join(homeDirectory, ".grok"));
+  writeFileSync(
+    join(homeDirectory, ".grok", "auth.json"),
+    contents,
+    { mode: 0o600 },
+  );
 }
 
 function snapshotFiles(root) {
@@ -299,7 +340,13 @@ test("provider list reports three independent Pi profiles without writing state"
           mode: "plan",
           model: "gemini-3.6-flash-high",
         },
-        { id: "grok" },
+        {
+          id: "grok",
+          role: "research-only",
+          researchSurface: "x.com",
+          mode: "web-only",
+          model: "grok-4.5",
+        },
       ].map((definition) => ({
         ...definition,
         detected: false,
@@ -501,6 +548,814 @@ test("packaged AGY adapter rejects an unapproved prompt before provider startup"
     "AGY public research prompt is not approved.\n",
   );
   assert.equal(existsSync(invocationMarker), false);
+});
+
+test("the legacy generic probe adapter cannot launch Grok", () => {
+  const providerBin = mkdtempSync(
+    join(packedCli.sandbox, "runtime-legacy-grok-adapter-"),
+  );
+  const legacyHome = mkdtempSync(
+    join(packedCli.sandbox, "legacy-grok-home-"),
+  );
+  const invocationMarker = join(
+    packedCli.sandbox,
+    `legacy-grok-invoked-${Date.now()}`,
+  );
+  writeGrokAuthentication(legacyHome);
+  writeFileSync(
+    join(providerBin, "grok"),
+    [
+      "#!/bin/sh",
+      `: > '${invocationMarker}'`,
+      "exit 9",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(join(providerBin, "grok"), 0o755);
+  const catalog = JSON.parse(
+    readFileSync(
+      join(
+        packedCli.packageRoot,
+        "fixtures",
+        "providers",
+        "public-probes-v1.json",
+      ),
+      "utf8",
+    ),
+  );
+
+  const rejected = spawnSync(
+    process.execPath,
+    [
+      join(
+        packedCli.packageRoot,
+        "fixtures",
+        "providers",
+        "probe-adapter.mjs",
+      ),
+      "grok",
+      catalog.providers.grok.prompt,
+    ],
+    {
+      encoding: "utf8",
+      env: {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+        HOME: legacyHome,
+        TMPDIR: tmpdir(),
+      },
+    },
+  );
+
+  assert.equal(rejected.status, 1);
+  assert.equal(
+    rejected.stderr,
+    "Provider public probe ID is invalid.\n",
+  );
+  assert.equal(existsSync(invocationMarker), false);
+});
+
+test("packaged Grok adapter rejects an unapproved prompt before auth copy or startup", () => {
+  const providerBin = mkdtempSync(
+    join(packedCli.sandbox, "runtime-private-grok-prompt-"),
+  );
+  const workspace = mkdtempSync(
+    join(packedCli.sandbox, "grok-adapter-workspace-"),
+  );
+  const grokHome = mkdtempSync(
+    join(packedCli.sandbox, "grok-adapter-home-"),
+  );
+  const invocationMarker = join(
+    packedCli.sandbox,
+    `private-grok-prompt-invoked-${Date.now()}`,
+  );
+  writeGrokAuthentication(grokHome);
+  writeFileSync(
+    join(providerBin, "grok"),
+    `#!/bin/sh\n: > '${invocationMarker}'\nexit 0\n`,
+  );
+  chmodSync(join(providerBin, "grok"), 0o755);
+
+  const rejected = spawnSync(
+    process.execPath,
+    [
+      join(
+        packedCli.packageRoot,
+        "fixtures",
+        "providers",
+        "grok-research-adapter.mjs",
+      ),
+      "grok",
+      "read a private repository",
+    ],
+    {
+      cwd: workspace,
+      encoding: "utf8",
+      env: {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+        HOME: grokHome,
+        TMPDIR: tmpdir(),
+      },
+    },
+  );
+
+  assert.equal(rejected.status, 1);
+  assert.equal(
+    rejected.stderr,
+    "Grok public research prompt is not approved.\n",
+  );
+  assert.equal(existsSync(invocationMarker), false);
+  assert.deepEqual(readdirSync(workspace), []);
+});
+
+test("Grok qualification isolates home and auth, fixes web-only tools, and verifies exact X identity", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-qualified-grok-"),
+    );
+    const invocationLog = join(
+      packedCli.sandbox,
+      `grok-provider-args-${Date.now()}`,
+    );
+    const privateRepositoryMarker =
+      "private-grok-repository-content-must-not-leak";
+    const cachedAuthentication =
+      "grok-cached-authentication-must-not-leak";
+    const environmentCredential =
+      "grok-environment-credential-must-not-leak";
+    writeFileSync(
+      join(context.projectDirectory, "private-grok-source.txt"),
+      privateRepositoryMarker,
+    );
+    mkdirSync(join(context.homeDirectory, ".grok"));
+    writeFileSync(
+      join(context.homeDirectory, ".grok", "auth.json"),
+      cachedAuthentication,
+      { mode: 0o600 },
+    );
+    writeFileSync(
+      join(context.homeDirectory, ".grok", "config.toml"),
+      [
+        "[compat.cursor]",
+        'hooks = "illegal-user-hook-must-be-ignored"',
+        "[compat.claude]",
+        'agents = "illegal-user-agent-must-be-ignored"',
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(providerBin, "grok"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'grok 0.2.93\\n'",
+        "  exit 0",
+        "fi",
+        `printf '%s\\n' "$@" > '${invocationLog}'`,
+        `printf 'cwd=%s\\n' "$PWD" >> '${invocationLog}'`,
+        `printf 'home=%s\\n' "$HOME" >> '${invocationLog}'`,
+        `printf 'grok_home=%s\\n' "$GROK_HOME" >> '${invocationLog}'`,
+        `printf 'auth=%s\\n' "$(test -r "$GROK_HOME/auth.json" && printf present)" >> '${invocationLog}'`,
+        `printf 'xai=%s\\n' "\${XAI_API_KEY:+present}" >> '${invocationLog}'`,
+        `printf 'grok_key=%s\\n' "\${GROK_API_KEY:+present}" >> '${invocationLog}'`,
+        `printf 'unrelated=%s\\n' "\${UNRELATED_SECRET:+present}" >> '${invocationLog}'`,
+        `sed -n '1,120p' "$GROK_HOME/config.toml" >> '${invocationLog}'`,
+        printGrokEnvelope(),
+        "",
+      ].join("\n"),
+    );
+    chmodSync(join(providerBin, "grok"), 0o755);
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      XAI_API_KEY: environmentCredential,
+      GROK_API_KEY: "other-grok-secret",
+      UNRELATED_SECRET: "unrelated-secret-must-not-leak",
+    };
+    assert.equal(
+      runJson(
+        ["provider", "enable", "grok"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+    const projectBefore = snapshotFiles(context.projectDirectory);
+
+    const qualified = runJson(
+      ["provider", "qualify", "grok", "--allow-live"],
+      context,
+      providerEnvironment,
+    );
+
+    assert.equal(qualified.status, 0);
+    assert.equal(
+      qualified.receipt.result.qualification.terminalState,
+      "passed",
+    );
+    assert.deepEqual(
+      qualified.receipt.result.qualification.sourceIdentity,
+      {
+        semanticIdentity: "xAI official X account",
+        approvedAccounts: [
+          {
+            url: "https://x.com/xai",
+            identity: "@xai",
+          },
+          {
+            url: "https://x.com/SpaceXAI",
+            identity: "@spacexai",
+          },
+        ],
+      },
+    );
+    assert.deepEqual(
+      qualified.receipt.result.qualification.sourceVerification,
+      {
+        source: "grok-exact-x-account-v1",
+        redirectsAllowed: false,
+        verified: true,
+      },
+    );
+    assert.deepEqual(
+      qualified.receipt.result.qualification.researchBoundary,
+      {
+        tools: ["web_search", "web_fetch"],
+        workspace: "isolated-empty",
+        grokHome: "isolated-disposable",
+        compatibilityImports: false,
+        memory: false,
+        subagents: false,
+        localFiles: false,
+        shell: false,
+        authentication: {
+          policy: "isolated-run-copy-only",
+          retained: false,
+          recorded: false,
+        },
+      },
+    );
+    assert.deepEqual(
+      {
+        url: qualified.receipt.result.qualification.observation.url,
+        identity:
+          qualified.receipt.result.qualification.observation.identity,
+      },
+      {
+        url: "https://x.com/SpaceXAI",
+        identity: "@spacexai",
+      },
+    );
+    assert.equal(qualified.receipt.result.provider.role, "research-only");
+    assert.equal(
+      qualified.receipt.result.provider.researchSurface,
+      "x.com",
+    );
+    assert.equal(qualified.receipt.result.provider.mode, "web-only");
+    assert.equal(qualified.receipt.result.provider.model, "grok-4.5");
+    assert.deepEqual(
+      snapshotFiles(context.projectDirectory),
+      projectBefore,
+    );
+
+    const invocation = readFileSync(invocationLog, "utf8");
+    const invocationLines = invocation.trim().split("\n");
+    assert.equal(invocationLines[0], "--single");
+    assert.match(
+      invocationLines[1],
+      /^Use only public X\.com and web sources for this fixed qualification probe\./,
+    );
+    assert.match(invocationLines[1], /https:\/\/x\.com\/xai/);
+    assert.match(invocationLines[1], /https:\/\/x\.com\/SpaceXAI/);
+    assert.equal(invocationLines[2], "--model");
+    assert.equal(invocationLines[3], "grok-4.5");
+    assert.equal(invocationLines[4], "--reasoning-effort");
+    assert.equal(invocationLines[5], "medium");
+    assert.equal(invocationLines[6], "--json-schema");
+    assert.deepEqual(JSON.parse(invocationLines[7]).required, [
+      "schemaVersion",
+      "provider",
+      "probe",
+      "ok",
+      "source",
+    ]);
+    assert.deepEqual(invocationLines.slice(8, 12), [
+      "--tools",
+      "web_search,web_fetch",
+      "--disallowed-tools",
+      "Agent",
+    ]);
+    for (const requiredFlag of [
+      "--no-subagents",
+      "--no-memory",
+      "--no-plan",
+      "--verbatim",
+      "--no-auto-update",
+      "--sandbox",
+      "strict",
+    ]) {
+      assert.equal(invocationLines.includes(requiredFlag), true);
+    }
+    assert.equal(invocation.includes(privateRepositoryMarker), false);
+    assert.equal(invocation.includes(cachedAuthentication), false);
+    assert.equal(invocation.includes(environmentCredential), false);
+    assert.equal(invocation.includes(context.projectDirectory), false);
+    assert.match(invocation, /^cwd=.+\/workspace$/m);
+    assert.match(invocation, /^home=.+\/workspace\/\.grok-runtime\/home$/m);
+    assert.match(
+      invocation,
+      /^grok_home=.+\/workspace\/\.grok-runtime\/grok-home$/m,
+    );
+    assert.match(invocation, /^auth=present$/m);
+    assert.match(invocation, /^xai=$/m);
+    assert.match(invocation, /^grok_key=$/m);
+    assert.match(invocation, /^unrelated=$/m);
+    assert.equal(invocation.includes("illegal-user-hook"), false);
+    assert.equal(invocation.includes("illegal-user-agent"), false);
+    for (const compatibility of [
+      "[compat.cursor]",
+      "[compat.claude]",
+      "skills = false",
+      "rules = false",
+      "agents = false",
+      "mcps = false",
+      "hooks = false",
+    ]) {
+      assert.equal(invocation.includes(compatibility), true);
+    }
+    assert.deepEqual(
+      qualified.receipt.result.qualification.authority,
+      {
+        disposition: "qualification-evidence",
+        completionAuthority: "codex-main",
+        reviewRequired: true,
+        workspaceChangesApplied: false,
+      },
+    );
+
+    const evidencePath =
+      qualified.receipt.result.qualification.evidence.index.replace(
+        "~/",
+        "",
+      );
+    const evidenceDirectory = join(
+      context.homeDirectory,
+      dirname(evidencePath),
+    );
+    assert.equal(
+      existsSync(join(evidenceDirectory, "workspace")),
+      false,
+    );
+    for (const contents of Object.values(
+      snapshotFiles(evidenceDirectory),
+    )) {
+      const text = contents.toString("utf8");
+      assert.equal(text.includes(cachedAuthentication), false);
+      assert.equal(text.includes(environmentCredential), false);
+      assert.equal(text.includes(privateRepositoryMarker), false);
+    }
+  });
+});
+
+test("Grok qualification requires explicit live approval before auth copy or startup", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    writeGrokAuthentication(
+      context.homeDirectory,
+      "live-gate-auth-must-remain-source-only",
+    );
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-grok-live-gate-"),
+    );
+    const invocationMarker = join(
+      packedCli.sandbox,
+      `grok-live-invoked-${Date.now()}`,
+    );
+    writeFileSync(
+      join(providerBin, "grok"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'grok 0.2.93\\n'",
+        "  exit 0",
+        "fi",
+        `: > '${invocationMarker}'`,
+        "exit 9",
+        "",
+      ].join("\n"),
+    );
+    chmodSync(join(providerBin, "grok"), 0o755);
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+    };
+    assert.equal(
+      runJson(
+        ["provider", "enable", "grok"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+
+    const rejected = runJson(
+      ["provider", "qualify", "grok"],
+      context,
+      providerEnvironment,
+    );
+
+    assert.equal(rejected.status, 2);
+    assert.equal(
+      rejected.receipt.error.code,
+      "PROVIDER_LIVE_CONFIRMATION_REQUIRED",
+    );
+    assert.equal(rejected.receipt.changed, false);
+    assert.equal(existsSync(invocationMarker), false);
+    assert.equal(
+      existsSync(
+        join(
+          context.homeDirectory,
+          ".codex-ground-control",
+          "evidence",
+          "providers",
+        ),
+      ),
+      false,
+    );
+  });
+});
+
+test("Grok rejects unsupported CLI versions and missing cached auth before research", () => {
+  for (const fixture of [
+    {
+      id: "unsupported-version",
+      version: "0.2.92",
+      writeAuth: true,
+      errorCode: "PROVIDER_UNAVAILABLE",
+    },
+    {
+      id: "missing-auth",
+      version: "0.2.93",
+      writeAuth: false,
+      errorCode: "PROVIDER_QUALIFICATION_FAILED",
+    },
+    {
+      id: "symlinked-auth-parent",
+      version: "0.2.93",
+      writeAuth: false,
+      symlinkAuth: true,
+      errorCode: "PROVIDER_QUALIFICATION_FAILED",
+    },
+  ]) {
+    withProject((context) => {
+      assert.equal(runJson(["init"], context).status, 0);
+      if (fixture.writeAuth) {
+        writeGrokAuthentication(context.homeDirectory);
+      }
+      if (fixture.symlinkAuth) {
+        const externalHome = mkdtempSync(
+          join(packedCli.sandbox, "external-grok-auth-"),
+        );
+        writeGrokAuthentication(externalHome);
+        symlinkSync(
+          join(externalHome, ".grok"),
+          join(context.homeDirectory, ".grok"),
+        );
+      }
+      const providerBin = mkdtempSync(
+        join(
+          packedCli.sandbox,
+          `runtime-grok-${fixture.id}-`,
+        ),
+      );
+      const invocationMarker = join(
+        packedCli.sandbox,
+        `grok-${fixture.id}-invoked-${Date.now()}`,
+      );
+      writeFileSync(
+        join(providerBin, "grok"),
+        [
+          "#!/bin/sh",
+          'if [ "$1" = "--version" ]; then',
+          `  printf 'grok ${fixture.version}\\n'`,
+          "  exit 0",
+          "fi",
+          `: > '${invocationMarker}'`,
+          "exit 9",
+          "",
+        ].join("\n"),
+      );
+      chmodSync(join(providerBin, "grok"), 0o755);
+      const providerEnvironment = {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      };
+      assert.equal(
+        runJson(
+          ["provider", "enable", "grok"],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+
+      const rejected = runJson(
+        ["provider", "qualify", "grok", "--allow-live"],
+        context,
+        providerEnvironment,
+      );
+
+      assert.equal(rejected.status, 2, fixture.id);
+      assert.equal(
+        rejected.receipt.error.code,
+        fixture.errorCode,
+        fixture.id,
+      );
+      assert.equal(
+        existsSync(invocationMarker),
+        false,
+        fixture.id,
+      );
+      if (fixture.errorCode === "PROVIDER_QUALIFICATION_FAILED") {
+        const evidencePath =
+          rejected.receipt.result.qualification.evidence.index.replace(
+            "~/",
+            "",
+          );
+        assert.equal(
+          existsSync(
+            join(
+              context.homeDirectory,
+              dirname(evidencePath),
+              "workspace",
+            ),
+          ),
+          false,
+        );
+      }
+    });
+  }
+});
+
+test("Grok adapter accepts only the controlled structured, text, or raw schema envelopes", () => {
+  for (const envelopeKind of ["text", "raw"]) {
+    withProject((context) => {
+      assert.equal(runJson(["init"], context).status, 0);
+      writeGrokAuthentication(context.homeDirectory);
+      const providerBin = mkdtempSync(
+        join(
+          packedCli.sandbox,
+          `runtime-grok-${envelopeKind}-envelope-`,
+        ),
+      );
+      writeFileSync(
+        join(providerBin, "grok"),
+        [
+          "#!/bin/sh",
+          'if [ "$1" = "--version" ]; then',
+          "  printf 'grok 0.2.93\\n'",
+          "  exit 0",
+          "fi",
+          printGrokEnvelope(
+            {
+              url: "https://x.com/xai",
+              identity: "@xai",
+            },
+            envelopeKind,
+          ),
+          "",
+        ].join("\n"),
+      );
+      chmodSync(join(providerBin, "grok"), 0o755);
+      const providerEnvironment = {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      };
+      assert.equal(
+        runJson(
+          ["provider", "enable", "grok"],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+
+      const qualified = runJson(
+        ["provider", "qualify", "grok", "--allow-live"],
+        context,
+        providerEnvironment,
+      );
+
+      assert.equal(qualified.status, 0, envelopeKind);
+      assert.deepEqual(
+        {
+          url: qualified.receipt.result.qualification.observation.url,
+          identity:
+            qualified.receipt.result.qualification.observation.identity,
+        },
+        {
+          url: "https://x.com/xai",
+          identity: "@xai",
+        },
+        envelopeKind,
+      );
+    });
+  }
+});
+
+test("Grok rejects wrong identity, mixed output, unknown envelopes, workspace writes, timeout, and process failure", () => {
+  const fixtures = [
+    {
+      id: "wrong-pair",
+      body: printGrokEnvelope({
+        url: "https://x.com/xai",
+        identity: "@spacexai",
+      }),
+    },
+    {
+      id: "case-variant",
+      body: printGrokEnvelope({
+        url: "https://x.com/XAI",
+        identity: "@xai",
+      }),
+    },
+    {
+      id: "redirect-identity",
+      body: printGrokEnvelope({
+        url: "https://x.com/i/user/1912644073896206336",
+        identity: "@xai",
+      }),
+    },
+    {
+      id: "lookalike",
+      body: printGrokEnvelope({
+        url: "https://x.com/xal",
+        identity: "@xai",
+      }),
+    },
+    {
+      id: "stale",
+      body: printGrokEnvelope({
+        observedAt: "2025-01-01T00:00:00.000Z",
+      }),
+    },
+    {
+      id: "mixed",
+      body: printGrokEnvelope({}, "mixed"),
+    },
+    {
+      id: "unknown-envelope",
+      body: printGrokEnvelope({}, "unknown"),
+    },
+    {
+      id: "workspace-write",
+      body: `: > leaked-workspace-file\n${printGrokEnvelope()}`,
+    },
+    {
+      id: "timeout",
+      body: "sleep 2",
+      timeoutMilliseconds: 100,
+    },
+    {
+      id: "process-failure",
+      body: "printf 'fixture Grok failure\\n' >&2\nexit 7",
+    },
+    {
+      id: "credential-echo",
+      body:
+        'cat "$GROK_HOME/auth.json" >&2\n' +
+        'cat "$GROK_HOME/auth.json"\n' +
+        "exit 7",
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    withProject((context) => {
+      assert.equal(runJson(["init"], context).status, 0);
+      writeGrokAuthentication(
+        context.homeDirectory,
+        `auth-${fixture.id}-must-not-leak`,
+      );
+      const providerBin = mkdtempSync(
+        join(
+          packedCli.sandbox,
+          `runtime-grok-${fixture.id}-`,
+        ),
+      );
+      writeFileSync(
+        join(providerBin, "grok"),
+        [
+          "#!/bin/sh",
+          'if [ "$1" = "--version" ]; then',
+          "  printf 'grok 0.2.93\\n'",
+          "  exit 0",
+          "fi",
+          fixture.body,
+          "",
+        ].join("\n"),
+      );
+      chmodSync(join(providerBin, "grok"), 0o755);
+      const providerEnvironment = {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      };
+      assert.equal(
+        runJson(
+          ["provider", "enable", "grok"],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+      const projectBefore = snapshotFiles(
+        context.projectDirectory,
+      );
+      const catalogPath = join(
+        packedCli.packageRoot,
+        "fixtures",
+        "providers",
+        "public-probes-v1.json",
+      );
+      const originalCatalog = readFileSync(catalogPath);
+      if (fixture.timeoutMilliseconds) {
+        const catalog = JSON.parse(
+          originalCatalog.toString("utf8"),
+        );
+        catalog.providers.grok.timeoutMilliseconds =
+          fixture.timeoutMilliseconds;
+        writeFileSync(
+          catalogPath,
+          `${JSON.stringify(catalog, null, 2)}\n`,
+        );
+      }
+
+      let failed;
+      try {
+        failed = runJson(
+          ["provider", "qualify", "grok", "--allow-live"],
+          context,
+          providerEnvironment,
+        );
+      } finally {
+        writeFileSync(catalogPath, originalCatalog);
+      }
+
+      assert.equal(failed.status, 2, fixture.id);
+      assert.equal(
+        failed.receipt.error.code,
+        "PROVIDER_QUALIFICATION_FAILED",
+        fixture.id,
+      );
+      assert.equal(
+        failed.receipt.result.qualification.terminalState,
+        "failed",
+        fixture.id,
+      );
+      assert.equal(
+        failed.receipt.result.qualification.sourceVerification
+          .verified,
+        false,
+        fixture.id,
+      );
+      assert.equal(
+        failed.receipt.result.qualification.observation,
+        null,
+        fixture.id,
+      );
+      assert.deepEqual(
+        snapshotFiles(context.projectDirectory),
+        projectBefore,
+        fixture.id,
+      );
+      const evidencePath =
+        failed.receipt.result.qualification.evidence.index.replace(
+          "~/",
+          "",
+        );
+      const evidenceDirectory = join(
+        context.homeDirectory,
+        dirname(evidencePath),
+      );
+      assert.equal(
+        existsSync(join(evidenceDirectory, "workspace")),
+        false,
+        fixture.id,
+      );
+      for (const contents of Object.values(
+        snapshotFiles(evidenceDirectory),
+      )) {
+        assert.equal(
+          contents
+            .toString("utf8")
+            .includes(`auth-${fixture.id}-must-not-leak`),
+          false,
+          fixture.id,
+        );
+      }
+    });
+  }
 });
 
 test("AGY qualification fixes Google research, isolates cwd, withholds secrets, and verifies source identity", () => {
@@ -1133,6 +1988,134 @@ test("AGY adapter, source verifier, or CLI drift invalidates only the AGY gate",
         );
       }
     });
+  });
+});
+
+test("Grok wrapper, source rules, schema, or CLI drift invalidates only the Grok gate", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    writeGrokAuthentication(context.homeDirectory);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-drifting-grok-"),
+    );
+    const versionFile = join(providerBin, "version.txt");
+    writeFileSync(versionFile, "0.2.93\n");
+    writeFileSync(
+      join(providerBin, "grok"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        `  printf 'grok %s\\n' "$(cat '${versionFile}')"`,
+        "  exit 0",
+        "fi",
+        printGrokEnvelope(),
+        "",
+      ].join("\n"),
+    );
+    chmodSync(join(providerBin, "grok"), 0o755);
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+    };
+    assert.equal(
+      runJson(
+        ["provider", "enable", "grok"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+    assert.equal(
+      runJson(
+        ["provider", "qualify", "grok", "--allow-live"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+
+    const assertOnlyGrokDrifted = () => {
+      const listed = runJson(
+        ["provider", "list"],
+        context,
+        providerEnvironment,
+      );
+      assert.equal(
+        listed.receipt.result.providers[4].drifted,
+        true,
+      );
+      for (const index of [0, 1, 2, 3]) {
+        assert.equal(
+          listed.receipt.result.providers[index].drifted,
+          false,
+        );
+      }
+    };
+
+    const adapterPath = join(
+      packedCli.packageRoot,
+      "fixtures",
+      "providers",
+      "grok-research-adapter.mjs",
+    );
+    const originalAdapter = readFileSync(adapterPath);
+    try {
+      writeFileSync(
+        adapterPath,
+        Buffer.concat([
+          originalAdapter,
+          Buffer.from("\n// fixture wrapper drift\n"),
+        ]),
+      );
+      assertOnlyGrokDrifted();
+    } finally {
+      writeFileSync(adapterPath, originalAdapter);
+    }
+
+    const catalogPath = join(
+      packedCli.packageRoot,
+      "fixtures",
+      "providers",
+      "public-probes-v1.json",
+    );
+    const originalCatalog = readFileSync(catalogPath);
+    try {
+      const catalog = JSON.parse(
+        originalCatalog.toString("utf8"),
+      );
+      catalog.providers.grok.sourceRules.allowedUrls[0] =
+        "https://x.com/xal";
+      writeFileSync(
+        catalogPath,
+        `${JSON.stringify(catalog, null, 2)}\n`,
+      );
+      assertOnlyGrokDrifted();
+    } finally {
+      writeFileSync(catalogPath, originalCatalog);
+    }
+
+    const schemaPath = join(
+      packedCli.packageRoot,
+      "schemas",
+      "provider",
+      "grok-live-probe-output.schema.json",
+    );
+    const originalSchema = readFileSync(schemaPath);
+    try {
+      writeFileSync(
+        schemaPath,
+        Buffer.concat([
+          originalSchema,
+          Buffer.from("\nfixture schema drift\n"),
+        ]),
+      );
+      assertOnlyGrokDrifted();
+    } finally {
+      writeFileSync(schemaPath, originalSchema);
+    }
+
+    writeFileSync(versionFile, "0.2.94\n");
+    assertOnlyGrokDrifted();
   });
 });
 
@@ -2304,5 +3287,159 @@ test("human and JSON modes expose the same decisions and invalid requests fail s
       unknownOperation.receipt.error.code,
       "PROVIDER_OPERATION_INVALID",
     );
+  });
+});
+
+test("Grok failure leaves qualified Pi and AGY plus offline core usable", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    writeGrokAuthentication(
+      context.homeDirectory,
+      "isolated-failure-auth-must-not-leak",
+    );
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-isolated-grok-failure-"),
+    );
+    const invocationMarker = join(
+      packedCli.sandbox,
+      `grok-isolation-provider-invoked-${Date.now()}`,
+    );
+    writeFileSync(
+      join(providerBin, "pi"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'pi 1.2.3\\n'",
+        "  exit 0",
+        "fi",
+        `printf 'pi\\n' >> '${invocationMarker}'`,
+        printPiMessageEnd(
+          "zai-coding-cn",
+          "glm-5.2",
+          '{"schemaVersion":"1","profile":"pi-glm","provider":"zai-coding-cn","model":"glm-5.2","probe":"public-sources-v1","ok":true}',
+        ),
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(providerBin, "agy"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'agy 1.1.7\\n'",
+        "  exit 0",
+        "fi",
+        `printf 'agy\\n' >> '${invocationMarker}'`,
+        printAgyObservation(),
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(
+      join(providerBin, "grok"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'grok 0.2.93\\n'",
+        "  exit 0",
+        "fi",
+        `printf 'grok\\n' >> '${invocationMarker}'`,
+        "printf 'fixture Grok failure\\n' >&2",
+        "exit 7",
+        "",
+      ].join("\n"),
+    );
+    for (const provider of ["pi", "agy", "grok"]) {
+      chmodSync(join(providerBin, provider), 0o755);
+    }
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      ZAI_CODING_CN_API_KEY: "pi-secret-must-not-leak",
+      GEMINI_API_KEY: "agy-secret-must-not-leak",
+      XAI_API_KEY: "grok-secret-must-not-leak",
+    };
+    for (const provider of ["pi-glm", "agy", "grok"]) {
+      assert.equal(
+        runJson(
+          ["provider", "enable", provider],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+    }
+    assert.equal(
+      runJson(
+        ["provider", "qualify", "pi-glm", "--allow-live"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+
+    withAgySourceVerifierFixture(() => {
+      assert.equal(
+        runJson(
+          ["provider", "qualify", "agy", "--allow-live"],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+      const beforeFailure = runJson(
+        ["provider", "list"],
+        context,
+        providerEnvironment,
+      ).receipt.result.providers;
+
+      const failed = runJson(
+        ["provider", "qualify", "grok", "--allow-live"],
+        context,
+        providerEnvironment,
+      );
+
+      assert.equal(failed.status, 2);
+      assert.equal(
+        failed.receipt.error.code,
+        "PROVIDER_QUALIFICATION_FAILED",
+      );
+      assert.equal(
+        failed.receipt.result.qualification.terminalState,
+        "failed",
+      );
+      assert.equal(
+        failed.stdout.includes(
+          providerEnvironment.XAI_API_KEY,
+        ),
+        false,
+      );
+      const listed = runJson(
+        ["provider", "list"],
+        context,
+        providerEnvironment,
+      ).receipt.result.providers;
+      assert.equal(listed[0].qualified, true);
+      assert.equal(listed[0].blocked, false);
+      assert.equal(listed[3].qualified, true);
+      assert.equal(listed[3].blocked, false);
+      assert.equal(listed[4].qualified, false);
+      assert.equal(listed[4].blocked, true);
+      for (const index of [0, 1, 2, 3]) {
+        assert.deepEqual(listed[index], beforeFailure[index]);
+      }
+
+      rmSync(invocationMarker, { force: true });
+      const core = runJson(
+        ["qualify"],
+        context,
+        providerEnvironment,
+      );
+      assert.equal(core.status, 0);
+      assert.equal(
+        core.receipt.result.terminalState,
+        "release-passed",
+      );
+      assert.equal(existsSync(invocationMarker), false);
+    });
   });
 });

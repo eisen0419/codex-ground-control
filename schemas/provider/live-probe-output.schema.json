@@ -1,82 +1,47 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://codex-ground-control.invalid/schemas/provider/live-probe-output-v1.json",
-  "title": "Ground Control provider live probe output",
-  "oneOf": [
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schemaVersion",
-        "profile",
-        "provider",
-        "model",
-        "probe",
-        "ok"
-      ],
-      "properties": {
-        "schemaVersion": {
-          "const": "1"
-        },
-        "profile": {
-          "enum": [
-            "pi-glm",
-            "pi-deepseek",
-            "pi-minimax"
-          ]
-        },
-        "provider": {
-          "enum": [
-            "zai-coding-cn",
-            "deepseek",
-            "minimax-cn"
-          ]
-        },
-        "model": {
-          "enum": [
-            "glm-5.2",
-            "deepseek-v4-pro",
-            "MiniMax-M3"
-          ]
-        },
-        "probe": {
-          "const": "public-sources-v1"
-        },
-        "ok": {
-          "const": true
-        }
-      }
+  "title": "Ground Control Pi live probe output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "profile",
+    "provider",
+    "model",
+    "probe",
+    "ok"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
     },
-    {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schemaVersion",
-        "provider",
-        "probe",
-        "ok",
-        "source"
-      ],
-      "properties": {
-        "schemaVersion": {
-          "const": "1"
-        },
-        "provider": {
-          "enum": [
-            "agy",
-            "grok"
-          ]
-        },
-        "probe": {
-          "const": "public-sources-v1"
-        },
-        "ok": {
-          "const": true
-        },
-        "source": {
-          "const": "https://www.iana.org/help/example-domains"
-        }
-      }
+    "profile": {
+      "enum": [
+        "pi-glm",
+        "pi-deepseek",
+        "pi-minimax"
+      ]
+    },
+    "provider": {
+      "enum": [
+        "zai-coding-cn",
+        "deepseek",
+        "minimax-cn"
+      ]
+    },
+    "model": {
+      "enum": [
+        "glm-5.2",
+        "deepseek-v4-pro",
+        "MiniMax-M3"
+      ]
+    },
+    "probe": {
+      "const": "public-sources-v1"
+    },
+    "ok": {
+      "const": true
     }
-  ]
+  }
 }

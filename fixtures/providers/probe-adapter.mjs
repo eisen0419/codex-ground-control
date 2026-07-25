@@ -1,14 +1,9 @@
 import { spawnSync } from "node:child_process";
 import {
-  chmodSync,
-  copyFileSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -178,122 +173,6 @@ if (providerId.startsWith("pi-")) {
       prompt,
     ]),
   );
-} else if (providerId === "grok") {
-  const isolatedHome = mkdtempSync(
-    join(process.env.TMPDIR ?? tmpdir(), "cgc-grok-probe-"),
-  );
-  try {
-    const sourceAuth = join(
-      process.env.HOME ?? "",
-      ".grok",
-      "auth.json",
-    );
-    const targetAuth = join(isolatedHome, "auth.json");
-    try {
-      copyFileSync(sourceAuth, targetAuth);
-    } catch {
-      throw new Error(
-        "Grok cached authentication is unavailable.",
-      );
-    }
-    chmodSync(targetAuth, 0o600);
-    writeFileSync(
-      join(isolatedHome, "config.toml"),
-      [
-        "[cli]",
-        "auto_update = false",
-        "",
-        "[compat.cursor]",
-        "skills = false",
-        "rules = false",
-        "agents = false",
-        "mcps = false",
-        "hooks = false",
-        "",
-        "[compat.claude]",
-        "skills = false",
-        "rules = false",
-        "agents = false",
-        "mcps = false",
-        "hooks = false",
-        "",
-      ].join("\n"),
-      { mode: 0o600 },
-    );
-    const result = run(
-      "grok",
-      [
-        "--single",
-        prompt,
-        "--model",
-        "grok-4.5",
-        "--reasoning-effort",
-        "medium",
-        "--json-schema",
-        '{"type":"object"}',
-        "--tools",
-        "web_search,web_fetch",
-        "--disallowed-tools",
-        "Agent",
-        "--no-subagents",
-        "--no-memory",
-        "--no-plan",
-        "--verbatim",
-        "--no-auto-update",
-        "--sandbox",
-        "strict",
-      ],
-      {
-        env: {
-          ...process.env,
-          GROK_HOME: isolatedHome,
-          GROK_MEMORY: "0",
-          GROK_SUBAGENTS: "0",
-          GROK_TELEMETRY_ENABLED: "0",
-          GROK_FEEDBACK_ENABLED: "0",
-        },
-      },
-    );
-    if (result.status !== 0 || result.signal || result.error) {
-      throw new Error("Grok public probe failed.");
-    }
-    let envelope;
-    try {
-      envelope = JSON.parse(result.stdout);
-    } catch {
-      throw new Error(
-        "Grok public probe returned invalid JSON.",
-      );
-    }
-    let output = envelope.structuredOutput;
-    if (
-      (!output ||
-        Array.isArray(output) ||
-        typeof output !== "object") &&
-      typeof envelope.text === "string"
-    ) {
-      try {
-        output = JSON.parse(envelope.text);
-      } catch {
-        output = null;
-      }
-    }
-    if (
-      !output ||
-      Array.isArray(output) ||
-      typeof output !== "object"
-    ) {
-      throw new Error(
-        "Grok public probe returned no structured output.",
-      );
-    }
-    process.stdout.write(`${JSON.stringify(output)}\n`);
-  } catch (error) {
-    process.stderr.write(`${error.message}\n`);
-    process.exitCode = 1;
-  } finally {
-    rmSync(isolatedHome, { recursive: true, force: true });
-  }
 } else {
   process.stderr.write("Provider public probe ID is invalid.\n");
   process.exit(1);

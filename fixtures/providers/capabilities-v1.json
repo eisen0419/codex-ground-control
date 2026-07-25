@@ -60,14 +60,14 @@
       },
       "additionalProperties": false
     },
-    "live-probe-output-v1": {
+    "grok-live-probe-output-v1": {
       "type": "object",
       "required": {
         "schemaVersion": "string",
         "provider": "string",
         "probe": "string",
         "ok": "boolean",
-        "source": "string"
+        "source": "object"
       },
       "additionalProperties": false
     },
@@ -370,14 +370,14 @@
         "provider-qualification"
       ],
       "outputContracts": [
-        "live-probe-output-v1"
+        "grok-live-probe-output-v1"
       ],
       "writeAccess": false,
       "recursiveDelegation": false,
       "executor": {
         "command": "{node}",
         "args": [
-          "{manifest_dir}/probe-adapter.mjs",
+          "{manifest_dir}/grok-research-adapter.mjs",
           "grok",
           "{prompt}"
         ],
@@ -393,9 +393,7 @@
           "HTTPS_PROXY",
           "HTTP_PROXY",
           "ALL_PROXY",
-          "NO_PROXY",
-          "XAI_API_KEY",
-          "GROK_API_KEY"
+          "NO_PROXY"
         ]
       }
     }

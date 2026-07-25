@@ -157,9 +157,11 @@ detected, configured, enabled, qualified, drifted, disabled, blocked, and
 execution-decision fields in JSON and human modes. Each Pi entry also reports
 its exact public provider/model identity. AGY reports its `research-only`
 role, Google surface, fixed `plan` mode, and
-`gemini-3.6-flash-high` model. `configured` means only that the profile's
-documented credential environment variable was observed; Ground Control does
-not read provider credential values or private CLI credential stores.
+`gemini-3.6-flash-high` model. Grok reports its `research-only` role, X.com
+surface, fixed `web-only` mode, and `grok-4.5` model. `configured` means only
+that the profile's documented credential environment variable was observed;
+read-only status commands do not read provider credential values or private CLI
+credential stores.
 
 All providers ship disabled and unqualified. `provider enable <id>` records a
 project-scoped preference but cannot authorize execution without current
@@ -190,6 +192,20 @@ fetches that exact HTTPS URL, checks every redirect against the origin/path
 allowlist, caps the response at 1 MB, and requires the public `Python` content
 marker. Wrong or stale observations, trailing prose, and unverifiable sources
 fail closed.
+For Grok, Ground Control requires CLI 0.2.93 or newer. The adapter copies only
+the cached Grok authentication file into a disposable per-run `GROK_HOME`,
+switches the child process to a separate isolated `HOME`, and removes the
+temporary runtime after success, failure, or timeout. User compatibility
+imports, rules, agents, MCPs, hooks, memory, subagents, telemetry, feedback, and
+auto-update are disabled before Grok starts. The fixed invocation exposes only
+`web_search` and `web_fetch`, denies the Agent tool, uses strict sandboxing, and
+never inherits API-key variables or unrelated secrets.
+
+Grok qualification uses its native JSON Schema output and a strict adapter
+envelope. It accepts only the exact official X account pairs
+`https://x.com/xai` with `@xai`, or `https://x.com/SpaceXAI` with
+`@spacexai`. Case variants, lookalikes, redirects, stale observations, unknown
+envelopes, mixed prose, and workspace writes fail closed.
 The command runs only the packaged `public-sources-v1` probe; there is no CLI
 argument for a user prompt or private repository context. Provider receipts
 bind the observed public CLI version, provider-specific FleetRunner adapter,
@@ -200,10 +216,12 @@ FleetRunner boundary. Evidence is append-only under
 CLI or contract drift invalidates only providers that depend on that
 fingerprint. A provider failure updates only its own gate: other current
 providers and the default offline core qualification remain usable.
-AGY receipts retain only the fixed public probe, verified public source
-observation, CLI version, component fingerprints, and evidence hashes. They
-label the output as qualification evidence, keep `codex-main` as completion
-authority, and state that no workspace changes were applied.
+AGY and Grok receipts retain only the fixed public probe, verified public
+source observation, CLI version, component fingerprints, and evidence hashes.
+They label the output as qualification evidence, keep `codex-main` as
+completion authority, and state that no workspace changes were applied. Grok
+receipts also record the public research boundary and that temporary
+authentication was neither retained nor recorded.
 
 After a Pi profile has current qualification evidence, the main Codex may send
 one bounded brief with an explicit live flag:

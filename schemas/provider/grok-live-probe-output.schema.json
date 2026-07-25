@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-ground-control.invalid/schemas/provider/grok-live-probe-output-v1.json",
+  "title": "Ground Control Grok X.com research probe output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "provider",
+    "probe",
+    "ok",
+    "source"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
+    },
+    "provider": {
+      "const": "grok"
+    },
+    "probe": {
+      "const": "public-sources-v1"
+    },
+    "ok": {
+      "const": true
+    },
+    "source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "identity",
+            "observedAt"
+          ],
+          "properties": {
+            "url": {
+              "const": "https://x.com/xai"
+            },
+            "identity": {
+              "const": "@xai"
+            },
+            "observedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "identity",
+            "observedAt"
+          ],
+          "properties": {
+            "url": {
+              "const": "https://x.com/SpaceXAI"
+            },
+            "identity": {
+              "const": "@spacexai"
+            },
+            "observedAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
