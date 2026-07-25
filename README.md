@@ -2,6 +2,10 @@
 
 A local-first, fail-closed workflow control plane for Codex.
 
+Ground Control v0.1 is for individual macOS terminal users who already have
+Codex CLI installed. It does not promise a GUI, team authorization, or
+Windows/Linux support.
+
 The v0.1 package installs a reproducible, project-local engineering workflow
 for Codex. It combines pinned Matt Pocock skills with a separate Ground Control
 Router overlay and single-coordinator rules. The packed artifact can initialize,
@@ -9,7 +13,7 @@ diagnose, qualify, inspect provider state, and uninstall itself in a fresh Git
 worktree without provider credentials, a second download, or network access.
 
 Ground Control for Codex is an independent community project. It is not
-affiliated with or endorsed by OpenAI.
+affiliated with or endorsed by OpenAI or Matt Pocock.
 
 ## Requirements
 
@@ -17,6 +21,31 @@ affiliated with or endorsed by OpenAI.
 - Node.js 22 or newer
 - Git
 - Codex CLI
+
+## Version-pinned installation
+
+After version 0.1.0 is published, preview the project-local installation from
+an existing Git worktree with an exact package version:
+
+```sh
+npx --yes codex-ground-control@0.1.0 init --dry-run
+npx --yes codex-ground-control@0.1.0 init
+```
+
+Ground Control never uses an unpinned `latest` tag in its release instructions.
+This repository has not published the package yet. For a local release
+candidate tarball, use the same executable seam without contacting npm:
+
+```sh
+npx --yes --offline \
+  --package=./codex-ground-control-0.1.0.tgz \
+  codex-ground-control init --dry-run
+```
+
+Project-local installation is the default. It changes only the current Git
+worktree plus product-owned qualification/provider state under
+`~/.codex-ground-control/`; it does not install user-level Codex instructions
+or skills unless the separate explicit global flow is requested.
 
 ## Local package smoke test
 
@@ -259,6 +288,12 @@ count to remain zero; those blocked gates do not prevent an independently
 qualified core leaf fixture from passing.
 The runtime fingerprint binds that allowlisted native-entry state, so changing
 either switch makes earlier evidence `qualification-drifted`.
+
+The architecture has one single Codex coordinator and only bounded external
+leaf adapters. Provider gates are independent, the default release campaign is
+offline, and every live provider operation requires explicit `--allow-live`.
+The native and external write gates remain blocked in v0.1; no provider is
+allowed to write the project or claim completion.
 
 ## Matt Pocock skills provenance
 
