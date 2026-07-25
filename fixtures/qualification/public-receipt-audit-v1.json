@@ -1,0 +1,127 @@
+{
+  "schemaVersion": "1",
+  "cases": [
+    {
+      "id": "valid-release-pass",
+      "schemaDecision": true,
+      "behaviorDecision": true,
+      "receipt": {
+        "schemaVersion": "1",
+        "product": "codex-ground-control",
+        "version": "0.1.0",
+        "command": "qualify",
+        "status": "ok",
+        "exitCode": 0,
+        "projectRoot": "/workspace",
+        "changed": true,
+        "result": {
+          "schemaVersion": "1",
+          "operation": "run",
+          "campaign": "offline-core-v1",
+          "terminalState": "release-passed",
+          "campaignScope": "release-full",
+          "counts": {
+            "total": 3,
+            "passed": 3,
+            "failed": 0
+          },
+          "runIdentity": "2026-01-01T00-00-00-000Z-offline-core-v1-00000000-0000-4000-8000-000000000000",
+          "evidence": {
+            "index": "~/.codex-ground-control/evidence/qualification/2026-01-01T00-00-00-000Z-offline-core-v1-00000000-0000-4000-8000-000000000000/evidence-index.json",
+            "anchor": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "runtimeFingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
+          "network": "not-used"
+        }
+      }
+    },
+    {
+      "id": "unknown-public-field",
+      "schemaDecision": false,
+      "behaviorDecision": false,
+      "receipt": {
+        "schemaVersion": "1",
+        "product": "codex-ground-control",
+        "version": "0.1.0",
+        "command": "qualify",
+        "status": "blocked",
+        "exitCode": 2,
+        "projectRoot": "/workspace",
+        "changed": false,
+        "unexpected": true,
+        "error": {
+          "code": "OPERATION_FAILED",
+          "message": "Qualification failed safely."
+        }
+      }
+    },
+    {
+      "id": "illegal-public-status",
+      "schemaDecision": false,
+      "behaviorDecision": false,
+      "receipt": {
+        "schemaVersion": "1",
+        "product": "codex-ground-control",
+        "version": "0.1.0",
+        "command": "qualify",
+        "status": "complete",
+        "exitCode": 0,
+        "projectRoot": "/workspace",
+        "changed": false
+      }
+    },
+    {
+      "id": "false-release-completion",
+      "schemaDecision": true,
+      "behaviorDecision": false,
+      "receipt": {
+        "schemaVersion": "1",
+        "product": "codex-ground-control",
+        "version": "0.1.0",
+        "command": "qualify",
+        "status": "ok",
+        "exitCode": 0,
+        "projectRoot": "/workspace",
+        "changed": true,
+        "result": {
+          "schemaVersion": "1",
+          "operation": "reproduce",
+          "campaign": "offline-core-v1",
+          "terminalState": "release-passed",
+          "campaignScope": "single-scenario",
+          "counts": {
+            "total": 1,
+            "passed": 1,
+            "failed": 0
+          },
+          "runIdentity": "2026-01-01T00-00-00-000Z-offline-core-v1-00000000-0000-4000-8000-000000000000",
+          "evidence": {
+            "index": "~/.codex-ground-control/evidence/qualification/2026-01-01T00-00-00-000Z-offline-core-v1-00000000-0000-4000-8000-000000000000/evidence-index.json",
+            "anchor": "0000000000000000000000000000000000000000000000000000000000000000"
+          },
+          "runtimeFingerprint": "1111111111111111111111111111111111111111111111111111111111111111",
+          "network": "not-used"
+        }
+      }
+    },
+    {
+      "id": "operational-blocker",
+      "schemaDecision": true,
+      "behaviorDecision": true,
+      "receipt": {
+        "schemaVersion": "1",
+        "product": "codex-ground-control",
+        "version": "0.1.0",
+        "command": "qualify",
+        "status": "blocked",
+        "exitCode": 2,
+        "projectRoot": "/workspace",
+        "changed": false,
+        "error": {
+          "code": "QUALIFICATION_EVIDENCE_INVALID",
+          "message": "Qualification evidence is invalid."
+        }
+      }
+    }
+  ]
+}

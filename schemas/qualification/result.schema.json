@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-ground-control.invalid/schemas/qualification/result-v1.json",
+  "title": "Ground Control offline qualification result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "campaign",
+    "runIdentity",
+    "startedAt",
+    "finishedAt",
+    "campaignScope",
+    "runtimeFingerprint",
+    "terminalState",
+    "counts",
+    "results"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
+    },
+    "campaign": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "runIdentity": {
+      "type": "string",
+      "pattern": "^[0-9TZ-]+[a-z0-9-]+-[0-9a-f-]{36}$"
+    },
+    "startedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finishedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "campaignScope": {
+      "enum": [
+        "release-full",
+        "single-scenario"
+      ]
+    },
+    "runtimeFingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "terminalState": {
+      "enum": [
+        "passed",
+        "failed"
+      ]
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "passed",
+        "failed"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "results": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scenario",
+          "category",
+          "driver",
+          "matched",
+          "mismatches",
+          "expected",
+          "observed",
+          "evidence"
+        ],
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"
+          },
+          "category": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"
+          },
+          "driver": {
+            "enum": [
+              "uppercase",
+              "fail-closed",
+              "validator-audit"
+            ]
+          },
+          "matched": {
+            "type": "boolean"
+          },
+          "mismatches": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "expected": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "terminalState",
+              "output",
+              "reason"
+            ],
+            "properties": {
+              "terminalState": {
+                "enum": [
+                  "passed",
+                  "blocked"
+                ]
+              },
+              "output": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "observed": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "terminalState",
+              "output",
+              "reason"
+            ],
+            "properties": {
+              "terminalState": {
+                "enum": [
+                  "passed",
+                  "blocked"
+                ]
+              },
+              "output": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "evidence": {
+            "type": "string",
+            "pattern": "^scenarios/[a-z0-9][a-z0-9-]{0,79}/observation\\.json$"
+          }
+        }
+      }
+    }
+  }
+}

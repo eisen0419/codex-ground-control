@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1",
+  "campaign": "offline-core-v1",
+  "mode": "offline",
+  "description": "Deterministic zero-model and zero-provider-network release baseline.",
+  "scenarios": [
+    {
+      "id": "offline-uppercase",
+      "category": "functional",
+      "severity": "high",
+      "driver": "uppercase",
+      "input": {
+        "value": "ground-control"
+      },
+      "expected": {
+        "terminalState": "passed",
+        "output": "GROUND-CONTROL",
+        "reason": null
+      },
+      "nextAction": "Restore the deterministic packaged fixture."
+    },
+    {
+      "id": "provider-network-fail-closed",
+      "category": "governance",
+      "severity": "critical",
+      "driver": "fail-closed",
+      "input": {
+        "boundary": "provider-network"
+      },
+      "expected": {
+        "terminalState": "blocked",
+        "output": null,
+        "reason": "provider-network-disabled"
+      },
+      "nextAction": "Keep provider network outside the default qualification path."
+    },
+    {
+      "id": "public-receipt-validator-audit",
+      "category": "contract",
+      "severity": "high",
+      "driver": "validator-audit",
+      "input": {
+        "contract": "public-receipt"
+      },
+      "expected": {
+        "terminalState": "passed",
+        "output": "schema-and-behavior-audited",
+        "reason": null
+      },
+      "nextAction": "Reconcile the versioned schema, public validator and audit corpus."
+    }
+  ]
+}

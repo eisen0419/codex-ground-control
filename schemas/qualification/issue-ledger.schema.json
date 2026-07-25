@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-ground-control.invalid/schemas/qualification/issue-ledger-v1.json",
+  "title": "Ground Control qualification issue ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "campaign",
+    "runIdentity",
+    "generatedAt",
+    "openCount",
+    "issues"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
+    },
+    "campaign": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,79}$"
+    },
+    "runIdentity": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "openCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "scenario",
+          "category",
+          "severity",
+          "expected",
+          "observed",
+          "mismatches",
+          "evidence",
+          "reproduction",
+          "nextAction",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^qual-[0-9a-f]{16}$"
+          },
+          "scenario": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "expected": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "terminalState",
+              "output",
+              "reason"
+            ],
+            "properties": {
+              "terminalState": {
+                "enum": [
+                  "passed",
+                  "blocked"
+                ]
+              },
+              "output": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "observed": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "terminalState",
+              "output",
+              "reason"
+            ],
+            "properties": {
+              "terminalState": {
+                "enum": [
+                  "passed",
+                  "blocked"
+                ]
+              },
+              "output": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "mismatches": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "evidence": {
+            "type": "string",
+            "minLength": 1
+          },
+          "reproduction": {
+            "type": "string",
+            "minLength": 1
+          },
+          "nextAction": {
+            "type": "string",
+            "minLength": 1
+          },
+          "status": {
+            "const": "open"
+          }
+        }
+      }
+    }
+  }
+}

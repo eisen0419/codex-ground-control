@@ -7,6 +7,10 @@ import {
 } from "./project-state.js";
 import { readSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  validateQualificationDocument,
+  validateQualificationReceiptBehavior,
+} from "./qualification-contract.js";
 
 export const VERSION = "0.1.0";
 export const EXIT_SUCCESS = 0;
@@ -22,6 +26,11 @@ export const HELP_TEXT = [
   "  qualify    Run the deterministic offline qualification",
   "  provider   Inspect optional provider state",
   "  uninstall  Restore the managed scope to its pre-install state",
+  "",
+  "Qualification:",
+  "  qualify",
+  "  qualify verify <run-identity> <evidence-anchor>",
+  "  qualify reproduce <run-identity> <scenario-id>",
   "",
   "Options:",
   "  --json     Emit exactly one JSON receipt",
@@ -169,6 +178,25 @@ function renderDoctor(result) {
   ].join("\n");
 }
 
+function renderQualification(result) {
+  if (result.result.operation === "verify") {
+    return `Qualification evidence verified: ${result.result.runIdentity}.`;
+  }
+  if (result.result.operation === "reproduce") {
+    return (
+      `Qualification reproduction passed: ${result.result.campaign} ` +
+      `(${result.result.counts.passed}/${result.result.counts.total}); ` +
+      `run ${result.result.runIdentity}; not a release qualification.`
+    );
+  }
+  return (
+    `Offline qualification passed: ${result.result.campaign} ` +
+    `(${result.result.counts.passed}/${result.result.counts.total}); ` +
+    `run ${result.result.runIdentity}; ` +
+    `evidence ${result.result.evidence.anchor}.`
+  );
+}
+
 function renderHuman(result, output, errors) {
   if (result.command === "doctor" && result.result?.findings) {
     output.write(`${renderDoctor(result)}\n`);
@@ -190,7 +218,10 @@ function renderHuman(result, output, errors) {
 
   const messages = {
     init: renderInit(result),
-    qualify: `Offline qualification passed: ${result.result.fixture}.`,
+    qualify:
+      result.command === "qualify"
+        ? renderQualification(result)
+        : null,
     provider: result.result.summary,
     uninstall:
       result.scope === "global"
@@ -205,6 +236,37 @@ function renderHuman(result, output, errors) {
   };
 
   output.write(`${messages[result.command]}\n`);
+}
+
+function qualificationArguments(commandArgs) {
+  if (commandArgs.length === 1) {
+    return { operation: "run" };
+  }
+  if (
+    commandArgs.length === 4 &&
+    commandArgs[1] === "verify" &&
+    /^[a-zA-Z0-9-]+$/.test(commandArgs[2]) &&
+    /^[0-9a-f]{64}$/.test(commandArgs[3])
+  ) {
+    return {
+      operation: "verify",
+      runIdentity: commandArgs[2],
+      anchor: commandArgs[3],
+    };
+  }
+  if (
+    commandArgs.length === 4 &&
+    commandArgs[1] === "reproduce" &&
+    /^[a-zA-Z0-9-]+$/.test(commandArgs[2]) &&
+    /^[a-z0-9][a-z0-9-]{0,79}$/.test(commandArgs[3])
+  ) {
+    return {
+      operation: "reproduce",
+      sourceRun: commandArgs[2],
+      scenarioId: commandArgs[3],
+    };
+  }
+  return null;
 }
 
 function commandArgumentsAreValid(commandArgs) {
@@ -229,7 +291,9 @@ function commandArgumentsAreValid(commandArgs) {
       commandArgs[1] === "--global") ||
     (commandArgs[0] === "provider" &&
       commandArgs.length === 2 &&
-      commandArgs[1] === "list")
+      commandArgs[1] === "list") ||
+    (commandArgs[0] === "qualify" &&
+      qualificationArguments(commandArgs) !== null)
   );
 }
 
@@ -292,6 +356,10 @@ export function runCli(
       global: commandArgs.includes("--global"),
       confirmed: commandArgs.includes("--confirm-global"),
       homeDirectory,
+      qualification:
+        command === "qualify"
+          ? qualificationArguments(commandArgs)
+          : undefined,
     };
     const needsInteractiveGlobalConfirmation =
       options.global &&
@@ -369,7 +437,7 @@ export function runCli(
       },
     };
   }
-  const receipt = {
+  let receipt = {
     ...baseReceipt(command, outcome.status, outcome.exitCode),
     ...(outcome.scope ? { scope: outcome.scope } : {}),
     ...(outcome.projectRoot
@@ -380,6 +448,32 @@ export function runCli(
     ...(outcome.result ? { result: outcome.result } : {}),
     ...(outcome.error ? { error: outcome.error } : {}),
   };
+  if (command === "qualify") {
+    let receiptValid = false;
+    try {
+      const schema = validateQualificationDocument(
+        "receipt",
+        receipt,
+      );
+      const behavior =
+        validateQualificationReceiptBehavior(receipt);
+      receiptValid = schema.valid && behavior.valid;
+    } catch {
+      receiptValid = false;
+    }
+    if (!receiptValid) {
+      receipt = {
+        ...baseReceipt("qualify", "blocked", EXIT_BLOCKED),
+        projectRoot: resolve(cwd),
+        changed: false,
+        error: {
+          code: "QUALIFICATION_RECEIPT_INVALID",
+          message:
+            "Qualification could not produce a valid public receipt.",
+        },
+      };
+    }
+  }
 
   if (json) {
     writeJson(output, receipt);
@@ -392,5 +486,5 @@ export function runCli(
     errors.write(`${receipt.error.message}\n`);
   }
 
-  return outcome.exitCode;
+  return receipt.exitCode;
 }

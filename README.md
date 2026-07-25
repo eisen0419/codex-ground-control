@@ -38,6 +38,8 @@ codex-ground-control init --dry-run
 codex-ground-control init
 codex-ground-control doctor
 codex-ground-control qualify
+codex-ground-control qualify verify <run-identity> <evidence-anchor>
+codex-ground-control qualify reproduce <run-identity> <scenario-id>
 codex-ground-control provider
 codex-ground-control uninstall
 ```
@@ -116,8 +118,28 @@ exists and are consumed after successful restoration. Audit evidence under
 ordinary uninstall. A missing or modified backup, manifest, managed block, or
 tool-owned asset produces a conflict before destructive cleanup.
 
-The `qualify` command runs a packaged deterministic fixture; `provider` reports
-that no optional providers are configured.
+The default `qualify` command runs the full packaged offline release campaign.
+It makes no model or provider-network calls and writes every run to a new
+directory under
+`~/.codex-ground-control/evidence/qualification/<run-identity>/`. The JSON
+receipt reports the campaign, terminal state, pass/fail counts, run identity,
+runtime fingerprint, evidence-index path, and external SHA-256 anchor.
+
+Each evidence index binds every run file by byte count and SHA-256.
+`qualify verify` rejects an incorrect external anchor, missing or modified
+evidence, unindexed files, strict-schema drift, and stale runtime/component
+fingerprints. `qualify reproduce` reruns one scenario from an existing
+campaign snapshot into a new run; it never upgrades that affected-only result
+into a full release qualification. Expected fail-closed observations count as
+passes, while expectation mismatches create stable issue records with evidence
+and reproduction instructions.
+
+The campaign, result, issue-ledger, and public-receipt schemas are shipped
+under `schemas/qualification/`. Unknown fields and illegal states are rejected,
+and a packaged audit fixture detects drift between receipt-schema decisions and
+the public behavior validator. Qualification evidence records only allowlisted
+runtime facts and component hashes, never credential or arbitrary environment
+values. `provider` reports that no optional providers are configured.
 
 ## Matt Pocock skills provenance
 

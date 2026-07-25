@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-ground-control.invalid/schemas/qualification/public-receipt-v1.json",
+  "title": "Ground Control public qualification receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "product",
+    "version",
+    "command",
+    "status",
+    "exitCode",
+    "projectRoot",
+    "changed"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
+    },
+    "product": {
+      "const": "codex-ground-control"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "command": {
+      "const": "qualify"
+    },
+    "status": {
+      "enum": [
+        "ok",
+        "blocked"
+      ]
+    },
+    "exitCode": {
+      "enum": [
+        0,
+        2
+      ]
+    },
+    "projectRoot": {
+      "type": "string",
+      "minLength": 1
+    },
+    "changed": {
+      "type": "boolean"
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "operation",
+        "campaign",
+        "terminalState",
+        "campaignScope",
+        "counts",
+        "runIdentity",
+        "evidence",
+        "runtimeFingerprint",
+        "network"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1"
+        },
+        "operation": {
+          "enum": [
+            "run",
+            "reproduce",
+            "verify"
+          ]
+        },
+        "campaign": {
+          "type": "string",
+          "minLength": 1
+        },
+        "terminalState": {
+          "enum": [
+            "release-passed",
+            "release-failed",
+            "reproduction-passed",
+            "reproduction-failed",
+            "evidence-verified",
+            "qualification-drifted"
+          ]
+        },
+        "campaignScope": {
+          "enum": [
+            "release-full",
+            "single-scenario",
+            "evidence"
+          ]
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total",
+            "passed",
+            "failed"
+          ],
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "passed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "runIdentity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "index",
+            "anchor"
+          ],
+          "properties": {
+            "index": {
+              "type": "string",
+              "pattern": "^~/.codex-ground-control/evidence/qualification/[a-zA-Z0-9-]+/evidence-index\\.json$"
+            },
+            "anchor": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "runtimeFingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "network": {
+          "const": "not-used"
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]+$"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

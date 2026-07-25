@@ -1,10 +1,6 @@
 import { spawnSync } from "node:child_process";
-import {
-  realpathSync,
-  readFileSync,
-} from "node:fs";
+import { realpathSync } from "node:fs";
 import { parse, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   diagnoseManagedWorkflow,
   initializeManagedWorkflow,
@@ -17,6 +13,12 @@ import {
   uninstallGlobalWorkflow,
 } from "./global-workflow.js";
 import { diagnoseRuntime } from "./doctor.js";
+import {
+  QualificationLabError,
+  reproduceOfflineQualification,
+  runOfflineQualification,
+  verifyOfflineQualification,
+} from "./qualification-lab.js";
 
 const EXIT_SUCCESS = 0;
 const EXIT_BLOCKED = 2;
@@ -275,26 +277,82 @@ export function qualifyProject(startDirectory, options = {}) {
     return project.error;
   }
 
-  const fixturePath = fileURLToPath(
-    new URL("../fixtures/offline-uppercase.json", import.meta.url),
-  );
-  const fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
-  const observed = fixture.input.toUpperCase();
-
-  if (observed !== fixture.expected) {
-    return blocked(
-      project.projectRoot,
-      "OFFLINE_QUALIFICATION_FAILED",
-      "The deterministic offline fixture did not produce the expected result.",
-    );
+  let result;
+  try {
+    switch (options.qualification?.operation ?? "run") {
+      case "verify":
+        result = verifyOfflineQualification({
+          homeDirectory: options.homeDirectory,
+          runIdentity: options.qualification.runIdentity,
+          anchor: options.qualification.anchor,
+        });
+        break;
+      case "reproduce":
+        result = reproduceOfflineQualification({
+          homeDirectory: options.homeDirectory,
+          sourceRun: options.qualification.sourceRun,
+          scenarioId: options.qualification.scenarioId,
+        });
+        break;
+      case "run":
+        result = runOfflineQualification({
+          homeDirectory: options.homeDirectory,
+        });
+        break;
+      default:
+        throw new QualificationLabError(
+          "QUALIFICATION_OPERATION_INVALID",
+          "Qualification operation is invalid.",
+        );
+    }
+  } catch (error) {
+    if (!(error instanceof QualificationLabError)) {
+      throw error;
+    }
+    return blocked(project.projectRoot, error.code, error.message);
   }
 
-  return success(project.projectRoot, false, {
-    fixture: fixture.id,
-    observed,
-    qualification: "passed",
-    network: "not-used",
-  });
+  if (result.terminalState === "release-passed") {
+    return success(project.projectRoot, true, result);
+  }
+  if (result.terminalState === "evidence-verified") {
+    return success(project.projectRoot, false, result);
+  }
+  if (result.terminalState === "reproduction-passed") {
+    return success(project.projectRoot, true, result);
+  }
+  if (result.terminalState === "qualification-drifted") {
+    return {
+      status: "blocked",
+      exitCode: EXIT_BLOCKED,
+      projectRoot: project.projectRoot,
+      changed: false,
+      result,
+      error: {
+        code: "QUALIFICATION_DRIFTED",
+        message:
+          "Qualification evidence is intact but its runtime fingerprint is stale.",
+      },
+    };
+  }
+  const reproduction =
+    result.terminalState === "reproduction-failed";
+  return {
+    status: "blocked",
+    exitCode: EXIT_BLOCKED,
+    projectRoot: project.projectRoot,
+    changed: true,
+    result,
+    error: {
+      code: reproduction
+        ? "QUALIFICATION_REPRODUCTION_MISMATCH"
+        : "OFFLINE_QUALIFICATION_MISMATCH",
+      message:
+        reproduction
+          ? "Qualification reproduction observed an unexpected result."
+          : "Offline qualification observed unexpected scenario results.",
+    },
+  };
 }
 
 export function inspectProviders(startDirectory, options = {}) {
