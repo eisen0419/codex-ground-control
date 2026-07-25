@@ -71,8 +71,20 @@ const PI_LEAF_ADAPTER_URL = new URL(
   "../fixtures/providers/pi-leaf-adapter.mjs",
   import.meta.url,
 );
+const AGY_RESEARCH_ADAPTER_URL = new URL(
+  "../fixtures/providers/agy-research-adapter.mjs",
+  import.meta.url,
+);
+const AGY_SOURCE_VERIFIER_URL = new URL(
+  "../fixtures/providers/agy-source-verifier.mjs",
+  import.meta.url,
+);
 const PROVIDER_SCHEMA_URL = new URL(
   "../schemas/provider/live-probe-output.schema.json",
+  import.meta.url,
+);
+const AGY_PROBE_SCHEMA_URL = new URL(
+  "../schemas/provider/agy-live-probe-output.schema.json",
   import.meta.url,
 );
 const PI_CANDIDATE_SCHEMA_URL = new URL(
@@ -107,6 +119,9 @@ const COMPONENTS = [
   ["provider-probe-schema", PROVIDER_SCHEMA_URL],
   ["pi-leaf-adapter", PI_LEAF_ADAPTER_URL],
   ["pi-candidate-schema", PI_CANDIDATE_SCHEMA_URL],
+  ["agy-research-adapter", AGY_RESEARCH_ADAPTER_URL],
+  ["agy-source-verifier", AGY_SOURCE_VERIFIER_URL],
+  ["agy-probe-schema", AGY_PROBE_SCHEMA_URL],
   ["qualification-lab", new URL("./qualification-lab.js", import.meta.url)],
   [
     "qualification-contract",

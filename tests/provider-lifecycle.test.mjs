@@ -63,6 +63,66 @@ function printPiMessageEnd(provider, model, text) {
   )}`;
 }
 
+function printAgyObservation(overrides = {}) {
+  const observation = {
+    schemaVersion: "1",
+    provider: "agy",
+    probe: "public-sources-v1",
+    ok: true,
+    source: {
+      url: "https://www.python.org/",
+      identity: "Python Software Foundation official website",
+      observedAt: "current",
+      ...overrides,
+    },
+  };
+  const script = [
+    `const output = ${JSON.stringify(observation)};`,
+    'if (output.source.observedAt === "current") {',
+    "  output.source.observedAt = new Date().toISOString();",
+    "}",
+    'process.stdout.write(`${JSON.stringify(output)}\\n`);',
+  ].join("\n");
+  return `node -e ${shellQuote(script)}`;
+}
+
+function withAgySourceVerifierFixture(callback, options = {}) {
+  const verifierPath = join(
+    packedCli.packageRoot,
+    "fixtures",
+    "providers",
+    "agy-source-verifier.mjs",
+  );
+  const original = readFileSync(verifierPath);
+  const implementation = options.fail
+    ? [
+        "export function validAgySourceRules() { return true; }",
+        "export async function verifyAgySourceObservation() {",
+        '  throw new Error("fixture source fetch failed");',
+        "}",
+        "",
+      ].join("\n")
+    : [
+        "export function validAgySourceRules() { return true; }",
+        "export async function verifyAgySourceObservation(source) {",
+        "  return {",
+        "    checkedAt: new Date().toISOString(),",
+        "    finalUrl: source.url,",
+        "    httpStatus: 200,",
+        "    contentMarkersMatched: true,",
+        "    verified: true,",
+        "  };",
+        "}",
+        "",
+      ].join("\n");
+  writeFileSync(verifierPath, implementation);
+  try {
+    return callback();
+  } finally {
+    writeFileSync(verifierPath, original);
+  }
+}
+
 function environment(homeDirectory, runtimeBin) {
   return {
     PATH: `${runtimeBin}:/usr/bin:/bin`,
@@ -232,7 +292,13 @@ test("provider list reports three independent Pi profiles without writing state"
       listed.receipt.result.providers,
       [
         ...piProfiles,
-        { id: "agy" },
+        {
+          id: "agy",
+          role: "research-only",
+          researchSurface: "google",
+          mode: "plan",
+          model: "gemini-3.6-flash-high",
+        },
         { id: "grok" },
       ].map((definition) => ({
         ...definition,
@@ -380,6 +446,687 @@ test("packaged probe adapter rejects an unapproved prompt before provider startu
     "Provider public probe prompt is not approved.\n",
   );
   assert.equal(existsSync(invocationMarker), false);
+});
+
+test("packaged AGY adapter rejects an unapproved prompt before provider startup", () => {
+  const providerBin = mkdtempSync(
+    join(packedCli.sandbox, "runtime-private-agy-prompt-"),
+  );
+  const workspace = mkdtempSync(
+    join(packedCli.sandbox, "agy-adapter-workspace-"),
+  );
+  const invocationMarker = join(
+    packedCli.sandbox,
+    `private-agy-prompt-invoked-${Date.now()}`,
+  );
+  writeFileSync(
+    join(providerBin, "agy"),
+    `#!/bin/sh\n: > '${invocationMarker}'\nexit 0\n`,
+  );
+  chmodSync(join(providerBin, "agy"), 0o755);
+
+  const rejected = spawnSync(
+    process.execPath,
+    [
+      join(
+        packedCli.packageRoot,
+        "fixtures",
+        "providers",
+        "agy-research-adapter.mjs",
+      ),
+      "agy",
+      "read a private repository",
+    ],
+    {
+      cwd: workspace,
+      encoding: "utf8",
+      env: {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+        HOME: packedCli.sandbox,
+        TMPDIR: tmpdir(),
+      },
+    },
+  );
+
+  assert.equal(rejected.status, 1);
+  assert.equal(
+    rejected.stderr,
+    "AGY public research prompt is not approved.\n",
+  );
+  assert.equal(existsSync(invocationMarker), false);
+});
+
+test("AGY qualification fixes Google research, isolates cwd, withholds secrets, and verifies source identity", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-qualified-agy-"),
+    );
+    const invocationLog = join(
+      packedCli.sandbox,
+      `agy-provider-args-${Date.now()}`,
+    );
+    const privateRepositoryMarker =
+      "private-repository-content-must-not-leak";
+    const credential = "agy-credential-must-not-leak";
+    writeFileSync(
+      join(context.projectDirectory, "private-source.txt"),
+      privateRepositoryMarker,
+    );
+    writeFileSync(
+      join(context.homeDirectory, "private-user-file.txt"),
+      "private-user-file-must-not-leak",
+    );
+    writeFileSync(
+      join(providerBin, "agy"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'agy 1.1.7\\n'",
+        "  exit 0",
+        "fi",
+        `printf '%s\\n' "$@" > '${invocationLog}'`,
+        `printf 'cwd=%s\\n' "$PWD" >> '${invocationLog}'`,
+        `printf 'home=%s\\n' "$HOME" >> '${invocationLog}'`,
+        `printf 'google=%s\\n' "\${GOOGLE_API_KEY:+present}" >> '${invocationLog}'`,
+        `printf 'gemini=%s\\n' "\${GEMINI_API_KEY:+present}" >> '${invocationLog}'`,
+        `printf 'unrelated=%s\\n' "\${UNRELATED_SECRET:+present}" >> '${invocationLog}'`,
+        printAgyObservation(),
+        "",
+      ].join("\n"),
+    );
+    chmodSync(join(providerBin, "agy"), 0o755);
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      GEMINI_API_KEY: credential,
+      UNRELATED_SECRET: "unrelated-secret-must-not-leak",
+    };
+    assert.equal(
+      runJson(
+        ["provider", "enable", "agy"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+    const projectBefore = snapshotFiles(context.projectDirectory);
+
+    const qualified = withAgySourceVerifierFixture(() =>
+      runJson(
+        ["provider", "qualify", "agy", "--allow-live"],
+        context,
+        providerEnvironment,
+      )
+    );
+
+    assert.equal(qualified.status, 0);
+    assert.equal(
+      qualified.receipt.result.qualification.terminalState,
+      "passed",
+    );
+    assert.deepEqual(
+      qualified.receipt.result.qualification.sourceIdentity,
+      {
+        semanticIdentity:
+          "Python Software Foundation official website",
+        url: "https://www.python.org/",
+      },
+    );
+    assert.deepEqual(
+      qualified.receipt.result.qualification.sourceVerification,
+      {
+        source: "agy-independent-allowlist-fetch-v1",
+        verified: true,
+        checkedAt:
+          qualified.receipt.result.qualification
+            .sourceVerification.checkedAt,
+        finalUrl: "https://www.python.org/",
+        httpStatus: 200,
+        contentMarkersMatched: true,
+      },
+    );
+    assert.equal(
+      Number.isNaN(
+        Date.parse(
+          qualified.receipt.result.qualification
+            .sourceVerification.checkedAt,
+        ),
+      ),
+      false,
+    );
+    assert.equal(
+      qualified.receipt.result.qualification.observation.identity,
+      "Python Software Foundation official website",
+    );
+    assert.equal(
+      Date.now() -
+        Date.parse(
+          qualified.receipt.result.qualification.observation
+            .observedAt,
+        ) <
+        5 * 60 * 1000,
+      true,
+    );
+    assert.equal(qualified.receipt.result.provider.role, "research-only");
+    assert.equal(
+      qualified.receipt.result.provider.researchSurface,
+      "google",
+    );
+    assert.equal(qualified.receipt.result.provider.mode, "plan");
+    assert.equal(
+      qualified.receipt.result.provider.model,
+      "gemini-3.6-flash-high",
+    );
+    assert.deepEqual(
+      snapshotFiles(context.projectDirectory),
+      projectBefore,
+    );
+
+    const invocation = readFileSync(invocationLog, "utf8");
+    const invocationLines = invocation.trim().split("\n");
+    assert.deepEqual(invocationLines.slice(0, 8), [
+      "--sandbox",
+      "--mode",
+      "plan",
+      "--model",
+      "gemini-3.6-flash-high",
+      "--print-timeout",
+      "2m",
+      "--print",
+    ]);
+    assert.match(
+      invocationLines[8],
+      /^Use Google Search only for this fixed public qualification probe\./,
+    );
+    assert.match(
+      invocation,
+      /https:\/\/www\.python\.org\//,
+    );
+    assert.equal(invocation.includes(privateRepositoryMarker), false);
+    assert.equal(invocation.includes(credential), false);
+    assert.equal(invocation.includes(context.projectDirectory), false);
+    assert.match(invocation, /^cwd=.+\/workspace$/m);
+    assert.equal(
+      invocation.includes(`home=${context.homeDirectory}`),
+      true,
+    );
+    assert.match(invocation, /^google=$/m);
+    assert.match(invocation, /^gemini=$/m);
+    assert.match(invocation, /^unrelated=$/m);
+    assert.equal(invocation.includes("--agent"), false);
+    assert.equal(invocation.includes("--new-project"), false);
+    assert.equal(
+      invocation.includes("--dangerously-skip-permissions"),
+      false,
+    );
+    assert.match(invocation, /Do not claim final completion\./);
+    assert.deepEqual(
+      qualified.receipt.result.qualification.authority,
+      {
+        disposition: "qualification-evidence",
+        completionAuthority: "codex-main",
+        reviewRequired: true,
+        workspaceChangesApplied: false,
+      },
+    );
+
+    const evidencePath =
+      qualified.receipt.result.qualification.evidence.index.replace(
+        "~/",
+        "",
+      );
+    const evidenceDirectory = join(
+      context.homeDirectory,
+      dirname(evidencePath),
+    );
+    assert.equal(
+      existsSync(join(evidenceDirectory, "workspace")),
+      false,
+    );
+    const evidence = snapshotFiles(evidenceDirectory);
+    for (const value of Object.values(evidence)) {
+      const contents = value.toString("utf8");
+      assert.equal(contents.includes(credential), false);
+      assert.equal(contents.includes(privateRepositoryMarker), false);
+      assert.equal(
+        contents.includes("private-user-file-must-not-leak"),
+        false,
+      );
+    }
+  });
+});
+
+test("AGY qualification requires explicit live approval before startup", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-agy-live-gate-"),
+    );
+    const invocationMarker = join(
+      packedCli.sandbox,
+      `agy-live-invoked-${Date.now()}`,
+    );
+    writeFileSync(
+      join(providerBin, "agy"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'agy 1.1.7\\n'",
+        "  exit 0",
+        "fi",
+        `: > '${invocationMarker}'`,
+        "exit 9",
+        "",
+      ].join("\n"),
+    );
+    chmodSync(join(providerBin, "agy"), 0o755);
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+    };
+    assert.equal(
+      runJson(
+        ["provider", "enable", "agy"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+
+    const rejected = runJson(
+      ["provider", "qualify", "agy"],
+      context,
+      providerEnvironment,
+    );
+
+    assert.equal(rejected.status, 2);
+    assert.equal(
+      rejected.receipt.error.code,
+      "PROVIDER_LIVE_CONFIRMATION_REQUIRED",
+    );
+    assert.equal(rejected.receipt.changed, false);
+    assert.equal(existsSync(invocationMarker), false);
+  });
+});
+
+test("AGY rejects incompatible versions before research startup", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-incompatible-agy-"),
+    );
+    const invocationMarker = join(
+      packedCli.sandbox,
+      `incompatible-agy-invoked-${Date.now()}`,
+    );
+    writeFileSync(
+      join(providerBin, "agy"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'agy 1.0.0\\n'",
+        "  exit 0",
+        "fi",
+        `: > '${invocationMarker}'`,
+        "exit 0",
+        "",
+      ].join("\n"),
+    );
+    chmodSync(join(providerBin, "agy"), 0o755);
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+    };
+    assert.equal(
+      runJson(
+        ["provider", "enable", "agy"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+
+    const rejected = runJson(
+      ["provider", "qualify", "agy", "--allow-live"],
+      context,
+      providerEnvironment,
+    );
+
+    assert.equal(rejected.status, 2);
+    assert.equal(
+      rejected.receipt.error.code,
+      "PROVIDER_UNAVAILABLE",
+    );
+    assert.equal(existsSync(invocationMarker), false);
+    const listed = runJson(
+      ["provider", "list"],
+      context,
+      providerEnvironment,
+    );
+    const agy = listed.receipt.result.providers[3];
+    assert.equal(agy.availability, "incompatible");
+    assert.equal(agy.cliVersion, "1.0.0");
+    assert.equal(agy.qualified, false);
+    assert.equal(agy.blocked, true);
+  });
+});
+
+test("AGY rejects wrong, stale, mixed, writing, timed-out, and failed observations", () => {
+  const cases = [
+    {
+      id: "wrong-url",
+      body: printAgyObservation({
+        url: "https://www.python.org/about/",
+      }),
+      fleetStatus: "process-failed",
+    },
+    {
+      id: "wrong-identity",
+      body: printAgyObservation({
+        identity: "Python community website",
+      }),
+      fleetStatus: "process-failed",
+    },
+    {
+      id: "stale",
+      body: printAgyObservation({
+        observedAt: "2020-01-01T00:00:00.000Z",
+      }),
+      fleetStatus: "process-failed",
+    },
+    {
+      id: "trailing-prose",
+      body: `${printAgyObservation()}\nprintf 'plausible prose\\n'`,
+      fleetStatus: "process-failed",
+    },
+    {
+      id: "fetch-failure",
+      body: printAgyObservation(),
+      verifierFails: true,
+      fleetStatus: "process-failed",
+    },
+    {
+      id: "workspace-write",
+      body: `printf 'not allowed\\n' > workspace-write.txt\n${printAgyObservation()}`,
+      fleetStatus: "process-failed",
+    },
+    {
+      id: "timeout",
+      body: "sleep 5",
+      timeoutMilliseconds: 100,
+      fleetStatus: "timeout",
+    },
+    {
+      id: "process-failure",
+      body: "printf 'provider failed\\n' >&2\nexit 17",
+      fleetStatus: "process-failed",
+    },
+  ];
+
+  for (const fixture of cases) {
+    withProject((context) => {
+      assert.equal(runJson(["init"], context).status, 0);
+      const providerBin = mkdtempSync(
+        join(
+          packedCli.sandbox,
+          `runtime-agy-${fixture.id}-`,
+        ),
+      );
+      writeFileSync(
+        join(providerBin, "agy"),
+        [
+          "#!/bin/sh",
+          'if [ "$1" = "--version" ]; then',
+          "  printf 'agy 1.1.7\\n'",
+          "  exit 0",
+          "fi",
+          fixture.body,
+          "",
+        ].join("\n"),
+      );
+      chmodSync(join(providerBin, "agy"), 0o755);
+      const providerEnvironment = {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      };
+      assert.equal(
+        runJson(
+          ["provider", "enable", "agy"],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+      const projectBefore = snapshotFiles(
+        context.projectDirectory,
+      );
+      const catalogPath = join(
+        packedCli.packageRoot,
+        "fixtures",
+        "providers",
+        "public-probes-v1.json",
+      );
+      const originalCatalog = readFileSync(catalogPath);
+      if (fixture.timeoutMilliseconds) {
+        const catalog = JSON.parse(
+          originalCatalog.toString("utf8"),
+        );
+        catalog.providers.agy.timeoutMilliseconds =
+          fixture.timeoutMilliseconds;
+        writeFileSync(
+          catalogPath,
+          `${JSON.stringify(catalog, null, 2)}\n`,
+        );
+      }
+
+      let failed;
+      try {
+        const qualify = () =>
+          runJson(
+            ["provider", "qualify", "agy", "--allow-live"],
+            context,
+            providerEnvironment,
+          );
+        failed = fixture.verifierFails
+          ? withAgySourceVerifierFixture(qualify, {
+              fail: true,
+            })
+          : qualify();
+      } finally {
+        writeFileSync(catalogPath, originalCatalog);
+      }
+
+      assert.equal(failed.status, 2, fixture.id);
+      assert.equal(
+        failed.receipt.error.code,
+        "PROVIDER_QUALIFICATION_FAILED",
+        fixture.id,
+      );
+      assert.equal(
+        failed.receipt.result.qualification.terminalState,
+        "failed",
+        fixture.id,
+      );
+      assert.equal(
+        failed.receipt.result.qualification.sourceVerification
+          .verified,
+        false,
+        fixture.id,
+      );
+      assert.equal(
+        failed.receipt.result.qualification.observation,
+        null,
+        fixture.id,
+      );
+      assert.deepEqual(
+        snapshotFiles(context.projectDirectory),
+        projectBefore,
+        fixture.id,
+      );
+      const evidencePath =
+        failed.receipt.result.qualification.evidence.index.replace(
+          "~/",
+          "",
+        );
+      const evidenceDirectory = join(
+        context.homeDirectory,
+        dirname(evidencePath),
+      );
+      const summary = JSON.parse(
+        readFileSync(
+          join(
+            evidenceDirectory,
+            "provider-qualification.json",
+          ),
+          "utf8",
+        ),
+      );
+      assert.equal(
+        summary.fleetStatus,
+        fixture.fleetStatus,
+        fixture.id,
+      );
+      assert.equal(
+        existsSync(join(evidenceDirectory, "workspace")),
+        false,
+        fixture.id,
+      );
+    });
+  }
+});
+
+test("AGY adapter, source verifier, or CLI drift invalidates only the AGY gate", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-drifting-agy-"),
+    );
+    const versionFile = join(providerBin, "version.txt");
+    writeFileSync(versionFile, "1.1.7\n");
+    writeFileSync(
+      join(providerBin, "agy"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        `  printf 'agy %s\\n' "$(cat '${versionFile}')"`,
+        "  exit 0",
+        "fi",
+        printAgyObservation(),
+        "",
+      ].join("\n"),
+    );
+    chmodSync(join(providerBin, "agy"), 0o755);
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+    };
+    assert.equal(
+      runJson(
+        ["provider", "enable", "agy"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+    withAgySourceVerifierFixture(() => {
+      assert.equal(
+        runJson(
+          ["provider", "qualify", "agy", "--allow-live"],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+      const adapterPath = join(
+        packedCli.packageRoot,
+        "fixtures",
+        "providers",
+        "agy-research-adapter.mjs",
+      );
+      const originalAdapter = readFileSync(adapterPath);
+      try {
+        writeFileSync(
+          adapterPath,
+          Buffer.concat([
+            originalAdapter,
+            Buffer.from("\n// fixture CLI flag drift\n"),
+          ]),
+        );
+        const drifted = runJson(
+          ["provider", "list"],
+          context,
+          providerEnvironment,
+        );
+        assert.equal(
+          drifted.receipt.result.providers[3].drifted,
+          true,
+        );
+        for (const index of [0, 1, 2, 4]) {
+          assert.equal(
+            drifted.receipt.result.providers[index].drifted,
+            false,
+          );
+        }
+      } finally {
+        writeFileSync(adapterPath, originalAdapter);
+      }
+
+      const verifierPath = join(
+        packedCli.packageRoot,
+        "fixtures",
+        "providers",
+        "agy-source-verifier.mjs",
+      );
+      const originalVerifier = readFileSync(verifierPath);
+      try {
+        writeFileSync(
+          verifierPath,
+          Buffer.concat([
+            originalVerifier,
+            Buffer.from("\n// fixture source-rule drift\n"),
+          ]),
+        );
+        const sourceDrifted = runJson(
+          ["provider", "list"],
+          context,
+          providerEnvironment,
+        );
+        assert.equal(
+          sourceDrifted.receipt.result.providers[3].drifted,
+          true,
+        );
+        for (const index of [0, 1, 2, 4]) {
+          assert.equal(
+            sourceDrifted.receipt.result.providers[index]
+              .drifted,
+            false,
+          );
+        }
+      } finally {
+        writeFileSync(verifierPath, originalVerifier);
+      }
+
+      writeFileSync(versionFile, "1.1.8\n");
+      const versionDrifted = runJson(
+        ["provider", "list"],
+        context,
+        providerEnvironment,
+      );
+      assert.equal(
+        versionDrifted.receipt.result.providers[3].drifted,
+        true,
+      );
+      for (const index of [0, 1, 2, 4]) {
+        assert.equal(
+          versionDrifted.receipt.result.providers[index]
+            .drifted,
+          false,
+        );
+      }
+    });
+  });
 });
 
 test("Pi qualification and execution require explicit live approval before any provider process", () => {
@@ -1433,6 +2180,11 @@ test("one provider failure leaves another qualified provider and offline core us
       ).status,
       0,
     );
+    const beforeFailure = runJson(
+      ["provider", "list"],
+      context,
+      providerEnvironment,
+    ).receipt.result.providers;
 
     const failed = runJson(
       ["provider", "qualify", "agy", "--allow-live"],
@@ -1469,6 +2221,12 @@ test("one provider failure leaves another qualified provider and offline core us
     assert.equal(listed.receipt.result.providers[0].blocked, false);
     assert.equal(listed.receipt.result.providers[3].qualified, false);
     assert.equal(listed.receipt.result.providers[3].blocked, true);
+    for (const index of [1, 2, 4]) {
+      assert.deepEqual(
+        listed.receipt.result.providers[index],
+        beforeFailure[index],
+      );
+    }
     rmSync(invocationMarker, { force: true });
 
     const core = runJson(
@@ -1509,6 +2267,10 @@ test("human and JSON modes expose the same decisions and invalid requests fail s
           `blocked=${provider.blocked ? "yes" : "no"}` +
           (provider.family === "pi"
             ? ` identity=${provider.modelProvider}/${provider.model}`
+            : "") +
+          (provider.role === "research-only"
+            ? ` role=${provider.role} surface=${provider.researchSurface}` +
+              ` mode=${provider.mode} model=${provider.model}`
             : "") +
           "$",
           "m",

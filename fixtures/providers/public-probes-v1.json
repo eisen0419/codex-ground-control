@@ -55,15 +55,39 @@
       "prompt": "Return exactly this raw JSON object and no other text: {\"schemaVersion\":\"1\",\"profile\":\"pi-minimax\",\"provider\":\"minimax-cn\",\"model\":\"MiniMax-M3\",\"probe\":\"public-sources-v1\",\"ok\":true}. This fixed probe references only the public URL https://www.iana.org/help/example-domains. Do not use private repositories, local files, memory, tools, or delegation."
     },
     "agy": {
-      "adapter": "agy-live-probe",
-      "outputContract": "live-probe-output-v1",
+      "adapter": "agy-google-research-probe",
+      "outputContract": "agy-live-probe-output-v1",
       "timeoutMilliseconds": 120000,
       "contract": {
         "kind": "search",
         "model": "gemini-3.6-flash-high",
         "mode": "sandboxed-plan-google"
       },
-      "prompt": "Use only public web sources. Confirm that https://www.iana.org/help/example-domains is a public IANA page, then return exactly this raw JSON object and no other text: {\"schemaVersion\":\"1\",\"provider\":\"agy\",\"probe\":\"public-sources-v1\",\"ok\":true,\"source\":\"https://www.iana.org/help/example-domains\"}. Do not access private repositories, local files, memory, or delegation."
+      "sourceRules": {
+        "allowedOrigins": [
+          "https://www.python.org"
+        ],
+        "allowedPaths": [
+          "/"
+        ],
+        "allowedIdentities": [
+          "Python Software Foundation official website"
+        ],
+        "pathIdentityMap": {
+          "/": "Python Software Foundation official website"
+        },
+        "maxObservationAgeMilliseconds": 3600000,
+        "maxFutureSkewMilliseconds": 300000,
+        "fetch": true,
+        "contentContains": [
+          "Python"
+        ],
+        "maxResponseBytes": 1000000,
+        "maxRedirects": 3,
+        "fetchTimeoutMilliseconds": 15000,
+        "privateContextAllowed": false
+      },
+      "prompt": "Use Google Search only for this fixed public qualification probe. Locate the Python Software Foundation official website and return exactly one raw JSON object with no Markdown or prose: {\"schemaVersion\":\"1\",\"provider\":\"agy\",\"probe\":\"public-sources-v1\",\"ok\":true,\"source\":{\"url\":\"https://www.python.org/\",\"identity\":\"Python Software Foundation official website\",\"observedAt\":\"<current RFC 3339 UTC timestamp>\"}}. Do not access private repositories, local files, user memory, credentials, agents, tools other than public Google research, or delegation. Do not claim final completion."
     },
     "grok": {
       "adapter": "grok-live-probe",

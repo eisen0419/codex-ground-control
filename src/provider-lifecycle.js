@@ -23,6 +23,7 @@ import {
   sep,
 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validAgySourceRules } from "../fixtures/providers/agy-source-verifier.mjs";
 import { atomicWrite, inspectFile } from "./safe-files.js";
 
 const PROBE_CATALOG_URL = new URL(
@@ -37,6 +38,10 @@ const PROBE_SCHEMA_URL = new URL(
   "../schemas/provider/live-probe-output.schema.json",
   import.meta.url,
 );
+const AGY_PROBE_SCHEMA_URL = new URL(
+  "../schemas/provider/agy-live-probe-output.schema.json",
+  import.meta.url,
+);
 const PI_CANDIDATE_SCHEMA_URL = new URL(
   "../schemas/provider/pi-candidate-output.schema.json",
   import.meta.url,
@@ -47,6 +52,14 @@ const PROBE_ADAPTER_URL = new URL(
 );
 const PI_LEAF_ADAPTER_URL = new URL(
   "../fixtures/providers/pi-leaf-adapter.mjs",
+  import.meta.url,
+);
+const AGY_RESEARCH_ADAPTER_URL = new URL(
+  "../fixtures/providers/agy-research-adapter.mjs",
+  import.meta.url,
+);
+const AGY_SOURCE_VERIFIER_URL = new URL(
+  "../fixtures/providers/agy-source-verifier.mjs",
   import.meta.url,
 );
 const FLEET_WORKER_URL = new URL(
@@ -90,6 +103,11 @@ export const providerDefinitions = Object.freeze([
   {
     id: "agy",
     command: "agy",
+    role: "research-only",
+    researchSurface: "google",
+    mode: "plan",
+    model: "gemini-3.6-flash-high",
+    minimumVersion: "1.1.7",
     credentialVariables: ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
   },
   {
@@ -145,6 +163,48 @@ function exactKeys(value, keys) {
     typeof value === "object" &&
     Object.keys(value).length === keys.length &&
     keys.every((key) => Object.hasOwn(value, key))
+  );
+}
+
+function compareVersions(left, right) {
+  const parse = (value) => {
+    const match = value.match(
+      /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/,
+    );
+    return match
+      ? {
+          numbers: match.slice(1, 4).map(Number),
+          prerelease: match[4] ?? null,
+        }
+      : null;
+  };
+  const leftVersion = parse(left);
+  const rightVersion = parse(right);
+  if (!leftVersion || !rightVersion) {
+    return -1;
+  }
+  for (let index = 0; index < 3; index += 1) {
+    if (
+      leftVersion.numbers[index] !==
+      rightVersion.numbers[index]
+    ) {
+      return (
+        leftVersion.numbers[index] -
+        rightVersion.numbers[index]
+      );
+    }
+  }
+  if (leftVersion.prerelease === rightVersion.prerelease) {
+    return 0;
+  }
+  if (leftVersion.prerelease === null) {
+    return 1;
+  }
+  if (rightVersion.prerelease === null) {
+    return -1;
+  }
+  return leftVersion.prerelease.localeCompare(
+    rightVersion.prerelease,
   );
 }
 
@@ -230,7 +290,11 @@ function publicVersion(provider, options) {
   const executable = version
     ? executableSha256(provider.command, environment)
     : null;
-  return version && executable
+  const compatible =
+    version &&
+    (!provider.minimumVersion ||
+      compareVersions(version, provider.minimumVersion) >= 0);
+  return version && executable && compatible
     ? {
         state: "detected",
         version,
@@ -238,8 +302,8 @@ function publicVersion(provider, options) {
       }
     : {
         state: "incompatible",
-        version: null,
-        executableSha256: null,
+        version: version ?? null,
+        executableSha256: executable,
       };
 }
 
@@ -412,7 +476,9 @@ function providerContract(provider, runtime) {
     "Provider capability manifest",
   );
   const schemaFile = readJsonFile(
-    PROBE_SCHEMA_URL,
+    provider.id === "agy"
+      ? AGY_PROBE_SCHEMA_URL
+      : PROBE_SCHEMA_URL,
     "Provider probe schema",
   );
   const catalog = catalogFile.value;
@@ -441,6 +507,14 @@ function providerContract(provider, runtime) {
       record.contract.mode === "no-tools" &&
       Boolean(candidateAdapter) &&
       Boolean(candidateOutputContract));
+  const agySourceRules = record?.sourceRules;
+  const agyContractMatches =
+    provider.id !== "agy" ||
+    (record.contract?.kind === "search" &&
+      record.contract.model === provider.model &&
+      record.contract.mode ===
+        "sandboxed-plan-google" &&
+      validAgySourceRules(agySourceRules));
   if (
     catalog.schemaVersion !== "1" ||
     catalog.probe?.id !== "public-sources-v1" ||
@@ -450,6 +524,7 @@ function providerContract(provider, runtime) {
     !adapter ||
     !outputContract ||
     !piIdentityMatches ||
+    !agyContractMatches ||
     typeof record.prompt !== "string" ||
     record.prompt.length === 0 ||
     !Number.isInteger(record.timeoutMilliseconds)
@@ -486,8 +561,19 @@ function providerContract(provider, runtime) {
               manifest: adapter,
               outputContract,
               sourceSha256: sha256(
-                readFileSync(PROBE_ADAPTER_URL),
+                readFileSync(
+                  provider.id === "agy"
+                    ? AGY_RESEARCH_ADAPTER_URL
+                    : PROBE_ADAPTER_URL,
+                ),
               ),
+              ...(provider.id === "agy"
+                ? {
+                    sourceVerifierSha256: sha256(
+                      readFileSync(AGY_SOURCE_VERIFIER_URL),
+                    ),
+                  }
+                : {}),
             },
       ),
     ),
@@ -519,7 +605,11 @@ function providerContract(provider, runtime) {
         : schemaFile.contents,
     ),
     sourceRules: sha256(
-      canonicalJson(catalog.probe.sourceRules),
+      canonicalJson(
+        provider.id === "agy"
+          ? record.sourceRules
+          : catalog.probe.sourceRules,
+      ),
     ),
   };
   return {
@@ -532,6 +622,10 @@ function providerContract(provider, runtime) {
     fingerprint: sha256(canonicalJson(components)),
     outputContract: record.outputContract,
     prompt: record.prompt,
+    sourceRules:
+      provider.id === "agy"
+        ? record.sourceRules
+        : catalog.probe.sourceRules,
     timeoutMilliseconds: record.timeoutMilliseconds,
   };
 }
@@ -836,6 +930,14 @@ function providerStatus(provider, options) {
           model: provider.model,
         }
       : {}),
+    ...(provider.role
+      ? {
+          role: provider.role,
+          researchSurface: provider.researchSurface,
+          mode: provider.mode,
+          model: provider.model,
+        }
+      : {}),
     detected: runtime.state === "detected",
     configured,
     enabled,
@@ -924,6 +1026,72 @@ function probeOutputMatches(value, providerId, contract) {
       value.model === record.contract.model &&
       value.probe === contract.catalog.probe.id &&
       value.ok === true
+    );
+  }
+  if (providerId === "agy") {
+    const source = value?.source;
+    const verification = value?.verification;
+    const rules = contract.sourceRules;
+    let observedUrl;
+    try {
+      observedUrl = new URL(source?.url);
+    } catch {
+      observedUrl = null;
+    }
+    const observedAt = Date.parse(source?.observedAt);
+    const checkedAt = Date.parse(verification?.checkedAt);
+    const now = Date.now();
+    return (
+      exactKeys(value, [
+        "schemaVersion",
+        "provider",
+        "probe",
+        "ok",
+        "source",
+        "verification",
+      ]) &&
+      value.schemaVersion === "1" &&
+      value.provider === providerId &&
+      value.probe === contract.catalog.probe.id &&
+      value.ok === true &&
+      exactKeys(source, ["url", "identity", "observedAt"]) &&
+      observedUrl?.protocol === "https:" &&
+      source.url === observedUrl.href &&
+      observedUrl.username === "" &&
+      observedUrl.password === "" &&
+      observedUrl.search === "" &&
+      observedUrl.hash === "" &&
+      rules.allowedOrigins.includes(observedUrl.origin) &&
+      rules.allowedPaths.includes(observedUrl.pathname) &&
+      rules.allowedIdentities.includes(source.identity) &&
+      rules.pathIdentityMap[observedUrl.pathname] ===
+        source.identity &&
+      Number.isFinite(observedAt) &&
+      source.observedAt === new Date(observedAt).toISOString() &&
+      now - observedAt <=
+        rules.maxObservationAgeMilliseconds &&
+      observedAt - now <=
+        rules.maxFutureSkewMilliseconds &&
+      exactKeys(verification, [
+        "checkedAt",
+        "finalUrl",
+        "httpStatus",
+        "contentMarkersMatched",
+        "verified",
+      ]) &&
+      Number.isFinite(checkedAt) &&
+      verification.checkedAt ===
+        new Date(checkedAt).toISOString() &&
+      checkedAt >= observedAt - 300_000 &&
+      checkedAt - now <= rules.maxFutureSkewMilliseconds &&
+      now - checkedAt <=
+        rules.maxObservationAgeMilliseconds &&
+      verification.finalUrl === observedUrl.href &&
+      Number.isInteger(verification.httpStatus) &&
+      verification.httpStatus >= 200 &&
+      verification.httpStatus < 300 &&
+      verification.contentMarkersMatched === true &&
+      verification.verified === true
     );
   }
   return (
@@ -1047,12 +1215,15 @@ function runLiveQualification(
   } catch {
     payload = null;
   }
-  if (definition.family === "pi") {
-    rmSync(join(runDirectory, "workspace"), {
-      recursive: true,
-      force: true,
-    });
-  }
+  const outputMatches = probeOutputMatches(
+    payload,
+    definition.id,
+    contract,
+  );
+  rmSync(join(runDirectory, "workspace"), {
+    recursive: true,
+    force: true,
+  });
   const postRunRuntime = publicVersion(
     definition,
     providerOptions,
@@ -1072,7 +1243,7 @@ function runLiveQualification(
     execution.status === 0 &&
     fleetReceipt.status === "succeeded" &&
     fleetReceipt.outputContract?.valid === true &&
-    probeOutputMatches(payload, definition.id, contract) &&
+    outputMatches &&
     postRunFingerprint === contract.fingerprint;
   const terminalState = passed ? "passed" : "failed";
   const identity = definition.family === "pi"
@@ -1080,6 +1251,30 @@ function runLiveQualification(
         profile: definition.id,
         provider: definition.modelProvider,
         model: definition.model,
+      }
+    : null;
+  const sourceEvidence = definition.id === "agy"
+    ? {
+        sourceIdentity: {
+          semanticIdentity:
+            contract.sourceRules.allowedIdentities[0],
+          url:
+            `${contract.sourceRules.allowedOrigins[0]}` +
+            contract.sourceRules.allowedPaths[0],
+        },
+        sourceVerification: {
+          source:
+            "agy-independent-allowlist-fetch-v1",
+          verified: outputMatches,
+          ...(outputMatches ? payload.verification : {}),
+        },
+        observation: outputMatches ? payload.source : null,
+        authority: {
+          disposition: "qualification-evidence",
+          completionAuthority: "codex-main",
+          reviewRequired: true,
+          workspaceChangesApplied: false,
+        },
       }
     : null;
   const qualifiedAt =
@@ -1105,6 +1300,7 @@ function runLiveQualification(
             },
           }
         : {}),
+      ...(sourceEvidence ?? {}),
       probe: {
         id: contract.catalog.probe.id,
         visibility: contract.catalog.probe.visibility,
@@ -1159,6 +1355,7 @@ function runLiveQualification(
               },
             }
           : {}),
+        ...(sourceEvidence ?? {}),
         probe: {
           id: contract.catalog.probe.id,
           network: "live",

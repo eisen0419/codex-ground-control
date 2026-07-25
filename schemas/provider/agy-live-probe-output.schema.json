@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-ground-control.invalid/schemas/provider/agy-live-probe-output-v1.json",
+  "title": "Ground Control AGY public research probe output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "provider",
+    "probe",
+    "ok",
+    "source",
+    "verification"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
+    },
+    "provider": {
+      "const": "agy"
+    },
+    "probe": {
+      "const": "public-sources-v1"
+    },
+    "ok": {
+      "const": true
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "identity",
+        "observedAt"
+      ],
+      "properties": {
+        "url": {
+          "const": "https://www.python.org/"
+        },
+        "identity": {
+          "const": "Python Software Foundation official website"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checkedAt",
+        "finalUrl",
+        "httpStatus",
+        "contentMarkersMatched",
+        "verified"
+      ],
+      "properties": {
+        "checkedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "finalUrl": {
+          "const": "https://www.python.org/"
+        },
+        "httpStatus": {
+          "type": "integer",
+          "minimum": 200,
+          "maximum": 299
+        },
+        "contentMarkersMatched": {
+          "const": true
+        },
+        "verified": {
+          "const": true
+        }
+      }
+    }
+  }
+}

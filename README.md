@@ -155,10 +155,11 @@ Pi GLM (`zai-coding-cn/glm-5.2`), Pi DeepSeek
 Grok are independent optional gates. `provider list` reports the same
 detected, configured, enabled, qualified, drifted, disabled, blocked, and
 execution-decision fields in JSON and human modes. Each Pi entry also reports
-its exact public provider/model identity. `configured` means only that the
-profile's documented credential environment variable was observed; Ground
-Control does not read provider credential values or private CLI credential
-stores.
+its exact public provider/model identity. AGY reports its `research-only`
+role, Google surface, fixed `plan` mode, and
+`gemini-3.6-flash-high` model. `configured` means only that the profile's
+documented credential environment variable was observed; Ground Control does
+not read provider credential values or private CLI credential stores.
 
 All providers ship disabled and unqualified. `provider enable <id>` records a
 project-scoped preference but cannot authorize execution without current
@@ -178,6 +179,17 @@ Without `--allow-live`, the command fails before starting a provider process.
 For Pi, qualification accepts only a unique JSON-mode assistant completion
 whose runtime provider/model identity exactly matches the selected profile;
 model prose or a zero exit code alone is insufficient.
+For AGY, Ground Control requires CLI 1.1.7 or newer and starts a fixed
+`gemini-3.6-flash-high` invocation with `--sandbox`, `--mode plan`, and a
+bounded print timeout. Its cwd is a per-run isolated empty directory, while
+provider API-key environment variables and unrelated secrets are withheld.
+The adapter rejects any run-created workspace files before returning. Only a
+fresh structured Google Search observation of the exact Python Software
+Foundation website and identity can pass. Ground Control then independently
+fetches that exact HTTPS URL, checks every redirect against the origin/path
+allowlist, caps the response at 1 MB, and requires the public `Python` content
+marker. Wrong or stale observations, trailing prose, and unverifiable sources
+fail closed.
 The command runs only the packaged `public-sources-v1` probe; there is no CLI
 argument for a user prompt or private repository context. Provider receipts
 bind the observed public CLI version, provider-specific FleetRunner adapter,
@@ -188,6 +200,10 @@ FleetRunner boundary. Evidence is append-only under
 CLI or contract drift invalidates only providers that depend on that
 fingerprint. A provider failure updates only its own gate: other current
 providers and the default offline core qualification remain usable.
+AGY receipts retain only the fixed public probe, verified public source
+observation, CLI version, component fingerprints, and evidence hashes. They
+label the output as qualification evidence, keep `codex-main` as completion
+authority, and state that no workspace changes were applied.
 
 After a Pi profile has current qualification evidence, the main Codex may send
 one bounded brief with an explicit live flag:

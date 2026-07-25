@@ -235,6 +235,10 @@ function renderProvider(result) {
         `blocked=${yesNo(provider.blocked)}` +
         (provider.family === "pi"
           ? ` identity=${provider.modelProvider}/${provider.model}`
+          : "") +
+        (provider.role === "research-only"
+          ? ` role=${provider.role} surface=${provider.researchSurface}` +
+            ` mode=${provider.mode} model=${provider.model}`
           : ""),
     ),
     ...(result.result.operation === "run" &&

@@ -70,6 +70,18 @@
         "source": "string"
       },
       "additionalProperties": false
+    },
+    "agy-live-probe-output-v1": {
+      "type": "object",
+      "required": {
+        "schemaVersion": "string",
+        "provider": "string",
+        "probe": "string",
+        "ok": "boolean",
+        "source": "object",
+        "verification": "object"
+      },
+      "additionalProperties": false
     }
   },
   "adapters": {
@@ -310,7 +322,7 @@
         ]
       }
     },
-    "agy-live-probe": {
+    "agy-google-research-probe": {
       "kind": "leaf-adapter",
       "enabled": true,
       "qualification": "current",
@@ -320,14 +332,14 @@
         "provider-qualification"
       ],
       "outputContracts": [
-        "live-probe-output-v1"
+        "agy-live-probe-output-v1"
       ],
       "writeAccess": false,
       "recursiveDelegation": false,
       "executor": {
         "command": "{node}",
         "args": [
-          "{manifest_dir}/probe-adapter.mjs",
+          "{manifest_dir}/agy-research-adapter.mjs",
           "agy",
           "{prompt}"
         ],
@@ -343,9 +355,7 @@
           "HTTPS_PROXY",
           "HTTP_PROXY",
           "ALL_PROXY",
-          "NO_PROXY",
-          "GOOGLE_API_KEY",
-          "GEMINI_API_KEY"
+          "NO_PROXY"
         ]
       }
     },
