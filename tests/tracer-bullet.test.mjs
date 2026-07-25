@@ -868,6 +868,31 @@ test("packed qualification rejects damaged, unindexed, drifted, and structurally
       assert.equal(driftReceipt.receipt.changed, false);
       writeFileSync(campaignPath, originalCampaign);
 
+      const componentDrifted = qualify();
+      const safeFilesPath = join(
+        installDirectory,
+        "node_modules",
+        "codex-ground-control",
+        "src",
+        "safe-files.js",
+      );
+      const originalSafeFiles = readFileSync(safeFilesPath);
+      writeFileSync(
+        safeFilesPath,
+        Buffer.concat([originalSafeFiles, Buffer.from("\n")]),
+      );
+      const componentDriftReceipt = verify(componentDrifted);
+      assert.equal(componentDriftReceipt.status, 2);
+      assert.equal(
+        componentDriftReceipt.receipt.error.code,
+        "QUALIFICATION_DRIFTED",
+      );
+      assert.equal(
+        componentDriftReceipt.receipt.result.terminalState,
+        "qualification-drifted",
+      );
+      writeFileSync(safeFilesPath, originalSafeFiles);
+
       const secretValues = [
         "ticket05-api-key-value",
         "ticket05-token-value",

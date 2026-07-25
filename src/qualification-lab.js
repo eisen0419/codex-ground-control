@@ -36,11 +36,24 @@ const RECEIPT_AUDIT_URL = new URL(
 
 const COMPONENTS = [
   ["package", new URL("../package.json", import.meta.url)],
+  ["release-lock", new URL("../release-lock.json", import.meta.url)],
+  [
+    "cli-entry",
+    new URL("../bin/codex-ground-control.js", import.meta.url),
+  ],
+  ["cli", new URL("./cli.js", import.meta.url)],
+  ["doctor", new URL("./doctor.js", import.meta.url)],
+  ["global-workflow", new URL("./global-workflow.js", import.meta.url)],
+  ["managed-workflow", new URL("./managed-workflow.js", import.meta.url)],
+  ["project-state", new URL("./project-state.js", import.meta.url)],
   ["qualification-lab", new URL("./qualification-lab.js", import.meta.url)],
   [
     "qualification-contract",
     new URL("./qualification-contract.js", import.meta.url),
   ],
+  ["safe-files", new URL("./safe-files.js", import.meta.url)],
+  ["workflow-assets", new URL("./workflow-assets.js", import.meta.url)],
+  ["workflow-error", new URL("./workflow-error.js", import.meta.url)],
   ["campaign", CAMPAIGN_URL],
   ["receipt-audit", RECEIPT_AUDIT_URL],
   ...Object.entries(qualificationSchemaUrls).map(([name, url]) => [
