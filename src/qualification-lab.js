@@ -168,7 +168,7 @@ function ensurePrivateDirectory(parent, name) {
   return path;
 }
 
-function qualificationRunsRoot(homeDirectory) {
+function qualificationHome(homeDirectory) {
   if (
     typeof homeDirectory !== "string" ||
     homeDirectory.length === 0
@@ -180,9 +180,25 @@ function qualificationRunsRoot(homeDirectory) {
   }
   const home = resolve(homeDirectory);
   requireDirectory(home, "HOME");
+  return home;
+}
+
+function ensureQualificationRunsRoot(homeDirectory) {
+  const home = qualificationHome(homeDirectory);
   const control = ensurePrivateDirectory(home, ".codex-ground-control");
   const evidence = ensurePrivateDirectory(control, "evidence");
   return ensurePrivateDirectory(evidence, "qualification");
+}
+
+function existingQualificationRunsRoot(homeDirectory) {
+  const home = qualificationHome(homeDirectory);
+  const control = join(home, ".codex-ground-control");
+  requireDirectory(control, "Qualification state");
+  const evidence = join(control, "evidence");
+  requireDirectory(evidence, "Qualification evidence");
+  const qualification = join(evidence, "qualification");
+  requireDirectory(qualification, "Qualification runs");
+  return qualification;
 }
 
 function validateCampaignSemantics(campaign) {
@@ -703,7 +719,9 @@ export function verifyOfflineQualification(options = {}) {
       "Qualification evidence reference is invalid.",
     );
   }
-  const runsRoot = qualificationRunsRoot(options.homeDirectory);
+  const runsRoot = existingQualificationRunsRoot(
+    options.homeDirectory,
+  );
   const runDirectory = join(runsRoot, runIdentity);
   requireDirectory(runDirectory, "Qualification run");
   const indexFile = inspectEvidenceFile(
@@ -814,7 +832,9 @@ export function reproduceOfflineQualification(options = {}) {
       "Qualification reproduction reference is invalid.",
     );
   }
-  const runsRoot = qualificationRunsRoot(options.homeDirectory);
+  const runsRoot = existingQualificationRunsRoot(
+    options.homeDirectory,
+  );
   const sourceDirectory = join(runsRoot, sourceRun);
   requireDirectory(sourceDirectory, "Source qualification run");
   const indexFile = inspectEvidenceFile(
@@ -881,7 +901,9 @@ export function runOfflineQualification(options = {}) {
   const runIdentity =
     `${startedAt.replaceAll(/[:.]/g, "-")}-` +
     `${campaign.campaign}-${randomUUID()}`;
-  const runsRoot = qualificationRunsRoot(options.homeDirectory);
+  const runsRoot = ensureQualificationRunsRoot(
+    options.homeDirectory,
+  );
   const runDirectory = join(runsRoot, runIdentity);
   mkdirSync(runDirectory, { mode: 0o700 });
   mkdirSync(join(runDirectory, "scenarios"), { mode: 0o700 });

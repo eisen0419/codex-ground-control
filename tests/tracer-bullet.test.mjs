@@ -659,6 +659,22 @@ test("packed qualification verifies evidence against the external anchor", () =>
         runtimePath,
       };
       assert.equal(runJson(cli, ["init"], context).status, 0);
+      const qualificationRoot = join(
+        homeDirectory,
+        ".codex-ground-control",
+        "evidence",
+        "qualification",
+      );
+      assert.equal(existsSync(qualificationRoot), false);
+      const missingEvidence = runJson(
+        cli,
+        ["qualify", "verify", "missing-run", "0".repeat(64)],
+        context,
+      );
+      assert.equal(missingEvidence.status, 2);
+      assert.equal(missingEvidence.receipt.changed, false);
+      assert.equal(existsSync(qualificationRoot), false);
+
       const qualified = runJson(cli, ["qualify"], context);
       assert.equal(qualified.status, 0);
       const { runIdentity, evidence, counts, runtimeFingerprint } =
