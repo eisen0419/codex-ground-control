@@ -37,8 +37,16 @@ const PROBE_SCHEMA_URL = new URL(
   "../schemas/provider/live-probe-output.schema.json",
   import.meta.url,
 );
+const PI_CANDIDATE_SCHEMA_URL = new URL(
+  "../schemas/provider/pi-candidate-output.schema.json",
+  import.meta.url,
+);
 const PROBE_ADAPTER_URL = new URL(
   "../fixtures/providers/probe-adapter.mjs",
+  import.meta.url,
+);
+const PI_LEAF_ADAPTER_URL = new URL(
+  "../fixtures/providers/pi-leaf-adapter.mjs",
   import.meta.url,
 );
 const FLEET_WORKER_URL = new URL(
@@ -56,13 +64,28 @@ const PROVIDER_LIFECYCLE_URL = new URL(
 
 export const providerDefinitions = Object.freeze([
   {
-    id: "pi",
+    id: "pi-glm",
     command: "pi",
-    credentialVariables: [
-      "ZAI_CODING_CN_API_KEY",
-      "DEEPSEEK_API_KEY",
-      "MINIMAX_API_KEY",
-    ],
+    family: "pi",
+    modelProvider: "zai-coding-cn",
+    model: "glm-5.2",
+    credentialVariables: ["ZAI_CODING_CN_API_KEY"],
+  },
+  {
+    id: "pi-deepseek",
+    command: "pi",
+    family: "pi",
+    modelProvider: "deepseek",
+    model: "deepseek-v4-pro",
+    credentialVariables: ["DEEPSEEK_API_KEY"],
+  },
+  {
+    id: "pi-minimax",
+    command: "pi",
+    family: "pi",
+    modelProvider: "minimax-cn",
+    model: "MiniMax-M3",
+    credentialVariables: ["MINIMAX_API_KEY"],
   },
   {
     id: "agy",
@@ -265,6 +288,34 @@ function validQualification(value) {
   );
 }
 
+function validProviderState(value) {
+  return (
+    exactKeys(value, ["enabled", "qualification"]) &&
+    typeof value.enabled === "boolean" &&
+    (value.qualification === null ||
+      validQualification(value.qualification))
+  );
+}
+
+function migrateLegacyState(state) {
+  if (
+    !exactKeys(state.providers, ["pi", "agy", "grok"]) ||
+    !["pi", "agy", "grok"].every((id) =>
+      validProviderState(state.providers[id])
+    )
+  ) {
+    return null;
+  }
+  const migrated = defaultState(state.projectKey);
+  migrated.providers["pi-glm"].enabled =
+    state.providers.pi.enabled;
+  migrated.providers.agy =
+    structuredClone(state.providers.agy);
+  migrated.providers.grok =
+    structuredClone(state.providers.grok);
+  return migrated;
+}
+
 function readState(options) {
   const key = projectKey(options.projectRoot);
   const path = statePath(key);
@@ -294,28 +345,31 @@ function readState(options) {
       "Provider state is not valid JSON.",
     );
   }
-  if (
+  const headerIsInvalid =
     !exactKeys(state, ["schemaVersion", "projectKey", "providers"]) ||
     state.schemaVersion !== "1" ||
-    state.projectKey !== key ||
-    !exactKeys(
-      state.providers,
-      providerDefinitions.map(({ id }) => id),
-    ) ||
-    providerDefinitions.some(({ id }) => {
-      const provider = state.providers[id];
-      return (
-        !exactKeys(provider, ["enabled", "qualification"]) ||
-        typeof provider.enabled !== "boolean" ||
-        (provider.qualification !== null &&
-          !validQualification(provider.qualification))
-      );
-    })
-  ) {
+    state.projectKey !== key;
+  if (headerIsInvalid) {
     throw new ProviderLifecycleError(
       "PROVIDER_STATE_INVALID",
       "Provider state has an unsupported shape.",
     );
+  }
+  const currentIds = providerDefinitions.map(({ id }) => id);
+  const currentIsValid =
+    exactKeys(state.providers, currentIds) &&
+    currentIds.every((id) =>
+      validProviderState(state.providers[id])
+    );
+  if (!currentIsValid) {
+    const migrated = migrateLegacyState(state);
+    if (!migrated) {
+      throw new ProviderLifecycleError(
+        "PROVIDER_STATE_INVALID",
+        "Provider state has an unsupported shape.",
+      );
+    }
+    state = migrated;
   }
   return { key, path, file, state };
 }
@@ -367,6 +421,26 @@ function providerContract(provider, runtime) {
   const adapter = manifest.adapters?.[record?.adapter];
   const outputContract =
     manifest.outputContracts?.[record?.outputContract];
+  const candidateAdapter = provider.family === "pi"
+    ? manifest.adapters?.[record?.candidateAdapter]
+    : null;
+  const candidateOutputContract = provider.family === "pi"
+    ? manifest.outputContracts?.[record?.candidateOutputContract]
+    : null;
+  const candidateSchemaFile = provider.family === "pi"
+    ? readJsonFile(
+        PI_CANDIDATE_SCHEMA_URL,
+        "Pi candidate output schema",
+      )
+    : null;
+  const piIdentityMatches =
+    provider.family !== "pi" ||
+    (record?.contract?.kind === "model" &&
+      record.contract.provider === provider.modelProvider &&
+      record.contract.model === provider.model &&
+      record.contract.mode === "no-tools" &&
+      Boolean(candidateAdapter) &&
+      Boolean(candidateOutputContract));
   if (
     catalog.schemaVersion !== "1" ||
     catalog.probe?.id !== "public-sources-v1" ||
@@ -375,6 +449,7 @@ function providerContract(provider, runtime) {
     !record ||
     !adapter ||
     !outputContract ||
+    !piIdentityMatches ||
     typeof record.prompt !== "string" ||
     record.prompt.length === 0 ||
     !Number.isInteger(record.timeoutMilliseconds)
@@ -393,10 +468,28 @@ function providerContract(provider, runtime) {
       }),
     ),
     adapter: sha256(
-      canonicalJson({
-        manifest: adapter,
-        sourceSha256: sha256(readFileSync(PROBE_ADAPTER_URL)),
-      }),
+      canonicalJson(
+        provider.family === "pi"
+          ? {
+              qualificationManifest: adapter,
+              qualificationOutputContract: outputContract,
+              qualificationSourceSha256: sha256(
+                readFileSync(PROBE_ADAPTER_URL),
+              ),
+              candidateManifest: candidateAdapter,
+              candidateOutputContract,
+              candidateSourceSha256: sha256(
+                readFileSync(PI_LEAF_ADAPTER_URL),
+              ),
+            }
+          : {
+              manifest: adapter,
+              outputContract,
+              sourceSha256: sha256(
+                readFileSync(PROBE_ADAPTER_URL),
+              ),
+            },
+      ),
     ),
     fleetBoundary: sha256(
       canonicalJson({
@@ -417,13 +510,23 @@ function providerContract(provider, runtime) {
     providerLifecycle: sha256(
       readFileSync(PROVIDER_LIFECYCLE_URL),
     ),
-    schema: sha256(schemaFile.contents),
+    schema: sha256(
+      provider.family === "pi"
+        ? canonicalJson({
+            qualification: sha256(schemaFile.contents),
+            candidate: sha256(candidateSchemaFile.contents),
+          })
+        : schemaFile.contents,
+    ),
     sourceRules: sha256(
       canonicalJson(catalog.probe.sourceRules),
     ),
   };
   return {
     adapter: record.adapter,
+    candidateAdapter: record.candidateAdapter ?? null,
+    candidateOutputContract:
+      record.candidateOutputContract ?? null,
     catalog,
     components,
     fingerprint: sha256(canonicalJson(components)),
@@ -726,6 +829,13 @@ function providerStatus(provider, options) {
   const blocked = reason !== null;
   return {
     id: provider.id,
+    ...(provider.family === "pi"
+      ? {
+          family: provider.family,
+          modelProvider: provider.modelProvider,
+          model: provider.model,
+        }
+      : {}),
     detected: runtime.state === "detected",
     configured,
     enabled,
@@ -797,6 +907,25 @@ function parseProbeOutput(contents) {
 }
 
 function probeOutputMatches(value, providerId, contract) {
+  const record = contract.catalog.providers[providerId];
+  if (record.contract?.kind === "model") {
+    return (
+      exactKeys(value, [
+        "schemaVersion",
+        "profile",
+        "provider",
+        "model",
+        "probe",
+        "ok",
+      ]) &&
+      value.schemaVersion === "1" &&
+      value.profile === providerId &&
+      value.provider === record.contract.provider &&
+      value.model === record.contract.model &&
+      value.probe === contract.catalog.probe.id &&
+      value.ok === true
+    );
+  }
   return (
     exactKeys(value, [
       "schemaVersion",
@@ -813,41 +942,20 @@ function probeOutputMatches(value, providerId, contract) {
   );
 }
 
-function runLiveQualification(
-  definition,
+function runFleetWorker(
+  job,
+  runsRoot,
   options,
-  stored,
+  failure = {
+    code: "PROVIDER_EXECUTION_FAILED",
+    label: "Provider execution",
+  },
 ) {
-  const providerOptions = statusOptions(
-    options,
-    stored,
-    stored.state,
-  );
-  const runtime = publicVersion(definition, providerOptions);
-  if (runtime.state !== "detected") {
-    throw new ProviderLifecycleError(
-      "PROVIDER_UNAVAILABLE",
-      "Provider CLI is unavailable or has no supported public version.",
-    );
-  }
-  const contract = providerContract(definition, runtime);
-  const runsRoot = providerRunsRoot(
-    options,
-    stored.key,
-    definition.id,
-  );
   const temporary = mkdtempSync(
     join(tmpdir(), "cgc-provider-job-"),
   );
   const jobPath = join(temporary, "job.json");
-  writeExclusiveJson(jobPath, {
-    schemaVersion: "1",
-    adapter: contract.adapter,
-    activity: "provider-qualification",
-    prompt: contract.prompt,
-    timeoutMilliseconds: contract.timeoutMilliseconds,
-    outputContract: contract.outputContract,
-  });
+  writeExclusiveJson(jobPath, job);
   let execution;
   try {
     execution = spawnSync(
@@ -873,8 +981,8 @@ function runLiveQualification(
     fleetReceipt = JSON.parse(execution.stdout);
   } catch {
     throw new ProviderLifecycleError(
-      "PROVIDER_QUALIFICATION_FAILED",
-      "Provider qualification returned no valid FleetRunner receipt.",
+      failure.code,
+      `${failure.label} returned no valid FleetRunner receipt.`,
     );
   }
   if (
@@ -882,15 +990,55 @@ function runLiveQualification(
     typeof fleetReceipt.runIdentity !== "string"
   ) {
     throw new ProviderLifecycleError(
-      "PROVIDER_QUALIFICATION_FAILED",
-      "Provider qualification failed before evidence was created.",
+      failure.code,
+      `${failure.label} failed before evidence was created.`,
     );
   }
   const runDirectory = join(runsRoot, fleetReceipt.runIdentity);
-  requirePlainDirectory(
-    runDirectory,
-    "Provider qualification run",
+  requirePlainDirectory(runDirectory, "Provider execution run");
+  return { execution, fleetReceipt, runDirectory };
+}
+
+function runLiveQualification(
+  definition,
+  options,
+  stored,
+) {
+  const providerOptions = statusOptions(
+    options,
+    stored,
+    stored.state,
   );
+  const runtime = publicVersion(definition, providerOptions);
+  if (runtime.state !== "detected") {
+    throw new ProviderLifecycleError(
+      "PROVIDER_UNAVAILABLE",
+      "Provider CLI is unavailable or has no supported public version.",
+    );
+  }
+  const contract = providerContract(definition, runtime);
+  const runsRoot = providerRunsRoot(
+    options,
+    stored.key,
+    definition.id,
+  );
+  const { execution, fleetReceipt, runDirectory } =
+    runFleetWorker(
+      {
+        schemaVersion: "1",
+        adapter: contract.adapter,
+        activity: "provider-qualification",
+        prompt: contract.prompt,
+        timeoutMilliseconds: contract.timeoutMilliseconds,
+        outputContract: contract.outputContract,
+      },
+      runsRoot,
+      options,
+      {
+        code: "PROVIDER_QUALIFICATION_FAILED",
+        label: "Provider qualification",
+      },
+    );
   let payload = null;
   try {
     payload = parseProbeOutput(
@@ -898,6 +1046,12 @@ function runLiveQualification(
     );
   } catch {
     payload = null;
+  }
+  if (definition.family === "pi") {
+    rmSync(join(runDirectory, "workspace"), {
+      recursive: true,
+      force: true,
+    });
   }
   const postRunRuntime = publicVersion(
     definition,
@@ -921,6 +1075,13 @@ function runLiveQualification(
     probeOutputMatches(payload, definition.id, contract) &&
     postRunFingerprint === contract.fingerprint;
   const terminalState = passed ? "passed" : "failed";
+  const identity = definition.family === "pi"
+    ? {
+        profile: definition.id,
+        provider: definition.modelProvider,
+        model: definition.model,
+      }
+    : null;
   const qualifiedAt =
     typeof fleetReceipt.finishedAt === "string"
       ? fleetReceipt.finishedAt
@@ -935,6 +1096,15 @@ function runLiveQualification(
       fingerprint: contract.fingerprint,
       components: contract.components,
       cliVersion: runtime.version,
+      ...(identity
+        ? {
+            identity,
+            identityVerification: {
+              source: "pi-json-message-end",
+              verified: passed,
+            },
+          }
+        : {}),
       probe: {
         id: contract.catalog.probe.id,
         visibility: contract.catalog.probe.visibility,
@@ -976,6 +1146,19 @@ function runLiveQualification(
         terminalState,
         runIdentity: fleetReceipt.runIdentity,
         fingerprint: contract.fingerprint,
+        fingerprints: {
+          providerCli: contract.components.providerCli,
+          adapter: contract.components.adapter,
+        },
+        ...(identity
+          ? {
+              identity,
+              identityVerification: {
+                source: "pi-json-message-end",
+                verified: passed,
+              },
+            }
+          : {}),
         probe: {
           id: contract.catalog.probe.id,
           network: "live",
@@ -993,6 +1176,211 @@ function runLiveQualification(
   };
 }
 
+const PI_ACTIVITIES = new Set([
+  "analysis",
+  "exploration",
+  "testing",
+  "review",
+]);
+
+function stringArray(value) {
+  return (
+    Array.isArray(value) &&
+    value.every((item) => typeof item === "string")
+  );
+}
+
+function candidateOutputMatches(
+  value,
+  definition,
+  activity,
+) {
+  return (
+    exactKeys(value, [
+      "schemaVersion",
+      "profile",
+      "provider",
+      "model",
+      "activity",
+      "disposition",
+      "completionAuthority",
+      "summary",
+      "findings",
+      "suggestedChecks",
+    ]) &&
+    value.schemaVersion === "1" &&
+    value.profile === definition.id &&
+    value.provider === definition.modelProvider &&
+    value.model === definition.model &&
+    value.activity === activity &&
+    value.disposition === "candidate-evidence" &&
+    value.completionAuthority === "codex-main" &&
+    typeof value.summary === "string" &&
+    stringArray(value.findings) &&
+    stringArray(value.suggestedChecks)
+  );
+}
+
+function runPiCandidate(definition, options, stored) {
+  const providerOptions = statusOptions(
+    options,
+    stored,
+    stored.state,
+  );
+  const runtime = publicVersion(definition, providerOptions);
+  if (runtime.state !== "detected") {
+    throw new ProviderLifecycleError(
+      "PROVIDER_UNAVAILABLE",
+      "Provider CLI is unavailable or has no supported public version.",
+    );
+  }
+  const contract = providerContract(definition, runtime);
+  if (
+    !contract.candidateAdapter ||
+    !contract.candidateOutputContract
+  ) {
+    throw new ProviderLifecycleError(
+      "PROVIDER_CONTRACT_INVALID",
+      "Pi candidate execution contract is invalid.",
+    );
+  }
+  const prompt = canonicalJson({
+    schemaVersion: "1",
+    activity: options.activity,
+    brief: options.prompt,
+  });
+  const runsRoot = providerRunsRoot(
+    options,
+    stored.key,
+    definition.id,
+  );
+  const { execution, fleetReceipt, runDirectory } =
+    runFleetWorker(
+      {
+        schemaVersion: "1",
+        adapter: contract.candidateAdapter,
+        activity: options.activity,
+        prompt,
+        timeoutMilliseconds: contract.timeoutMilliseconds,
+        outputContract: contract.candidateOutputContract,
+      },
+      runsRoot,
+      options,
+    );
+  let payload = null;
+  try {
+    payload = parseProbeOutput(
+      readFileSync(join(runDirectory, "stdout.txt")),
+    );
+  } catch {
+    payload = null;
+  }
+  rmSync(join(runDirectory, "workspace"), {
+    recursive: true,
+    force: true,
+  });
+  const postRunRuntime = publicVersion(
+    definition,
+    providerOptions,
+  );
+  let postRunFingerprint = null;
+  if (postRunRuntime.state === "detected") {
+    try {
+      postRunFingerprint = providerContract(
+        definition,
+        postRunRuntime,
+      ).fingerprint;
+    } catch {
+      postRunFingerprint = null;
+    }
+  }
+  const passed =
+    execution.status === 0 &&
+    fleetReceipt.status === "succeeded" &&
+    fleetReceipt.outputContract?.valid === true &&
+    candidateOutputMatches(
+      payload,
+      definition,
+      options.activity,
+    ) &&
+    postRunFingerprint === contract.fingerprint;
+  const terminalState = passed ? "succeeded" : "failed";
+  const finishedAt =
+    typeof fleetReceipt.finishedAt === "string"
+      ? fleetReceipt.finishedAt
+      : new Date().toISOString();
+  const identity = {
+    profile: definition.id,
+    provider: definition.modelProvider,
+    model: definition.model,
+  };
+  writeExclusiveJson(
+    join(runDirectory, "provider-run.json"),
+    {
+      schemaVersion: "1",
+      profile: definition.id,
+      activity: options.activity,
+      identity,
+      terminalState,
+      fingerprint: contract.fingerprint,
+      cliVersion: runtime.version,
+      fleetStatus:
+        fleetReceipt.status ?? fleetReceipt.error?.code ?? "failed",
+      disposition: "candidate-evidence",
+      completionAuthority: "codex-main",
+      candidate: passed ? payload : null,
+      finishedAt,
+    },
+  );
+  const evidenceAnchor = writeEvidenceIndex(
+    runDirectory,
+    fleetReceipt.runIdentity,
+  );
+  const provider = providerStatus(
+    definition,
+    providerOptions,
+  );
+  const evidenceIndex =
+    `~/.codex-ground-control/evidence/providers/${stored.key}/` +
+    `${definition.id}/${fleetReceipt.runIdentity}/evidence-index.json`;
+  return {
+    blocked: !passed,
+    changed: true,
+    errorCode: "PROVIDER_EXECUTION_FAILED",
+    errorMessage: "Pi candidate execution failed.",
+    result: {
+      schemaVersion: "1",
+      operation: "run",
+      provider,
+      execution: {
+        terminalState,
+        runIdentity: fleetReceipt.runIdentity,
+        activity: options.activity,
+        identity,
+        fingerprint: contract.fingerprint,
+        fingerprints: {
+          providerCli: contract.components.providerCli,
+          adapter: contract.components.adapter,
+        },
+        evidence: {
+          index: evidenceIndex,
+          anchor: evidenceAnchor,
+        },
+      },
+      candidate: {
+        disposition: "candidate-evidence",
+        completionAuthority: "codex-main",
+        reviewRequired: true,
+        workspaceChangesApplied: false,
+        output: passed ? payload : null,
+      },
+      summary:
+        `${definition.id} candidate execution ${terminalState}; ` +
+        "codex-main review remains required.",
+    },
+  };
+}
+
 export function runProviderOperation(options = {}) {
   const operation = options.operation ?? "list";
   if (operation === "list") {
@@ -1001,10 +1389,13 @@ export function runProviderOperation(options = {}) {
       result: listProviderStates(options),
     };
   }
-  if (operation === "qualify" && options.allowLive !== true) {
+  if (
+    ["qualify", "run"].includes(operation) &&
+    options.allowLive !== true
+  ) {
     throw new ProviderLifecycleError(
       "PROVIDER_LIVE_CONFIRMATION_REQUIRED",
-      "Provider qualification requires the explicit --allow-live flag.",
+      "Provider network execution requires the explicit --allow-live flag.",
     );
   }
   const definition = providerDefinitions.find(
@@ -1025,6 +1416,30 @@ export function runProviderOperation(options = {}) {
       );
     }
     return runLiveQualification(definition, options, stored);
+  }
+  if (operation === "run") {
+    if (
+      definition.family !== "pi" ||
+      !PI_ACTIVITIES.has(options.activity) ||
+      typeof options.prompt !== "string" ||
+      options.prompt.trim() === ""
+    ) {
+      throw new ProviderLifecycleError(
+        "PROVIDER_EXECUTION_INVALID",
+        "Pi execution requires a supported activity and bounded prompt.",
+      );
+    }
+    const provider = providerStatus(
+      definition,
+      statusOptions(options, stored, stored.state),
+    );
+    if (provider.blocked) {
+      throw new ProviderLifecycleError(
+        "PROVIDER_TRANSITION_UNSUPPORTED",
+        "Enable and qualify the current Pi profile before execution.",
+      );
+    }
+    return runPiCandidate(definition, options, stored);
   }
   if (!["enable", "disable"].includes(operation)) {
     throw new ProviderLifecycleError(

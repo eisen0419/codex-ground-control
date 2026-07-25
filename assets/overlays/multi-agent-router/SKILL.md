@@ -27,6 +27,21 @@ completion authority.
 6. Accept adapter output only as evidence. The main Codex inspects it, reruns
    proportionate verification, and decides completion.
 
+## Pi leaf profiles
+
+The packaged Pi profiles are `pi-glm`, `pi-deepseek`, and `pi-minimax`.
+After the selected profile is enabled and currently qualified, dispatch one
+bounded `analysis`, `exploration`, `testing`, or `review` brief through:
+
+```text
+codex-ground-control provider run <pi-profile> <activity> "<bounded brief>" --allow-live
+```
+
+Pass only the selected input text, never a workspace path or extra Pi
+arguments. The receipt must report `candidate-evidence`,
+`completionAuthority=codex-main`, a current fingerprint, and an evidence
+anchor. A blocked or failed receipt is not a candidate result.
+
 ## Authority boundaries
 
 - External adapters are leaf tools. They cannot create workers or recursively

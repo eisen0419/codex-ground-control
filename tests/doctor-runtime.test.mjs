@@ -194,7 +194,13 @@ test("doctor reports a healthy core without promoting unavailable optional provi
     assert.equal(diagnosed.receipt.result.health, "healthy");
     assert.equal(diagnosed.receipt.result.scope, "project");
     assert.equal(diagnosed.receipt.result.gates.core.status, "passed");
-    for (const provider of ["pi", "agy", "grok"]) {
+    for (const provider of [
+      "pi-glm",
+      "pi-deepseek",
+      "pi-minimax",
+      "agy",
+      "grok",
+    ]) {
       assert.equal(
         diagnosed.receipt.result.gates[provider].status,
         "unavailable",
@@ -230,7 +236,9 @@ test("doctor reports a healthy core without promoting unavailable optional provi
         "installation.skills",
         "runtime.hooks",
         "runtime.codex-config",
-        "provider.pi",
+        "provider.pi-glm",
+        "provider.pi-deepseek",
+        "provider.pi-minimax",
         "provider.agy",
         "provider.grok",
         "gate.native",
@@ -247,7 +255,7 @@ test("doctor reports a healthy core without promoting unavailable optional provi
     }
     assert.equal(
       diagnosed.receipt.result.findings.find(
-        ({ id }) => id === "provider.pi",
+        ({ id }) => id === "provider.pi-glm",
       ).state,
       "optional-unavailable",
     );
@@ -577,7 +585,7 @@ test("human doctor output groups core, provider, and fail-closed boundary findin
     assert.match(healthy.stdout, /^Optional providers:$/m);
     assert.match(
       healthy.stdout,
-      /^  OPTIONAL-UNAVAILABLE provider\.pi: CLI not found/m,
+      /^  OPTIONAL-UNAVAILABLE provider\.pi-glm: CLI not found/m,
     );
     assert.match(healthy.stdout, /^Fail-closed boundaries:$/m);
     assert.match(
@@ -644,23 +652,29 @@ test("provider detection reports only public version and credential presence", (
     );
 
     assert.equal(diagnosed.status, 0);
-    assert.deepEqual(diagnosed.receipt.result.gates.pi, {
+    assert.deepEqual(diagnosed.receipt.result.gates["pi-glm"], {
       status: "disabled",
       availability: "detected",
       credential: "present in environment",
       qualification: "unqualified",
       enabled: false,
-      findingIds: ["provider.pi"],
+      findingIds: ["provider.pi-glm"],
     });
+    for (const profile of ["pi-deepseek", "pi-minimax"]) {
+      assert.equal(
+        diagnosed.receipt.result.gates[profile].credential,
+        "not observed",
+      );
+    }
     assert.equal(
       diagnosed.receipt.result.findings.find(
-        ({ id }) => id === "provider.pi",
+        ({ id }) => id === "provider.pi-glm",
       ).state,
       "detected",
     );
     assert.equal(
       diagnosed.receipt.result.findings.find(
-        ({ id }) => id === "provider.pi",
+        ({ id }) => id === "provider.pi-glm",
       ).observed,
       "CLI 1.2.3 detected; credentials present in environment",
     );

@@ -361,7 +361,10 @@ test("init installs and restores the project-local workflow in an empty project"
     assert.equal(diagnosed.receipt.result.health, "healthy");
     assert.equal(diagnosed.receipt.result.scope, "project");
     assert.equal(diagnosed.receipt.result.gates.core.status, "passed");
-    assert.equal(diagnosed.receipt.result.gates.pi.status, "unavailable");
+    assert.equal(
+      diagnosed.receipt.result.gates["pi-glm"].status,
+      "unavailable",
+    );
     assert.equal(diagnosed.receipt.result.gates.agy.status, "unavailable");
     assert.equal(diagnosed.receipt.result.gates.grok.status, "unavailable");
     assert.equal(diagnosed.receipt.result.gates.native.status, "blocked");

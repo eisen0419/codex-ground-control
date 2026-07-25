@@ -231,11 +231,13 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "fixtures/qualification/offline-core-v1.json",
       "fixtures/qualification/public-receipt-audit-v1.json",
       "fixtures/providers/capabilities-v1.json",
+      "fixtures/providers/pi-leaf-adapter.mjs",
       "fixtures/providers/probe-adapter.mjs",
       "fixtures/providers/public-probes-v1.json",
       "package.json",
       "release-lock.json",
       "schemas/provider/live-probe-output.schema.json",
+      "schemas/provider/pi-candidate-output.schema.json",
       "schemas/qualification/campaign.schema.json",
       "schemas/qualification/issue-ledger.schema.json",
       "schemas/qualification/public-receipt.schema.json",
@@ -299,9 +301,10 @@ test("packed CLI exposes stable help and version output", () => {
         "",
         "Providers:",
         "  provider list",
-        "  provider enable <pi|agy|grok>",
-        "  provider disable <pi|agy|grok>",
-        "  provider qualify <pi|agy|grok> --allow-live",
+        "  provider enable <pi-glm|pi-deepseek|pi-minimax|agy|grok>",
+        "  provider disable <pi-glm|pi-deepseek|pi-minimax|agy|grok>",
+        "  provider qualify <pi-glm|pi-deepseek|pi-minimax|agy|grok> --allow-live",
+        "  provider run <pi-profile> <analysis|exploration|testing|review> <prompt> --allow-live",
         "",
         "Options:",
         "  --json     Emit exactly one JSON receipt",
@@ -416,7 +419,10 @@ test("packed CLI completes an offline reversible lifecycle", () => {
       assert.equal(diagnosed.receipt.result.health, "healthy");
       assert.equal(diagnosed.receipt.result.scope, "project");
       assert.equal(diagnosed.receipt.result.gates.core.status, "passed");
-      assert.equal(diagnosed.receipt.result.gates.pi.status, "unavailable");
+      assert.equal(
+        diagnosed.receipt.result.gates["pi-glm"].status,
+        "unavailable",
+      );
       assert.equal(diagnosed.receipt.result.gates.agy.status, "unavailable");
       assert.equal(diagnosed.receipt.result.gates.grok.status, "unavailable");
       assert.equal(diagnosed.receipt.result.gates.native.status, "blocked");
@@ -798,7 +804,7 @@ test("packed CLI completes an offline reversible lifecycle", () => {
       assert.equal(providers.status, 0);
       assert.equal(providers.receipt.result.schemaVersion, "1");
       assert.equal(providers.receipt.result.operation, "list");
-      assert.equal(providers.receipt.result.providers.length, 3);
+      assert.equal(providers.receipt.result.providers.length, 5);
       assert.equal(
         providers.receipt.result.providers.every(
           (provider) =>
@@ -1512,7 +1518,7 @@ test("packed CLI keeps human lifecycle output concise and stable", () => {
       );
       assert.match(
         providers.stdout,
-        /^  pi: blocked/m,
+        /^  pi-glm: blocked/m,
       );
       assert.equal(providers.stderr, "");
 

@@ -12,16 +12,47 @@
     }
   },
   "providers": {
-    "pi": {
-      "adapter": "pi-live-probe",
-      "outputContract": "live-probe-output-v1",
+    "pi-glm": {
+      "adapter": "pi-glm-live-probe",
+      "candidateAdapter": "pi-glm",
+      "candidateOutputContract": "pi-candidate-output-v1",
+      "outputContract": "pi-live-probe-output-v1",
       "timeoutMilliseconds": 120000,
       "contract": {
         "kind": "model",
+        "provider": "zai-coding-cn",
         "model": "glm-5.2",
         "mode": "no-tools"
       },
-      "prompt": "Return exactly this raw JSON object and no other text: {\"schemaVersion\":\"1\",\"provider\":\"pi\",\"probe\":\"public-sources-v1\",\"ok\":true,\"source\":\"https://www.iana.org/help/example-domains\"}. This is a fixed public qualification probe. Do not use private repositories, local files, memory, tools, or delegation."
+      "prompt": "Return exactly this raw JSON object and no other text: {\"schemaVersion\":\"1\",\"profile\":\"pi-glm\",\"provider\":\"zai-coding-cn\",\"model\":\"glm-5.2\",\"probe\":\"public-sources-v1\",\"ok\":true}. This fixed probe references only the public URL https://www.iana.org/help/example-domains. Do not use private repositories, local files, memory, tools, or delegation."
+    },
+    "pi-deepseek": {
+      "adapter": "pi-deepseek-live-probe",
+      "candidateAdapter": "pi-deepseek",
+      "candidateOutputContract": "pi-candidate-output-v1",
+      "outputContract": "pi-live-probe-output-v1",
+      "timeoutMilliseconds": 120000,
+      "contract": {
+        "kind": "model",
+        "provider": "deepseek",
+        "model": "deepseek-v4-pro",
+        "mode": "no-tools"
+      },
+      "prompt": "Return exactly this raw JSON object and no other text: {\"schemaVersion\":\"1\",\"profile\":\"pi-deepseek\",\"provider\":\"deepseek\",\"model\":\"deepseek-v4-pro\",\"probe\":\"public-sources-v1\",\"ok\":true}. This fixed probe references only the public URL https://www.iana.org/help/example-domains. Do not use private repositories, local files, memory, tools, or delegation."
+    },
+    "pi-minimax": {
+      "adapter": "pi-minimax-live-probe",
+      "candidateAdapter": "pi-minimax",
+      "candidateOutputContract": "pi-candidate-output-v1",
+      "outputContract": "pi-live-probe-output-v1",
+      "timeoutMilliseconds": 120000,
+      "contract": {
+        "kind": "model",
+        "provider": "minimax-cn",
+        "model": "MiniMax-M3",
+        "mode": "no-tools"
+      },
+      "prompt": "Return exactly this raw JSON object and no other text: {\"schemaVersion\":\"1\",\"profile\":\"pi-minimax\",\"provider\":\"minimax-cn\",\"model\":\"MiniMax-M3\",\"probe\":\"public-sources-v1\",\"ok\":true}. This fixed probe references only the public URL https://www.iana.org/help/example-domains. Do not use private repositories, local files, memory, tools, or delegation."
     },
     "agy": {
       "adapter": "agy-live-probe",

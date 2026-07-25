@@ -19,6 +19,50 @@ import { after, before, test } from "node:test";
 const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 let packedCli;
 
+const piProfiles = [
+  {
+    id: "pi-glm",
+    family: "pi",
+    modelProvider: "zai-coding-cn",
+    model: "glm-5.2",
+  },
+  {
+    id: "pi-deepseek",
+    family: "pi",
+    modelProvider: "deepseek",
+    model: "deepseek-v4-pro",
+  },
+  {
+    id: "pi-minimax",
+    family: "pi",
+    modelProvider: "minimax-cn",
+    model: "MiniMax-M3",
+  },
+];
+
+function shellQuote(value) {
+  return `'${value.replaceAll("'", `'\\''`)}'`;
+}
+
+function piMessageEnd(provider, model, text) {
+  return JSON.stringify({
+    type: "message_end",
+    message: {
+      role: "assistant",
+      provider,
+      model,
+      content: [{ type: "text", text }],
+      stopReason: "stop",
+    },
+  });
+}
+
+function printPiMessageEnd(provider, model, text) {
+  return `printf '%s\\n' ${shellQuote(
+    piMessageEnd(provider, model, text),
+  )}`;
+}
+
 function environment(homeDirectory, runtimeBin) {
   return {
     PATH: `${runtimeBin}:/usr/bin:/bin`,
@@ -168,7 +212,7 @@ after(() => {
   }
 });
 
-test("provider list reports every optional provider disabled and unqualified without writing state", () => {
+test("provider list reports three independent Pi profiles without writing state", () => {
   withProject((context) => {
     assert.equal(runJson(["init"], context).status, 0);
     const projectBefore = snapshotFiles(context.projectDirectory);
@@ -182,12 +226,16 @@ test("provider list reports every optional provider disabled and unqualified wit
     assert.equal(listed.receipt.result.operation, "list");
     assert.equal(
       listed.receipt.result.summary,
-      "3 optional providers; 0 executable, 3 blocked.",
+      "5 optional providers; 0 executable, 5 blocked.",
     );
     assert.deepEqual(
       listed.receipt.result.providers,
-      ["pi", "agy", "grok"].map((id) => ({
-        id,
+      [
+        ...piProfiles,
+        { id: "agy" },
+        { id: "grok" },
+      ].map((definition) => ({
+        ...definition,
         detected: false,
         configured: false,
         enabled: false,
@@ -207,6 +255,85 @@ test("provider list reports every optional provider disabled and unqualified wit
       projectBefore,
     );
     assert.deepEqual(snapshotFiles(context.homeDirectory), homeBefore);
+  });
+});
+
+test("legacy Pi state migrates fail-closed without expanding profile authority", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    assert.equal(
+      runJson(["provider", "enable", "pi-glm"], context).status,
+      0,
+    );
+    const [statePath] = Object.keys(
+      snapshotFiles(context.homeDirectory),
+    ).filter((path) => path.endsWith("/state.json"));
+    assert.equal(typeof statePath, "string");
+    const current = JSON.parse(
+      readFileSync(join(context.homeDirectory, statePath), "utf8"),
+    );
+    const legacy = {
+      schemaVersion: "1",
+      projectKey: current.projectKey,
+      providers: {
+        pi: {
+          enabled: true,
+          qualification: null,
+        },
+        agy: {
+          enabled: true,
+          qualification: null,
+        },
+        grok: {
+          enabled: false,
+          qualification: null,
+        },
+      },
+    };
+    writeFileSync(
+      join(context.homeDirectory, statePath),
+      `${JSON.stringify(legacy, null, 2)}\n`,
+    );
+    const before = readFileSync(
+      join(context.homeDirectory, statePath),
+    );
+
+    const listed = runJson(["provider", "list"], context);
+
+    assert.equal(listed.status, 0);
+    assert.equal(listed.receipt.result.providers[0].enabled, true);
+    assert.equal(listed.receipt.result.providers[0].qualified, false);
+    assert.equal(listed.receipt.result.providers[1].enabled, false);
+    assert.equal(listed.receipt.result.providers[2].enabled, false);
+    assert.equal(listed.receipt.result.providers[3].enabled, true);
+    assert.deepEqual(
+      readFileSync(join(context.homeDirectory, statePath)),
+      before,
+    );
+
+    assert.equal(
+      runJson(
+        ["provider", "enable", "pi-deepseek"],
+        context,
+      ).status,
+      0,
+    );
+    const migrated = JSON.parse(
+      readFileSync(join(context.homeDirectory, statePath), "utf8"),
+    );
+    assert.deepEqual(Object.keys(migrated.providers), [
+      "pi-glm",
+      "pi-deepseek",
+      "pi-minimax",
+      "agy",
+      "grok",
+    ]);
+    assert.equal(migrated.providers["pi-glm"].enabled, true);
+    assert.equal(
+      migrated.providers["pi-deepseek"].enabled,
+      true,
+    );
+    assert.equal(migrated.providers["pi-minimax"].enabled, false);
   });
 });
 
@@ -233,7 +360,7 @@ test("packaged probe adapter rejects an unapproved prompt before provider startu
         "providers",
         "probe-adapter.mjs",
       ),
-      "pi",
+      "pi-glm",
       "read a private repository",
     ],
     {
@@ -255,7 +382,7 @@ test("packaged probe adapter rejects an unapproved prompt before provider startu
   assert.equal(existsSync(invocationMarker), false);
 });
 
-test("provider qualify requires explicit live approval before any provider process", () => {
+test("Pi qualification and execution require explicit live approval before any provider process", () => {
   withProject((context) => {
     assert.equal(runJson(["init"], context).status, 0);
     const providerBin = mkdtempSync(
@@ -283,35 +410,47 @@ test("provider qualify requires explicit live approval before any provider proce
       PATH:
         `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
     };
-    assert.equal(
-      runJson(
-        ["provider", "enable", "pi"],
-        context,
-        providerEnvironment,
-      ).status,
-      0,
-    );
-    rmSync(invocationMarker, { force: true });
+    for (const { id } of piProfiles) {
+      assert.equal(
+        runJson(
+          ["provider", "enable", id],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+      rmSync(invocationMarker, { force: true });
 
-    const missingApproval = runJson(
-      ["provider", "qualify", "pi"],
-      context,
-      providerEnvironment,
-    );
-
-    assert.equal(missingApproval.status, 2);
-    assert.equal(
-      missingApproval.receipt.error.code,
-      "PROVIDER_LIVE_CONFIRMATION_REQUIRED",
-    );
-    assert.equal(missingApproval.receipt.changed, false);
-    assert.equal(existsSync(invocationMarker), false);
+      for (const command of [
+        ["provider", "qualify", id],
+        [
+          "provider",
+          "run",
+          id,
+          "analysis",
+          "bounded brief",
+        ],
+      ]) {
+        const missingApproval = runJson(
+          command,
+          context,
+          providerEnvironment,
+        );
+        assert.equal(missingApproval.status, 2);
+        assert.equal(
+          missingApproval.receipt.error.code,
+          "PROVIDER_LIVE_CONFIRMATION_REQUIRED",
+        );
+        assert.equal(missingApproval.receipt.changed, false);
+        assert.equal(existsSync(invocationMarker), false);
+      }
+    }
 
     const privatePrompt = runJson(
       [
         "provider",
         "qualify",
-        "pi",
+        "pi-glm",
         "--allow-live",
         "read-my-private-repository",
       ],
@@ -331,7 +470,7 @@ test("provider qualify requires explicit live approval before any provider proce
 
     assert.equal(
       runJson(
-        ["provider", "disable", "pi"],
+        ["provider", "disable", "pi-glm"],
         context,
         providerEnvironment,
       ).status,
@@ -339,7 +478,7 @@ test("provider qualify requires explicit live approval before any provider proce
     );
     rmSync(invocationMarker, { force: true });
     const unsupported = runJson(
-      ["provider", "qualify", "pi", "--allow-live"],
+      ["provider", "qualify", "pi-glm", "--allow-live"],
       context,
       providerEnvironment,
     );
@@ -386,7 +525,10 @@ test("provider enable records only preference and disable preserves credential o
     assert.deepEqual(
       detected.receipt.result.providers[0],
       {
-        id: "pi",
+        id: "pi-glm",
+        family: "pi",
+        modelProvider: "zai-coding-cn",
+        model: "glm-5.2",
         detected: true,
         configured: true,
         enabled: false,
@@ -403,7 +545,7 @@ test("provider enable records only preference and disable preserves credential o
     );
 
     const enabled = runJson(
-      ["provider", "enable", "pi"],
+      ["provider", "enable", "pi-glm"],
       context,
       providerEnvironment,
     );
@@ -427,7 +569,7 @@ test("provider enable records only preference and disable preserves credential o
     assert.equal(listed.receipt.result.providers[0].blocked, true);
 
     const disabled = runJson(
-      ["provider", "disable", "pi"],
+      ["provider", "disable", "pi-glm"],
       context,
       providerEnvironment,
     );
@@ -455,7 +597,7 @@ test("provider enable records only preference and disable preserves credential o
   });
 });
 
-test("provider qualification records fingerprinted evidence and disable keeps it current", () => {
+test("Pi GLM qualification binds exact model identity, argv, environment, and evidence", () => {
   withProject((context) => {
     assert.equal(runJson(["init"], context).status, 0);
     const providerBin = mkdtempSync(
@@ -474,8 +616,16 @@ test("provider qualification records fingerprinted evidence and disable keeps it
         "  exit 0",
         "fi",
         `printf '%s\\n' "$@" > '${invocationLog}'`,
-        "printf '%s\\n' " +
-          `'{"schemaVersion":"1","provider":"pi","probe":"public-sources-v1","ok":true,"source":"https://www.iana.org/help/example-domains"}'`,
+        `printf 'cwd=%s\\n' "$PWD" >> '${invocationLog}'`,
+        `printf 'home=%s\\n' "$HOME" >> '${invocationLog}'`,
+        `printf 'zai=%s\\n' "\${ZAI_CODING_CN_API_KEY:+present}" >> '${invocationLog}'`,
+        `printf 'deepseek=%s\\n' "\${DEEPSEEK_API_KEY:+present}" >> '${invocationLog}'`,
+        `printf 'unrelated=%s\\n' "\${UNRELATED_SECRET:+present}" >> '${invocationLog}'`,
+        printPiMessageEnd(
+          "zai-coding-cn",
+          "glm-5.2",
+          '{"schemaVersion":"1","profile":"pi-glm","provider":"zai-coding-cn","model":"glm-5.2","probe":"public-sources-v1","ok":true}',
+        ),
         "",
       ].join("\n"),
     );
@@ -485,10 +635,12 @@ test("provider qualification records fingerprinted evidence and disable keeps it
       PATH:
         `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
       ZAI_CODING_CN_API_KEY: secret,
+      DEEPSEEK_API_KEY: "other-profile-secret",
+      UNRELATED_SECRET: "unrelated-secret",
     };
     assert.equal(
       runJson(
-        ["provider", "enable", "pi"],
+        ["provider", "enable", "pi-glm"],
         context,
         providerEnvironment,
       ).status,
@@ -496,7 +648,7 @@ test("provider qualification records fingerprinted evidence and disable keeps it
     );
 
     const qualified = runJson(
-      ["provider", "qualify", "pi", "--allow-live"],
+      ["provider", "qualify", "pi-glm", "--allow-live"],
       context,
       providerEnvironment,
     );
@@ -513,6 +665,14 @@ test("provider qualification records fingerprinted evidence and disable keeps it
       /^[0-9a-f]{64}$/,
     );
     assert.match(
+      qualified.receipt.result.qualification.fingerprints.providerCli,
+      /^[0-9a-f]{64}$/,
+    );
+    assert.match(
+      qualified.receipt.result.qualification.fingerprints.adapter,
+      /^[0-9a-f]{64}$/,
+    );
+    assert.match(
       qualified.receipt.result.qualification.evidence.anchor,
       /^[0-9a-f]{64}$/,
     );
@@ -523,6 +683,21 @@ test("provider qualification records fingerprinted evidence and disable keeps it
     assert.equal(
       qualified.receipt.result.qualification.probe.visibility,
       "public-only",
+    );
+    assert.deepEqual(
+      qualified.receipt.result.qualification.identity,
+      {
+        profile: "pi-glm",
+        provider: "zai-coding-cn",
+        model: "glm-5.2",
+      },
+    );
+    assert.deepEqual(
+      qualified.receipt.result.qualification.identityVerification,
+      {
+        source: "pi-json-message-end",
+        verified: true,
+      },
     );
     assert.equal(qualified.receipt.result.provider.enabled, true);
     assert.equal(qualified.receipt.result.provider.qualified, true);
@@ -535,11 +710,37 @@ test("provider qualification records fingerprinted evidence and disable keeps it
     assert.equal(qualified.stderr.includes(secret), false);
 
     const invocation = readFileSync(invocationLog, "utf8");
+    const invocationLines = invocation.trim().split("\n");
+    assert.deepEqual(invocationLines.slice(0, 18), [
+      "--provider",
+      "zai-coding-cn",
+      "--model",
+      "glm-5.2",
+      "--thinking",
+      "medium",
+      "--no-tools",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-context-files",
+      "--no-approve",
+      "--system-prompt",
+      "You are a fixed public qualification probe. Return exactly one raw JSON object with no Markdown or prose.",
+      "--mode",
+      "json",
+      "--print",
+    ]);
     assert.match(invocation, /www\.iana\.org\/help\/example-domains/);
     assert.equal(invocation.includes(context.projectDirectory), false);
+    assert.match(invocation, /^cwd=.+\/workspace$/m);
+    assert.match(invocation, /^home=.+\/workspace\/\.pi-home$/m);
+    assert.match(invocation, /^zai=present$/m);
+    assert.match(invocation, /^deepseek=$/m);
+    assert.match(invocation, /^unrelated=$/m);
 
     const disabled = runJson(
-      ["provider", "disable", "pi"],
+      ["provider", "disable", "pi-glm"],
       context,
       providerEnvironment,
     );
@@ -576,9 +777,24 @@ test("provider qualification records fingerprinted evidence and disable keeps it
         "sourceRules",
       ],
     );
+    assert.deepEqual(qualificationEvidence.identity, {
+      profile: "pi-glm",
+      provider: "zai-coding-cn",
+      model: "glm-5.2",
+    });
     assert.equal(
       existsSync(join(context.homeDirectory, evidencePath)),
       true,
+    );
+    assert.equal(
+      existsSync(
+        join(
+          context.homeDirectory,
+          dirname(evidencePath),
+          "workspace",
+        ),
+      ),
+      false,
     );
     assert.equal(
       Object.values(snapshotFiles(context.homeDirectory)).some(
@@ -587,6 +803,477 @@ test("provider qualification records fingerprinted evidence and disable keeps it
       false,
     );
   });
+});
+
+test("qualified Pi profile returns candidate evidence through a fixed no-tools execution", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-pi-candidate-"),
+    );
+    const invocationLog = join(
+      packedCli.sandbox,
+      `pi-candidate-args-${Date.now()}`,
+    );
+    writeFileSync(
+      join(providerBin, "pi"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'pi 1.2.3\\n'",
+        "  exit 0",
+        "fi",
+        `printf '%s\\n' "$@" > '${invocationLog}'`,
+        `printf 'cwd=%s\\n' "$PWD" >> '${invocationLog}'`,
+        `printf 'home=%s\\n' "$HOME" >> '${invocationLog}'`,
+        `printf 'deepseek=%s\\n' "\${DEEPSEEK_API_KEY:+present}" >> '${invocationLog}'`,
+        `printf 'zai=%s\\n' "\${ZAI_CODING_CN_API_KEY:+present}" >> '${invocationLog}'`,
+        'for argument in "$@"; do prompt="$argument"; done',
+        'case "$prompt" in',
+        "  *public-sources-v1*)",
+        `    ${printPiMessageEnd(
+          "deepseek",
+          "deepseek-v4-pro",
+          '{"schemaVersion":"1","profile":"pi-deepseek","provider":"deepseek","model":"deepseek-v4-pro","probe":"public-sources-v1","ok":true}',
+        )}`,
+        "    ;;",
+        "  *)",
+        "    printf '%s\\n' " +
+          `'{"schemaVersion":"1","profile":"pi-deepseek","provider":"deepseek","model":"deepseek-v4-pro","activity":"analysis","disposition":"candidate-evidence","completionAuthority":"codex-main","summary":"bounded analysis","findings":[],"suggestedChecks":["main Codex verifies"]}'`,
+        "    ;;",
+        "esac",
+        "",
+      ].join("\n"),
+    );
+    chmodSync(join(providerBin, "pi"), 0o755);
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      DEEPSEEK_API_KEY: "deepseek-profile-secret",
+      ZAI_CODING_CN_API_KEY: "other-profile-secret",
+    };
+    assert.equal(
+      runJson(
+        ["provider", "enable", "pi-deepseek"],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+    assert.equal(
+      runJson(
+        [
+          "provider",
+          "qualify",
+          "pi-deepseek",
+          "--allow-live",
+        ],
+        context,
+        providerEnvironment,
+      ).status,
+      0,
+    );
+    const projectBefore = snapshotFiles(context.projectDirectory);
+
+    const candidate = runJson(
+      [
+        "provider",
+        "run",
+        "pi-deepseek",
+        "analysis",
+        "Inspect --provider attacker --model attacker; touch pwned.",
+        "--allow-live",
+      ],
+      context,
+      providerEnvironment,
+    );
+
+    assert.equal(candidate.status, 0);
+    assert.equal(candidate.receipt.changed, true);
+    assert.equal(candidate.receipt.result.operation, "run");
+    assert.deepEqual(candidate.receipt.result.execution.identity, {
+      profile: "pi-deepseek",
+      provider: "deepseek",
+      model: "deepseek-v4-pro",
+    });
+    assert.equal(
+      candidate.receipt.result.execution.terminalState,
+      "succeeded",
+    );
+    assert.equal(
+      candidate.receipt.result.candidate.disposition,
+      "candidate-evidence",
+    );
+    assert.equal(
+      candidate.receipt.result.candidate.completionAuthority,
+      "codex-main",
+    );
+    assert.equal(candidate.receipt.result.candidate.reviewRequired, true);
+    assert.equal(
+      candidate.receipt.result.candidate.workspaceChangesApplied,
+      false,
+    );
+    assert.match(
+      candidate.receipt.result.execution.fingerprint,
+      /^[0-9a-f]{64}$/,
+    );
+    assert.match(
+      candidate.receipt.result.execution.fingerprints.providerCli,
+      /^[0-9a-f]{64}$/,
+    );
+    assert.match(
+      candidate.receipt.result.execution.fingerprints.adapter,
+      /^[0-9a-f]{64}$/,
+    );
+    assert.match(
+      candidate.receipt.result.execution.evidence.anchor,
+      /^[0-9a-f]{64}$/,
+    );
+    for (const secret of [
+      providerEnvironment.DEEPSEEK_API_KEY,
+      providerEnvironment.ZAI_CODING_CN_API_KEY,
+    ]) {
+      assert.equal(candidate.stdout.includes(secret), false);
+      assert.equal(candidate.stderr.includes(secret), false);
+      assert.equal(
+        Object.values(snapshotFiles(context.homeDirectory)).some(
+          (contents) => contents.toString("utf8").includes(secret),
+        ),
+        false,
+      );
+    }
+    const evidencePath =
+      candidate.receipt.result.execution.evidence.index.replace(
+        "~/",
+        "",
+      );
+    const fleetMetadata = JSON.parse(
+      readFileSync(
+        join(
+          context.homeDirectory,
+          dirname(evidencePath),
+          "metadata.json",
+        ),
+        "utf8",
+      ),
+    );
+    assert.equal(
+      existsSync(
+        join(
+          context.homeDirectory,
+          dirname(evidencePath),
+          "workspace",
+        ),
+      ),
+      false,
+    );
+    assert.deepEqual(fleetMetadata.environmentVariableNames, [
+      "DEEPSEEK_API_KEY",
+      "HOME",
+      "LANG",
+      "LC_ALL",
+      "NO_COLOR",
+      "PATH",
+      "TERM",
+      "TMPDIR",
+    ]);
+    const invocation = readFileSync(invocationLog, "utf8");
+    assert.match(invocation, /^--provider\ndeepseek$/m);
+    assert.match(invocation, /^--model\ndeepseek-v4-pro$/m);
+    for (const flag of [
+      "--no-tools",
+      "--no-session",
+      "--no-extensions",
+      "--no-skills",
+      "--no-prompt-templates",
+      "--no-context-files",
+      "--no-approve",
+    ]) {
+      assert.match(invocation, new RegExp(`^${flag}$`, "m"));
+    }
+    assert.match(invocation, /^cwd=.+\/workspace$/m);
+    assert.match(invocation, /^home=.+\/workspace\/\.pi-home$/m);
+    assert.match(invocation, /^deepseek=present$/m);
+    assert.match(invocation, /^zai=$/m);
+    assert.equal(invocation.includes(context.projectDirectory), false);
+    assert.deepEqual(
+      snapshotFiles(context.projectDirectory),
+      projectBefore,
+    );
+  });
+});
+
+test("one Pi identity failure or profile drift leaves the other profiles and offline core usable", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-pi-profile-isolation-"),
+    );
+    const modeFile = join(providerBin, "mode.txt");
+    const invocationMarker = join(
+      packedCli.sandbox,
+      `pi-profile-invoked-${Date.now()}`,
+    );
+    writeFileSync(modeFile, "success\n");
+    writeFileSync(
+      join(providerBin, "pi"),
+      [
+        "#!/bin/sh",
+        'if [ "$1" = "--version" ]; then',
+        "  printf 'pi 1.2.3\\n'",
+        "  exit 0",
+        "fi",
+        `printf 'pi\\n' >> '${invocationMarker}'`,
+        "previous=''",
+        "prompt=''",
+        'for argument in "$@"; do',
+        '  if [ "$previous" = "--provider" ]; then provider="$argument"; fi',
+        '  if [ "$previous" = "--model" ]; then model="$argument"; fi',
+        '  previous="$argument"',
+        '  prompt="$argument"',
+        "done",
+        'case "$provider" in',
+        "  zai-coding-cn) profile='pi-glm' ;;",
+        "  deepseek) profile='pi-deepseek' ;;",
+        "  minimax-cn) profile='pi-minimax' ;;",
+        "  *) exit 8 ;;",
+        "esac",
+        `mode="$(cat '${modeFile}')"`,
+        'case "$prompt" in',
+        "  *public-sources-v1*)",
+        '    observed_model="$model"',
+        '    if [ "$mode" = "wrong-deepseek" ] && [ "$profile" = "pi-deepseek" ]; then observed_model="wrong-model"; fi',
+        "    printf " +
+          `'{"type":"message_end","message":{"role":"assistant","provider":"%s","model":"%s","content":[{"type":"text","text":"{\\\\\\"schemaVersion\\\\\\":\\\\\\"1\\\\\\",\\\\\\"profile\\\\\\":\\\\\\"%s\\\\\\",\\\\\\"provider\\\\\\":\\\\\\"%s\\\\\\",\\\\\\"model\\\\\\":\\\\\\"%s\\\\\\",\\\\\\"probe\\\\\\":\\\\\\"public-sources-v1\\\\\\",\\\\\\"ok\\\\\\":true}"}],"stopReason":"stop"}}\\n' "$provider" "$observed_model" "$profile" "$provider" "$model"`,
+        "    ;;",
+        "  *)",
+        "    printf " +
+          `'{"schemaVersion":"1","profile":"%s","provider":"%s","model":"%s","activity":"analysis","disposition":"candidate-evidence","completionAuthority":"codex-main","summary":"candidate","findings":[],"suggestedChecks":[]}\\n' "$profile" "$provider" "$model"`,
+        "    ;;",
+        "esac",
+        "",
+      ].join("\n"),
+    );
+    chmodSync(join(providerBin, "pi"), 0o755);
+    const providerEnvironment = {
+      PATH:
+        `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      ZAI_CODING_CN_API_KEY: "glm-secret",
+      DEEPSEEK_API_KEY: "deepseek-secret",
+      MINIMAX_API_KEY: "minimax-secret",
+    };
+    const qualificationFingerprints = new Set();
+    for (const { id } of piProfiles) {
+      assert.equal(
+        runJson(
+          ["provider", "enable", id],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+      const qualified = runJson(
+          ["provider", "qualify", id, "--allow-live"],
+          context,
+          providerEnvironment,
+      );
+      assert.equal(qualified.status, 0);
+      qualificationFingerprints.add(
+        qualified.receipt.result.qualification.fingerprint,
+      );
+    }
+    assert.equal(qualificationFingerprints.size, 3);
+    const catalogPath = join(
+      packedCli.packageRoot,
+      "fixtures",
+      "providers",
+      "public-probes-v1.json",
+    );
+    const originalCatalog = readFileSync(catalogPath);
+    try {
+      const driftedCatalog = JSON.parse(
+        originalCatalog.toString("utf8"),
+      );
+      driftedCatalog.providers["pi-deepseek"].prompt +=
+        " Profile-local contract drift.";
+      writeFileSync(
+        catalogPath,
+        `${JSON.stringify(driftedCatalog, null, 2)}\n`,
+      );
+      const drifted = runJson(
+        ["provider", "list"],
+        context,
+        providerEnvironment,
+      );
+      assert.equal(drifted.receipt.result.providers[0].qualified, true);
+      assert.equal(drifted.receipt.result.providers[0].drifted, false);
+      assert.equal(drifted.receipt.result.providers[1].qualified, false);
+      assert.equal(drifted.receipt.result.providers[1].drifted, true);
+      assert.equal(drifted.receipt.result.providers[2].qualified, true);
+      assert.equal(drifted.receipt.result.providers[2].drifted, false);
+    } finally {
+      writeFileSync(catalogPath, originalCatalog);
+    }
+    writeFileSync(modeFile, "wrong-deepseek\n");
+
+    const failed = runJson(
+      [
+        "provider",
+        "qualify",
+        "pi-deepseek",
+        "--allow-live",
+      ],
+      context,
+      providerEnvironment,
+    );
+
+    assert.equal(failed.status, 2);
+    assert.equal(
+      failed.receipt.result.qualification.terminalState,
+      "failed",
+    );
+    assert.deepEqual(
+      failed.receipt.result.qualification.identity,
+      {
+        profile: "pi-deepseek",
+        provider: "deepseek",
+        model: "deepseek-v4-pro",
+      },
+    );
+    assert.deepEqual(
+      failed.receipt.result.qualification.identityVerification,
+      {
+        source: "pi-json-message-end",
+        verified: false,
+      },
+    );
+    const listed = runJson(
+      ["provider", "list"],
+      context,
+      providerEnvironment,
+    );
+    assert.equal(listed.receipt.result.providers[0].qualified, true);
+    assert.equal(listed.receipt.result.providers[0].blocked, false);
+    assert.equal(
+      listed.receipt.result.providers[1].qualification,
+      "failed",
+    );
+    assert.equal(listed.receipt.result.providers[1].blocked, true);
+    assert.equal(listed.receipt.result.providers[2].qualified, true);
+    assert.equal(listed.receipt.result.providers[2].blocked, false);
+
+    const candidate = runJson(
+      [
+        "provider",
+        "run",
+        "pi-glm",
+        "analysis",
+        "independent bounded task",
+        "--allow-live",
+      ],
+      context,
+      providerEnvironment,
+    );
+    assert.equal(candidate.status, 0);
+    rmSync(invocationMarker, { force: true });
+
+    const core = runJson(
+      ["qualify"],
+      context,
+      providerEnvironment,
+    );
+    assert.equal(core.status, 0);
+    assert.equal(
+      core.receipt.result.terminalState,
+      "release-passed",
+    );
+    assert.equal(existsSync(invocationMarker), false);
+  });
+});
+
+test("Pi qualification records invalid output and nonzero exit as profile-local failures", () => {
+  const cases = [
+    {
+      id: "pi-glm",
+      body: printPiMessageEnd(
+        "zai-coding-cn",
+        "glm-5.2",
+        "not-json",
+      ),
+      fleetStatus: "invalid-output",
+    },
+    {
+      id: "pi-minimax",
+      body: "printf 'fixture failure\\n' >&2\nexit 17",
+      fleetStatus: "process-failed",
+    },
+  ];
+  for (const fixture of cases) {
+    withProject((context) => {
+      assert.equal(runJson(["init"], context).status, 0);
+      const providerBin = mkdtempSync(
+        join(packedCli.sandbox, `runtime-${fixture.id}-failure-`),
+      );
+      writeFileSync(
+        join(providerBin, "pi"),
+        [
+          "#!/bin/sh",
+          'if [ "$1" = "--version" ]; then',
+          "  printf 'pi 1.2.3\\n'",
+          "  exit 0",
+          "fi",
+          fixture.body,
+          "",
+        ].join("\n"),
+      );
+      chmodSync(join(providerBin, "pi"), 0o755);
+      const providerEnvironment = {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+      };
+      assert.equal(
+        runJson(
+          ["provider", "enable", fixture.id],
+          context,
+          providerEnvironment,
+        ).status,
+        0,
+      );
+
+      const failed = runJson(
+        [
+          "provider",
+          "qualify",
+          fixture.id,
+          "--allow-live",
+        ],
+        context,
+        providerEnvironment,
+      );
+
+      assert.equal(failed.status, 2);
+      assert.equal(
+        failed.receipt.result.qualification.terminalState,
+        "failed",
+      );
+      const evidencePath =
+        failed.receipt.result.qualification.evidence.index.replace(
+          "~/",
+          "",
+        );
+      const summary = JSON.parse(
+        readFileSync(
+          join(
+            context.homeDirectory,
+            dirname(evidencePath),
+            "provider-qualification.json",
+          ),
+          "utf8",
+        ),
+      );
+      assert.equal(summary.fleetStatus, fixture.fleetStatus);
+    });
+  }
 });
 
 test("provider CLI drift invalidates only that gate until explicit requalification", () => {
@@ -605,8 +1292,11 @@ test("provider CLI drift invalidates only that gate until explicit requalificati
         `  printf 'pi %s\\n' "$(cat '${versionFile}')"`,
         "  exit 0",
         "fi",
-        "printf '%s\\n' " +
-          `'{"schemaVersion":"1","provider":"pi","probe":"public-sources-v1","ok":true,"source":"https://www.iana.org/help/example-domains"}'`,
+        printPiMessageEnd(
+          "zai-coding-cn",
+          "glm-5.2",
+          '{"schemaVersion":"1","profile":"pi-glm","provider":"zai-coding-cn","model":"glm-5.2","probe":"public-sources-v1","ok":true}',
+        ),
         "",
       ].join("\n"),
     );
@@ -617,14 +1307,14 @@ test("provider CLI drift invalidates only that gate until explicit requalificati
     };
     assert.equal(
       runJson(
-        ["provider", "enable", "pi"],
+        ["provider", "enable", "pi-glm"],
         context,
         providerEnvironment,
       ).status,
       0,
     );
     const first = runJson(
-      ["provider", "qualify", "pi", "--allow-live"],
+      ["provider", "qualify", "pi-glm", "--allow-live"],
       context,
       providerEnvironment,
     );
@@ -659,7 +1349,7 @@ test("provider CLI drift invalidates only that gate until explicit requalificati
     );
 
     const requalified = runJson(
-      ["provider", "qualify", "pi", "--allow-live"],
+      ["provider", "qualify", "pi-glm", "--allow-live"],
       context,
       providerEnvironment,
     );
@@ -696,8 +1386,11 @@ test("one provider failure leaves another qualified provider and offline core us
         "  printf 'pi 1.2.3\\n'",
         "  exit 0",
         "fi",
-        "printf '%s\\n' " +
-          `'{"schemaVersion":"1","provider":"pi","probe":"public-sources-v1","ok":true,"source":"https://www.iana.org/help/example-domains"}'`,
+        printPiMessageEnd(
+          "zai-coding-cn",
+          "glm-5.2",
+          '{"schemaVersion":"1","profile":"pi-glm","provider":"zai-coding-cn","model":"glm-5.2","probe":"public-sources-v1","ok":true}',
+        ),
         "",
       ].join("\n"),
     );
@@ -722,7 +1415,7 @@ test("one provider failure leaves another qualified provider and offline core us
         `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
       GEMINI_API_KEY: "agy-secret-must-not-appear",
     };
-    for (const provider of ["pi", "agy"]) {
+    for (const provider of ["pi-glm", "agy"]) {
       assert.equal(
         runJson(
           ["provider", "enable", provider],
@@ -734,7 +1427,7 @@ test("one provider failure leaves another qualified provider and offline core us
     }
     assert.equal(
       runJson(
-        ["provider", "qualify", "pi", "--allow-live"],
+        ["provider", "qualify", "pi-glm", "--allow-live"],
         context,
         providerEnvironment,
       ).status,
@@ -774,8 +1467,8 @@ test("one provider failure leaves another qualified provider and offline core us
     );
     assert.equal(listed.receipt.result.providers[0].qualified, true);
     assert.equal(listed.receipt.result.providers[0].blocked, false);
-    assert.equal(listed.receipt.result.providers[1].qualified, false);
-    assert.equal(listed.receipt.result.providers[1].blocked, true);
+    assert.equal(listed.receipt.result.providers[3].qualified, false);
+    assert.equal(listed.receipt.result.providers[3].blocked, true);
     rmSync(invocationMarker, { force: true });
 
     const core = runJson(
@@ -813,7 +1506,11 @@ test("human and JSON modes expose the same decisions and invalid requests fail s
           `qualified=${provider.qualified ? "yes" : "no"} ` +
           `drifted=${provider.drifted ? "yes" : "no"} ` +
           `disabled=${provider.disabled ? "yes" : "no"} ` +
-          `blocked=${provider.blocked ? "yes" : "no"}$`,
+          `blocked=${provider.blocked ? "yes" : "no"}` +
+          (provider.family === "pi"
+            ? ` identity=${provider.modelProvider}/${provider.model}`
+            : "") +
+          "$",
           "m",
         ),
       );
@@ -830,7 +1527,7 @@ test("human and JSON modes expose the same decisions and invalid requests fail s
     );
 
     const unknownOperation = runJson(
-      ["provider", "launch", "pi"],
+      ["provider", "launch", "pi-glm"],
       context,
     );
     assert.equal(unknownOperation.status, 64);

@@ -67,8 +67,16 @@ const PROVIDER_ADAPTER_URL = new URL(
   "../fixtures/providers/probe-adapter.mjs",
   import.meta.url,
 );
+const PI_LEAF_ADAPTER_URL = new URL(
+  "../fixtures/providers/pi-leaf-adapter.mjs",
+  import.meta.url,
+);
 const PROVIDER_SCHEMA_URL = new URL(
   "../schemas/provider/live-probe-output.schema.json",
+  import.meta.url,
+);
+const PI_CANDIDATE_SCHEMA_URL = new URL(
+  "../schemas/provider/pi-candidate-output.schema.json",
   import.meta.url,
 );
 
@@ -97,6 +105,8 @@ const COMPONENTS = [
   ["provider-probes", PROVIDER_PROBES_URL],
   ["provider-probe-adapter", PROVIDER_ADAPTER_URL],
   ["provider-probe-schema", PROVIDER_SCHEMA_URL],
+  ["pi-leaf-adapter", PI_LEAF_ADAPTER_URL],
+  ["pi-candidate-schema", PI_CANDIDATE_SCHEMA_URL],
   ["qualification-lab", new URL("./qualification-lab.js", import.meta.url)],
   [
     "qualification-contract",

@@ -628,9 +628,9 @@ export function diagnoseRuntime(options) {
     findings,
     gates: {
       core: gates.core,
-      pi: gates.pi,
-      agy: gates.agy,
-      grok: gates.grok,
+      ...Object.fromEntries(
+        providerDefinitions.map(({ id }) => [id, gates[id]]),
+      ),
       native: gates.native,
       write: gates.write,
     },

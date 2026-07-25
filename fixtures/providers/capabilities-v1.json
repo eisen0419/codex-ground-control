@@ -32,6 +32,34 @@
     "allowed": false
   },
   "outputContracts": {
+    "pi-live-probe-output-v1": {
+      "type": "object",
+      "required": {
+        "schemaVersion": "string",
+        "profile": "string",
+        "provider": "string",
+        "model": "string",
+        "probe": "string",
+        "ok": "boolean"
+      },
+      "additionalProperties": false
+    },
+    "pi-candidate-output-v1": {
+      "type": "object",
+      "required": {
+        "schemaVersion": "string",
+        "profile": "string",
+        "provider": "string",
+        "model": "string",
+        "activity": "string",
+        "disposition": "string",
+        "completionAuthority": "string",
+        "summary": "string",
+        "findings": "array",
+        "suggestedChecks": "array"
+      },
+      "additionalProperties": false
+    },
     "live-probe-output-v1": {
       "type": "object",
       "required": {
@@ -45,7 +73,7 @@
     }
   },
   "adapters": {
-    "pi-live-probe": {
+    "pi-glm-live-probe": {
       "kind": "leaf-adapter",
       "enabled": true,
       "qualification": "current",
@@ -55,7 +83,7 @@
         "provider-qualification"
       ],
       "outputContracts": [
-        "live-probe-output-v1"
+        "pi-live-probe-output-v1"
       ],
       "writeAccess": false,
       "recursiveDelegation": false,
@@ -63,7 +91,7 @@
         "command": "{node}",
         "args": [
           "{manifest_dir}/probe-adapter.mjs",
-          "pi",
+          "pi-glm",
           "{prompt}"
         ],
         "workingDirectory": {
@@ -79,8 +107,205 @@
           "HTTP_PROXY",
           "ALL_PROXY",
           "NO_PROXY",
-          "ZAI_CODING_CN_API_KEY",
-          "DEEPSEEK_API_KEY",
+          "ZAI_CODING_CN_API_KEY"
+        ]
+      }
+    },
+    "pi-deepseek-live-probe": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "provider-qualification"
+      ],
+      "outputContracts": [
+        "pi-live-probe-output-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/probe-adapter.mjs",
+          "pi-deepseek",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": [
+          "PATH",
+          "HOME",
+          "TMPDIR",
+          "LANG",
+          "LC_ALL",
+          "HTTPS_PROXY",
+          "HTTP_PROXY",
+          "ALL_PROXY",
+          "NO_PROXY",
+          "DEEPSEEK_API_KEY"
+        ]
+      }
+    },
+    "pi-minimax-live-probe": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "provider-qualification"
+      ],
+      "outputContracts": [
+        "pi-live-probe-output-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/probe-adapter.mjs",
+          "pi-minimax",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": [
+          "PATH",
+          "HOME",
+          "TMPDIR",
+          "LANG",
+          "LC_ALL",
+          "HTTPS_PROXY",
+          "HTTP_PROXY",
+          "ALL_PROXY",
+          "NO_PROXY",
+          "MINIMAX_API_KEY"
+        ]
+      }
+    },
+    "pi-glm": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "analysis",
+        "exploration",
+        "testing",
+        "review"
+      ],
+      "outputContracts": [
+        "pi-candidate-output-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/pi-leaf-adapter.mjs",
+          "pi-glm",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": [
+          "PATH",
+          "HOME",
+          "TMPDIR",
+          "LANG",
+          "LC_ALL",
+          "HTTPS_PROXY",
+          "HTTP_PROXY",
+          "ALL_PROXY",
+          "NO_PROXY",
+          "ZAI_CODING_CN_API_KEY"
+        ]
+      }
+    },
+    "pi-deepseek": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "analysis",
+        "exploration",
+        "testing",
+        "review"
+      ],
+      "outputContracts": [
+        "pi-candidate-output-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/pi-leaf-adapter.mjs",
+          "pi-deepseek",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": [
+          "PATH",
+          "HOME",
+          "TMPDIR",
+          "LANG",
+          "LC_ALL",
+          "HTTPS_PROXY",
+          "HTTP_PROXY",
+          "ALL_PROXY",
+          "NO_PROXY",
+          "DEEPSEEK_API_KEY"
+        ]
+      }
+    },
+    "pi-minimax": {
+      "kind": "leaf-adapter",
+      "enabled": true,
+      "qualification": "current",
+      "gate": "core",
+      "mode": "no-tools",
+      "activities": [
+        "analysis",
+        "exploration",
+        "testing",
+        "review"
+      ],
+      "outputContracts": [
+        "pi-candidate-output-v1"
+      ],
+      "writeAccess": false,
+      "recursiveDelegation": false,
+      "executor": {
+        "command": "{node}",
+        "args": [
+          "{manifest_dir}/pi-leaf-adapter.mjs",
+          "pi-minimax",
+          "{prompt}"
+        ],
+        "workingDirectory": {
+          "policy": "isolated-empty"
+        },
+        "environmentAllowlist": [
+          "PATH",
+          "HOME",
+          "TMPDIR",
+          "LANG",
+          "LC_ALL",
+          "HTTPS_PROXY",
+          "HTTP_PROXY",
+          "ALL_PROXY",
+          "NO_PROXY",
           "MINIMAX_API_KEY"
         ]
       }

@@ -41,9 +41,10 @@ codex-ground-control qualify
 codex-ground-control qualify verify <run-identity> <evidence-anchor>
 codex-ground-control qualify reproduce <run-identity> <scenario-id>
 codex-ground-control provider list
-codex-ground-control provider enable pi
-codex-ground-control provider qualify pi --allow-live
-codex-ground-control provider disable pi
+codex-ground-control provider enable pi-glm
+codex-ground-control provider qualify pi-glm --allow-live
+codex-ground-control provider run pi-glm analysis "Review this bounded input" --allow-live
+codex-ground-control provider disable pi-glm
 codex-ground-control uninstall
 ```
 
@@ -149,10 +150,13 @@ values.
 
 ### Optional provider lifecycle
 
-Pi, AGY, and Grok are independent optional gates. `provider list` reports the
-same detected, configured, enabled, qualified, drifted, disabled, blocked, and
-execution-decision fields in JSON and human modes. `configured` means only
-that a documented credential environment variable was observed; Ground
+Pi GLM (`zai-coding-cn/glm-5.2`), Pi DeepSeek
+(`deepseek/deepseek-v4-pro`), Pi MiniMax (`minimax-cn/MiniMax-M3`), AGY, and
+Grok are independent optional gates. `provider list` reports the same
+detected, configured, enabled, qualified, drifted, disabled, blocked, and
+execution-decision fields in JSON and human modes. Each Pi entry also reports
+its exact public provider/model identity. `configured` means only that the
+profile's documented credential environment variable was observed; Ground
 Control does not read provider credential values or private CLI credential
 stores.
 
@@ -167,10 +171,13 @@ credential values.
 Live qualification is never implicit:
 
 ```sh
-codex-ground-control provider qualify <pi|agy|grok> --allow-live
+codex-ground-control provider qualify <pi-glm|pi-deepseek|pi-minimax|agy|grok> --allow-live
 ```
 
 Without `--allow-live`, the command fails before starting a provider process.
+For Pi, qualification accepts only a unique JSON-mode assistant completion
+whose runtime provider/model identity exactly matches the selected profile;
+model prose or a zero exit code alone is insufficient.
 The command runs only the packaged `public-sources-v1` probe; there is no CLI
 argument for a user prompt or private repository context. Provider receipts
 bind the observed public CLI version, provider-specific FleetRunner adapter,
@@ -181,6 +188,21 @@ FleetRunner boundary. Evidence is append-only under
 CLI or contract drift invalidates only providers that depend on that
 fingerprint. A provider failure updates only its own gate: other current
 providers and the default offline core qualification remain usable.
+
+After a Pi profile has current qualification evidence, the main Codex may send
+one bounded brief with an explicit live flag:
+
+```sh
+codex-ground-control provider run pi-deepseek review "Review only this supplied boundary." --allow-live
+```
+
+Supported activities are `analysis`, `exploration`, `testing`, and `review`.
+Ground Control places the brief in the single fixed prompt argv slot. Pi runs
+in an isolated empty directory with tools, sessions, extensions, skills,
+prompt templates, context files, and approval prompts disabled, and inherits
+only the selected profile's environment allowlist. Strict output is labelled
+`candidate-evidence`; receipts state that `codex-main` remains completion
+authority, review is required, and no workspace changes were applied.
 
 The offline campaign also qualifies the deterministic FleetRunner boundary.
 Jobs can select only a manifest adapter, allowed activity, bounded prompt and

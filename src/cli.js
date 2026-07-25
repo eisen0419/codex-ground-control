@@ -34,9 +34,10 @@ export const HELP_TEXT = [
   "",
   "Providers:",
   "  provider list",
-  "  provider enable <pi|agy|grok>",
-  "  provider disable <pi|agy|grok>",
-  "  provider qualify <pi|agy|grok> --allow-live",
+  "  provider enable <pi-glm|pi-deepseek|pi-minimax|agy|grok>",
+  "  provider disable <pi-glm|pi-deepseek|pi-minimax|agy|grok>",
+  "  provider qualify <pi-glm|pi-deepseek|pi-minimax|agy|grok> --allow-live",
+  "  provider run <pi-profile> <analysis|exploration|testing|review> <prompt> --allow-live",
   "",
   "Options:",
   "  --json     Emit exactly one JSON receipt",
@@ -77,7 +78,7 @@ function invalidUsage(commandArgs, json, output, errors) {
   const unknownProviderOperation =
     unknownCommand === "provider" &&
     commandArgs.length > 1 &&
-    !["list", "enable", "disable", "qualify"].includes(
+    !["list", "enable", "disable", "qualify", "run"].includes(
       commandArgs[1],
     );
   const message = unknownProviderOperation
@@ -231,8 +232,26 @@ function renderProvider(result) {
         `qualified=${yesNo(provider.qualified)} ` +
         `drifted=${yesNo(provider.drifted)} ` +
         `disabled=${yesNo(provider.disabled)} ` +
-        `blocked=${yesNo(provider.blocked)}`,
+        `blocked=${yesNo(provider.blocked)}` +
+        (provider.family === "pi"
+          ? ` identity=${provider.modelProvider}/${provider.model}`
+          : ""),
     ),
+    ...(result.result.operation === "run" &&
+    result.result.candidate?.output
+      ? [
+          "Candidate evidence: " +
+            JSON.stringify(result.result.candidate.output.summary),
+          ...result.result.candidate.output.findings.map(
+            (finding) => `  finding: ${JSON.stringify(finding)}`,
+          ),
+          ...result.result.candidate.output.suggestedChecks.map(
+            (check) =>
+              `  suggested check: ${JSON.stringify(check)}`,
+          ),
+          "Authority: codex-main review required; no workspace changes applied.",
+        ]
+      : []),
     `Decision: ${result.result.summary}`,
   ].join("\n");
 }
@@ -347,6 +366,21 @@ function providerArguments(commandArgs) {
     return {
       operation: "qualify",
       providerId: commandArgs[2],
+      allowLive: commandArgs.includes("--allow-live"),
+    };
+  }
+  if (
+    (commandArgs.length === 5 ||
+      (commandArgs.length === 6 &&
+        commandArgs[5] === "--allow-live")) &&
+    commandArgs[1] === "run" &&
+    commandArgs[4] !== "--allow-live"
+  ) {
+    return {
+      operation: "run",
+      providerId: commandArgs[2],
+      activity: commandArgs[3],
+      prompt: commandArgs[4],
       allowLive: commandArgs.includes("--allow-live"),
     };
   }

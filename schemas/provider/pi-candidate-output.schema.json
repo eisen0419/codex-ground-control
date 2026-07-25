@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex-ground-control.invalid/schemas/provider/pi-candidate-output-v1.json",
+  "title": "Ground Control Pi candidate evidence output",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "profile",
+    "provider",
+    "model",
+    "activity",
+    "disposition",
+    "completionAuthority",
+    "summary",
+    "findings",
+    "suggestedChecks"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1"
+    },
+    "profile": {
+      "enum": [
+        "pi-glm",
+        "pi-deepseek",
+        "pi-minimax"
+      ]
+    },
+    "provider": {
+      "enum": [
+        "zai-coding-cn",
+        "deepseek",
+        "minimax-cn"
+      ]
+    },
+    "model": {
+      "enum": [
+        "glm-5.2",
+        "deepseek-v4-pro",
+        "MiniMax-M3"
+      ]
+    },
+    "activity": {
+      "enum": [
+        "analysis",
+        "exploration",
+        "testing",
+        "review"
+      ]
+    },
+    "disposition": {
+      "const": "candidate-evidence"
+    },
+    "completionAuthority": {
+      "const": "codex-main"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "suggestedChecks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

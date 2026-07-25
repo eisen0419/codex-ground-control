@@ -388,8 +388,11 @@ export function inspectProviders(startDirectory, options = {}) {
       changed: outcome.changed,
       result: outcome.result,
       error: {
-        code: "PROVIDER_QUALIFICATION_FAILED",
-        message: "Provider live qualification failed.",
+        code:
+          outcome.errorCode ?? "PROVIDER_QUALIFICATION_FAILED",
+        message:
+          outcome.errorMessage ??
+          "Provider live qualification failed.",
       },
     };
   }
