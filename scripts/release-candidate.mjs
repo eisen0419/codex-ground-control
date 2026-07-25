@@ -40,6 +40,11 @@ const providerIds = [
   "agy",
   "grok",
 ];
+const nonBlockingLimitations = new Set([
+  "one-or-more-live-provider-campaigns-failed",
+  "native-agent-execution-blocked",
+  "external-workspace-write-blocked",
+]);
 const repositoryCommands = [
   ["npm", ["run", "release-lock:verify"]],
   ["npm", ["run", "typecheck"]],
@@ -840,6 +845,22 @@ function runLifecycle(
       ? "passed"
       : "partial"
     : "not-run";
+  const coreUnaffected =
+    verification?.receipt.status === "ok" &&
+    offlineResult.terminalState === "release-passed";
+  const failureIsolationPassed =
+    liveStatus === "partial"
+      ? coreUnaffected &&
+        liveProviders.every(({ terminalState, finalState }) =>
+          terminalState === "passed"
+            ? finalState?.qualified === true &&
+              finalState.disabled === false &&
+              finalState.blocked === false
+            : finalState?.qualified === false &&
+              finalState.disabled === true &&
+              finalState.blocked === true,
+        )
+      : null;
   return {
     lifecycle: {
       status: lifecyclePassed ? "passed" : "failed",
@@ -875,9 +896,8 @@ function runLifecycle(
     liveEvidence: {
       status: liveStatus,
       providers: liveProviders,
-      coreUnaffected:
-        verification?.receipt.status === "ok" &&
-        offlineResult.terminalState === "release-passed",
+      coreUnaffected,
+      failureIsolationPassed,
     },
   };
 }
@@ -969,7 +989,7 @@ function markdownReport(report) {
       ? "PASSED"
       : report.liveEvidence.status === "not-run"
         ? "NOT RUN"
-        : "PARTIAL / BLOCKED";
+        : "PARTIAL / PROVIDERS BLOCKED";
   const offlineCounts =
     report.lifecycle.offlineQualification.counts ??
       { passed: 0, total: 0 };
@@ -992,6 +1012,14 @@ function markdownReport(report) {
         `- ${id}: ${terminalState}` +
         (receipt ? ` (\`${receipt}\`)` : ""),
     ),
+    "",
+    "## Release blockers",
+    "",
+    ...(report.blockingLimitations.length === 0
+      ? ["- none"]
+      : report.blockingLimitations.map(
+          (limitation) => `- ${limitation}`,
+        )),
     "",
     "## Recovery",
     "",
@@ -1044,7 +1072,9 @@ function reportLimitations(
     limitations.push(
       liveEvidence.status === "not-run"
         ? "live-provider-campaigns-not-run"
-        : "one-or-more-live-provider-campaigns-failed",
+        : liveEvidence.failureIsolationPassed
+          ? "one-or-more-live-provider-campaigns-failed"
+          : "live-provider-failure-isolation-failed",
     );
   }
   if (nameChecks.status !== "checked") {
@@ -1061,6 +1091,12 @@ function reportLimitations(
     "external-workspace-write-blocked",
   );
   return limitations;
+}
+
+function releaseBlockingLimitations(limitations) {
+  return limitations.filter(
+    (limitation) => !nonBlockingLimitations.has(limitation),
+  );
 }
 
 async function main() {
@@ -1194,11 +1230,10 @@ async function main() {
       liveEvidence,
       nameChecks,
     );
-    const status = limitations.length === 2 &&
-        limitations.includes("native-agent-execution-blocked") &&
-        limitations.includes("external-workspace-write-blocked")
-      ? "ready"
-      : "blocked";
+    const blockingLimitations =
+      releaseBlockingLimitations(limitations);
+    const status =
+      blockingLimitations.length === 0 ? "ready" : "blocked";
     const report = {
       schemaVersion: "1",
       product: packageMetadata.name,
@@ -1225,12 +1260,15 @@ async function main() {
       nameChecks,
       evidenceClasses: {
         offline: "current-release-candidate",
-        live: options.allowLive
-          ? "current-release-candidate"
-          : "not-run",
+        live: !options.allowLive
+          ? "not-run"
+          : liveEvidence.status === "passed"
+            ? "current-release-candidate"
+            : "current-release-candidate-partial",
         historicalPrivate: "not-imported",
       },
       limitations,
+      blockingLimitations,
       recovery: {
         project:
           "Run codex-ground-control uninstall. User-modified managed assets are preserved and reported as conflicts.",

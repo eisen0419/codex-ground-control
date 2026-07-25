@@ -35,8 +35,13 @@ unlicensed runtime dependencies.
 Live qualification is deliberately serial because all providers share one
 project-scoped state file. A provider failure remains attached to that
 provider, the remaining campaigns continue, and the offline evidence is
-verified again afterward. Failed or missing live evidence keeps the overall
-gate blocked; it never becomes a core success or a false provider success.
+verified again afterward. A live campaign that is not run keeps the overall
+gate blocked. A campaign that ran but failed remains a current partial
+limitation and leaves only that provider disabled/unqualified; it does not
+become a core failure, a false provider success, or a release blocker when all
+release-blocking checks passed. If the failed provider is not safely disabled
+or the offline evidence no longer verifies afterward, failure isolation itself
+becomes a release blocker.
 
 The command also performs read-only npm registry and GitHub public-name checks.
 GitHub repository names are owner-scoped, so its result is an observation, not
@@ -52,9 +57,12 @@ npm run release-candidate -- \
   --skip-name-checks
 ```
 
-Every skipped or failed gate is listed under `limitations`, and exit code `2`
-means the report was generated but the release gate is blocked. Exit code `0`
-means all release-candidate gates passed; it does not authorize publication.
+Every skipped or failed gate is listed under `limitations`;
+`blockingLimitations` identifies the subset that blocks the candidate. An
+exit code `2` means the report was generated but at least one release-blocking
+check failed. Exit code `0` means all release-blocking checks passed; optional
+providers may still be disabled/unqualified and listed as partial evidence. It
+does not authorize publication.
 
 The command does not create a GitHub remote, push, publish to npm, or create a
 release. Those remote actions remain outside Ticket 11.

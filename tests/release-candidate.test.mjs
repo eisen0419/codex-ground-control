@@ -189,6 +189,11 @@ test("release candidate is reproducible at the packed CLI seam and skipped gates
       "native-agent-execution-blocked",
       "external-workspace-write-blocked",
     ]);
+    assert.deepEqual(report.blockingLimitations, [
+      "repository-checks-not-run",
+      "live-provider-campaigns-not-run",
+      "name-availability-checks-not-run",
+    ]);
 
     const markdown = readFileSync(
       join(outputDirectory, "RELEASE_CANDIDATE.md"),
@@ -294,6 +299,14 @@ test("failed live campaigns are isolated, disabled, and leave offline core evide
     assert.equal(report.liveEvidence.status, "partial");
     assert.equal(report.liveEvidence.coreUnaffected, true);
     assert.equal(
+      report.liveEvidence.failureIsolationPassed,
+      true,
+    );
+    assert.equal(
+      report.evidenceClasses.live,
+      "current-release-candidate-partial",
+    );
+    assert.equal(
       existsSync(grokInvocation),
       false,
       "release campaign must not follow a symlinked Grok auth parent",
@@ -319,6 +332,10 @@ test("failed live campaigns are isolated, disabled, and leave offline core evide
         "one-or-more-live-provider-campaigns-failed",
       ),
     );
+    assert.deepEqual(report.blockingLimitations, [
+      "repository-checks-not-run",
+      "name-availability-checks-not-run",
+    ]);
   } finally {
     rmSync(sandbox, { recursive: true, force: true });
   }
