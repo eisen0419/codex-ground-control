@@ -109,14 +109,15 @@ Worktree lifecycle.
 
 <p align="center">
   <a href="docs/architecture/ground-control.html">
-    <img src="docs/assets/ground-control-architecture.png" alt="Ground Control App-native architecture: ChatGPT desktop app to Codex task to Ground Control skill, with the CLI behind the skill, one Codex writer, repository-scoped identity, independent gates, and bounded Provider leaves" />
+    <img src="docs/assets/ground-control-architecture-motion.gif" width="960" alt="Animated Archify trace of the Ground Control App-native architecture: ChatGPT desktop app to Codex task to Ground Control skill, with the CLI behind the skill, one Codex writer, repository-scoped identity, independent gates, and bounded Provider leaves" />
   </a>
 </p>
 
 <p align="center">
   <sub>
-    Generated and validated with <a href="https://github.com/tt-a1i/archify">Archify</a> ·
-    <a href="docs/architecture/ground-control.html">interactive HTML</a> ·
+    6-second motion preview generated from the validated <a href="https://github.com/tt-a1i/archify">Archify</a> trace ·
+    <a href="docs/assets/ground-control-architecture.png">static PNG</a> ·
+    <a href="docs/architecture/ground-control.html">interactive HTML file</a> ·
     <a href="docs/architecture/ground-control.architecture.json">typed JSON source</a>
   </sub>
 </p>
