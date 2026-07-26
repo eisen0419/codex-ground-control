@@ -219,6 +219,11 @@ test("init --dry-run previews an empty project without changing files", () => {
         ".agents/skills/multi-agent-router/SKILL.md",
       ),
     );
+    assert.ok(
+      preview.receipt.result.plan.add.includes(
+        ".agents/skills/ground-control/SKILL.md",
+      ),
+    );
     assert.deepEqual(snapshotFiles(context.projectDirectory), before);
 
     const humanPreview = run(packedCli.cli, ["init", "--dry-run"], {
@@ -310,6 +315,35 @@ test("init installs and restores the project-local workflow in an empty project"
     assert.match(routerSkill, /identify the active Matt Pocock/);
     assert.match(routerSkill, /Do not invoke, simulate, or delegate around/);
 
+    const appSkill = readFileSync(
+      join(
+        context.projectDirectory,
+        ".agents",
+        "skills",
+        "ground-control",
+        "SKILL.md",
+      ),
+      "utf8",
+    );
+    assert.match(appSkill, /name: ground-control/);
+    assert.match(appSkill, /ChatGPT desktop app/);
+    assert.match(appSkill, /must not create, remove, or hand off worktrees/i);
+    assert.match(appSkill, /CLI runtime behind this skill/i);
+    assert.match(
+      readFileSync(
+        join(
+          context.projectDirectory,
+          ".agents",
+          "skills",
+          "ground-control",
+          "agents",
+          "openai.yaml",
+        ),
+        "utf8",
+      ),
+      /display_name: "Ground Control"/,
+    );
+
     const manifest = JSON.parse(
       readFileSync(
         join(
@@ -322,7 +356,7 @@ test("init installs and restores the project-local workflow in an empty project"
     );
     assert.equal(manifest.schemaVersion, "2");
     assert.equal(manifest.product, "codex-ground-control");
-    assert.equal(manifest.version, "0.1.0");
+    assert.equal(manifest.version, "0.2.0");
     assert.equal(manifest.managedBlock.path, "AGENTS.md");
     assert.equal(manifest.managedBlock.preInstallSha256, null);
     assert.equal(manifest.managedBlock.backup, null);

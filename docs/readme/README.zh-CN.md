@@ -3,6 +3,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/codex-ground-control/v/0.1.0"><img src="https://img.shields.io/npm/v/codex-ground-control?label=npm&amp;color=CB3837" alt="npm 版本" /></a>
   <a href="https://github.com/eisen0419/codex-ground-control/releases/latest"><img src="https://img.shields.io/github/v/release/eisen0419/codex-ground-control?display_name=tag&amp;sort=semver&amp;color=4493F8" alt="GitHub Release" /></a>
+  <img src="https://img.shields.io/badge/main-v0.2_App--native_开发中-F59E0B" alt="main：v0.2 App-native 开发中" />
   <img src="https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 22 或更高版本" />
   <img src="https://img.shields.io/badge/platform-macOS-111111?logo=apple&amp;logoColor=white" alt="支持平台：macOS" />
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-08C?style=flat" alt="许可证：MIT" /></a>
@@ -13,26 +14,34 @@
 </p>
 
 <p align="center">
-  <strong>面向 Codex 的本地优先、失败时保持关闭的工作流控制面。</strong><br />
-  安装可复现的工程工作流，为每条执行边界建立独立资格门禁，
-  并始终由唯一 Codex 主控掌握最终控制权。
+  <strong>面向 Codex 的 App-native、本地优先、失败时保持关闭的工作流控制面。</strong><br />
+  在 Local 或 App 管理的 Worktree 中工作，为每条执行边界建立独立资格门禁，
+  并始终由唯一 Codex 完成裁决主体掌握最终控制权。
 </p>
 
 <h3 align="center">
-  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0"><ins>获取 Ground Control v0.1.0</ins></a>
+  <a href="#快速开始"><ins>试用 App-native v0.2 开发版</ins></a>
+  ·
+  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0">获取最新正式版 v0.1.0</a>
 </h3>
 
 <p align="center">
   <a href="#架构">架构</a> ·
   <a href="#快速开始">快速开始</a> ·
-  <a href="#cli">CLI</a> ·
+  <a href="#运行时-cli">运行时 CLI</a> ·
   <a href="#可选-provider-生命周期">Provider 边界</a> ·
   <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0">发布审计</a>
 </p>
 
-Ground Control 面向已安装 Codex CLI 的 macOS 终端个人用户。v0.1
-软件包可在 Git worktree 中完成初始化、诊断、资格验证、Provider
-状态检查和卸载；这些核心流程不需要 Provider 凭据、二次下载或联网。
+Ground Control v0.2 面向在 macOS ChatGPT 桌面 App 中使用 Codex 开发软件
+的个人用户。App 负责 chat、task、Local checkout、Worktree、Handoff、
+branch 和 approval 的完整生命周期。Ground Control 是当前 App task 内由
+skill 驱动的工作流层：核心门禁不依赖单独安装的 Codex CLI，也绝不会自行
+创建、删除或 handoff App Worktree。
+
+`codex-ground-control` 可执行文件仍然负责确定性的 bootstrap、诊断、资格验证
+和有界 Provider 操作，但它位于 Ground Control skill 后面，只是内部执行层，
+不是产品 UI，更不是第二套 task/worktree 编排器。
 
 Ground Control for Codex 是独立的社区项目，与 OpenAI 或 Matt Pocock
 不存在隶属、背书或官方合作关系。
@@ -43,13 +52,13 @@ Ground Control for Codex 是独立的社区项目，与 OpenAI 或 Matt Pocock
 <tr>
 <td width="50%" valign="top">
 
-### 默认可复现
+### 原生融入 Codex App
 
-软件包内置固定版本、未经修改的 Matt Pocock skills，并以独立的 Ground
-Control Router 覆盖层（overlay）和可验证的发布锁（release lock）约束
-来源与内容。
+从 Local 或 App 管理的 Worktree task 开始。Ground Control 会安装面向
+App 的 skill，并且只在 App 交给当前 task 的 checkout 中工作。
 
-`init --dry-run` 会在写入前展示完整的托管范围。
+只要共享同一 Git common storage，Local、Worktree 和 Handoff 就共享同一
+仓库身份；独立 clone 仍然彼此隔离。
 
 </td>
 <td width="50%" valign="top">
@@ -88,62 +97,29 @@ Control Router 覆盖层（overlay）和可验证的发布锁（release lock）�
 
 ## 架构
 
-Ground Control 将安装、执行和证据三个平面分离。`codex-main` 是唯一的用户侧
-主控、工作区写入者和完成裁决主体。可选 Provider 只是受限的叶子适配器：
-它们可以返回候选证据，但不能修改项目、递归委派、改变授权或宣布任务完成。
+Ground Control 将安装、执行和证据三个平面分离。当前 App task 内的
+`codex-main` 是唯一工作区写入者和完成裁决主体。可选 Provider 只是受限的
+叶子适配器：它们可以返回候选证据，但不能修改项目、递归委派、改变授权或
+宣布任务完成。task 和 Worktree 的生命周期由 App 管理，而不是 Ground
+Control。
 
-```mermaid
-flowchart TB
-    user["开发者"]
-    cli["codex-ground-control CLI"]
-    repo[("现有 Git worktree")]
-    evidence[("只追加证据<br/>receipt · 哈希 · 复现")]
+<p align="center">
+  <a href="../architecture/ground-control.zh-CN.html">
+    <img src="../assets/ground-control-architecture.zh-CN.png" alt="Ground Control App-native 架构：从 ChatGPT 桌面 App、Codex task 到 Ground Control skill，CLI 位于 skill 后面，并保持唯一 Codex 写入者、仓库级身份、独立门禁和受限 Provider 叶子" />
+  </a>
+</p>
 
-    subgraph control["项目本地控制面"]
-        lifecycle["init / uninstall<br/>托管文件 · 精确恢复"]
-        doctor["doctor<br/>只读诊断"]
-        lab["Qualification Lab<br/>离线 campaign · verify · reproduce"]
-        workflow["固定版本 Matt skills<br/>Ground Control Router overlay"]
-        ownership["所有权 manifest<br/>备份 · 发布来源"]
-    end
-
-    subgraph execution["执行平面"]
-        main["codex-main<br/>唯一主控 · 唯一写入者<br/>唯一完成裁决主体"]
-        gate{"独立能力门禁<br/>已启用 + 已资格验证 + 当前有效？"}
-        fleet["FleetRunner<br/>固定适配器 · shell=false · 有界 I/O"]
-        pi["Pi 叶子 profiles<br/>分析 · 探索 · 测试 · 评审"]
-        agy["AGY 研究适配器<br/>仅限公开 Google 来源"]
-        grok["Grok 研究适配器<br/>仅限公开 X 来源"]
-        blocked["原生 Agents 与外部写入者<br/>在 v0.1 中保持 blocked"]
-    end
-
-    user --> cli
-    cli --> lifecycle
-    cli --> doctor
-    cli --> lab
-    lifecycle --> workflow
-    lifecycle --> ownership
-    workflow --> main
-    main ==>|"唯一写入者"| repo
-    main --> gate
-    doctor -. "观测" .-> gate
-    lab --> fleet
-    gate -->|"passed + enabled + current<br/>显式 --allow-live"| fleet
-    gate -->|"缺失 / 过期 / blocked"| blocked
-    fleet --> pi
-    fleet --> agy
-    fleet --> grok
-    pi -. "候选证据" .-> main
-    agy -. "资格证据" .-> main
-    grok -. "资格证据" .-> main
-    lab --> evidence
-    fleet --> evidence
-    evidence -. "评审 + 验证" .-> main
-```
+<p align="center">
+  <sub>
+    由 <a href="https://github.com/tt-a1i/archify">Archify</a> 生成并验证 ·
+    <a href="../architecture/ground-control.zh-CN.html">交互式 HTML</a> ·
+    <a href="../architecture/ground-control.zh-CN.architecture.json">typed JSON 源文件</a>
+  </sub>
+</p>
 
 门禁按适配器和当前运行时指纹分别计算。某个 Provider 通过，不会让其他
 Provider 自动获得资格。默认发布资格验证活动（campaign）完全离线；所有
-实时 Provider 操作都必须显式传入 `--allow-live`。v0.1 中，原生 Agent
+实时 Provider 操作都必须显式传入 `--allow-live`。v0.2 中，原生 Agent
 门禁和外部写入门禁始终保持 blocked。
 
 ## 快速开始
@@ -151,28 +127,52 @@ Provider 自动获得资格。默认发布资格验证活动（campaign）完全
 环境要求：
 
 - macOS
+- 带 Codex 的 ChatGPT 桌面 App
 - Node.js 22 或更高版本
 - Git
-- Codex CLI
 
-请在现有 Git worktree 中运行。先预览精确版本的软件包会修改哪些内容，
-确认后再执行项目本地初始化：
+不需要单独安装 Codex CLI。
 
-```sh
-npx --yes codex-ground-control@0.1.0 init --dry-run
-npx --yes codex-ground-control@0.1.0 init
-npx --yes codex-ground-control@0.1.0 doctor
-npx --yes codex-ground-control@0.1.0 qualify
-```
+1. 在 ChatGPT 桌面 App 中打开目标 Git 仓库。
+2. 在 **Local** 或由 App 创建的 **Worktree** 中启动 Codex task。
+3. 当前 `main` 尚未发布，请先在本仓库构建精确的 v0.2 开发版 tarball：
 
-发布说明始终固定到 `0.1.0`，不会依赖可变的 `latest` 标签。项目本地安装是
-默认方式：它只修改当前 Git worktree，以及 `~/.codex-ground-control/`
-下由产品拥有的资格证据和 Provider 状态。除非用户单独请求并确认全局流程，
-否则不会安装用户级 Codex 指令或 skills。
+   ```sh
+   npm pack --pack-destination /tmp/codex-ground-control-v0.2
+   ```
 
-### 已审计的 tarball
+4. 在目标 App task 中，让 Codex 预览并安装这个 tarball：
 
-npm 软件包与 GitHub Release 附件都和已审计的 v0.1.0 候选制品逐字节一致：
+   ```sh
+   npx --yes \
+     --package=/tmp/codex-ground-control-v0.2/codex-ground-control-0.2.0.tgz \
+     codex-ground-control init --dry-run
+   npx --yes \
+     --package=/tmp/codex-ground-control-v0.2/codex-ground-control-0.2.0.tgz \
+     codex-ground-control init
+   ```
+
+5. 如果当前 task 没有刷新刚安装的 skill，请新建一个 Codex task，然后调用
+   **Ground Control**。skill 会在背后调用运行时，执行 `doctor`、离线资格
+   验证和 Provider 门禁。
+
+项目本地安装是默认方式：它只修改 App 当前选中的 checkout，以及
+`~/.codex-ground-control/` 下由产品拥有的证据和仓库级 Provider 状态。
+它不创建或管理 Worktree。全局安装仍是单独预览、单独显式确认的流程。
+
+> **发布状态：** `0.2.0` 目前只是 `main` 上尚未发布的开发目标。不要用已经
+> 发布的 `0.1.0` 软件包替代这里描述的 App-native 契约。
+
+如果仓库已经安装 v0.1 托管工作流，请先让 App task 运行
+`npx --yes codex-ground-control@0.1.0 uninstall`，复核精确恢复结果后，再安装
+v0.2 候选制品。v0.2 会拒绝把 v0.1 所有权清单套用到新的资产清单，而不是
+冒险猜测升级；仓库级 Provider 状态和历史证据仍然保留。
+
+### 最新正式版：v0.1.0
+
+npm 软件包与 GitHub Release 附件都和已审计的 v0.1.0 候选制品逐字节一致。
+该版本实现的是此前的 CLI-first 契约，不包含上文尚未发布的 App-native v0.2
+改动：
 
 - [npm 软件包](https://www.npmjs.com/package/codex-ground-control/v/0.1.0)
 - [GitHub Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)
@@ -199,10 +199,10 @@ npx --yes --offline \
 完整审计和下载验证请查看
 [v0.1.0 Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)。
 
-## CLI
+## 运行时 CLI
 
-下面的示例使用安装后的二进制名称。请在现有 Git worktree 中运行，也可以在
-命令前加上 `npx --yes codex-ground-control@0.1.0`：
+Ground Control skill 会在 App 体验背后调用这个确定性接口。下面的命令用于
+审计、开发和自动化；App-only 用户不需要操作一套独立的 Codex CLI：
 
 ```sh
 codex-ground-control init --dry-run
@@ -226,18 +226,19 @@ codex-ground-control uninstall
 普通的项目本地安装会：
 
 - 把固定版本、未经修改的 Matt Pocock skills 复制到 `.agents/skills/`；
+- 安装面向 App 的 Ground Control skill 及其 Codex metadata；
 - 把 Ground Control Router 作为独立的第一方覆盖层（overlay）安装；
 - 在 `AGENTS.md` 追加一个边界清晰的托管区块；
 - 在 `.codex-ground-control/manifest.json` 清单中记录所有权、写入前后
   SHA-256、发布来源和 `AGENTS.md` 备份关联。
 
 对同一版本重复执行 `init` 是幂等的。`doctor` 只读检查 macOS、Node.js、
-Git 边界、Codex CLI、安装清单（manifest）、托管区块、随包提供的 skills
-和发布锁（release lock）；同时报告环境中已有的 hooks、Codex 原生入口、
-Pi/AGY/Grok 的公开 CLI 版本，以及彼此独立的 `core`、Provider、`native`
-和 `write` 门禁。
-检测到 Provider 或凭据不表示已启用、已授权或已通过资格验证；缺少可选
-Provider 也不会让 `core` 失败。
+Git 边界、安装清单（manifest）、托管区块、随包提供的 skills 和发布锁
+（release lock）。如果存在单独安装的 Codex CLI，只把它报告为可选的 host
+兼容信息；缺失或版本漂移不会让 `core` 失败。doctor 还会报告环境中已有的
+hooks、Codex 原生入口、Pi/AGY/Grok 的公开 CLI 版本，以及彼此独立的
+`core`、Provider、`native` 和 `write` 门禁。检测到 Provider 或凭据不表示
+已启用、已授权或已通过资格验证；缺少可选 Provider 也不会让 `core` 失败。
 
 每条 doctor 检查项（finding）都有稳定 ID、severity、state、scope、观测
 摘要和下一步动作。人类可读输出按 core、Provider 和失败时保持关闭的边界
@@ -251,7 +252,7 @@ Provider 也不会让 `core` 失败。
 不会修改 `~/.codex`、`~/.agents/skills` 或其他用户配置。`doctor` 只读取
 `~/.codex/hooks.json` 是否存在及其结构，以及 `~/.codex/config.toml`
 中两个原生入口开关，不会打印其内容。`~/.codex-ground-control/` 下的资格
-证据和项目级 Provider 偏好是明确的产品所有例外，但它们不会修改 Codex 或
+证据和仓库级 Provider 偏好是明确的产品所有例外，但它们不会修改 Codex 或
 Provider 配置。
 
 ### 显式全局安装
@@ -312,21 +313,39 @@ fixture 还会检测 receipt schema 决策与公共行为验证器之间的漂�
 Pi GLM（`zai-coding-cn/glm-5.2`）、Pi DeepSeek
 （`deepseek/deepseek-v4-pro`）、Pi MiniMax
 （`minimax-cn/MiniMax-M3`）、AGY 和 Grok 是五个彼此独立的可选门禁。
-`provider list` 在 JSON 和 human 模式中都会报告 detected、configured、
-enabled、qualified、drifted、disabled、blocked 和 execution decision。
+每个门禁都有一份不可变的 `ProviderRuntimeProfile/Auth` 绑定：可执行文件、
+由 manifest 控制的 argv、`shell: false`、环境变量 allowlist、
+Provider 自有认证、presence probe、冲突策略和状态权威。
+
+`provider list` 在 JSON 和 human 模式中都会按同一条状态链报告：
+`detected → authenticated → enabled → qualified → current → run-authorized`。
+`authenticated` 是三态值：`true` 表示安全探针观察到本地认证绑定，
+`false` 表示缺失或不安全，`null` 表示该 Provider 没有安全的只读
+presence probe；它不证明远端会话仍然有效。`qualified` 表示保存过一次
+通过的实时资格验证，`current` 还要求证据与完整 runtime profile 指纹均未
+漂移。`run-authorized` 不会持久化，只有当前 `qualify` 或 `run` 请求显式
+携带 `--allow-live` 时才为 true。旧的 `configured` 字段继续保留，但只作为
+presence-only 兼容别名。
+
+Pi 的认证仍由各 profile 专属的 API key 环境变量持有。AGY 使用 Provider
+原生的系统 keyring，因此只读状态为 `unknown`；环境中的
+`GOOGLE_API_KEY` 与 `GEMINI_API_KEY` 会被忽略。Grok 使用
+`~/.grok/auth.json`；只读探针会拒绝不安全路径、空文件和过大文件，获得
+当次授权后也只会把安全字节复制到一次性的 `GROK_HOME`。Ground Control
+不会把这些凭据合并成一个统一登录，也不会存储凭据值。
 
 每个 Pi 条目都会报告精确的公开 Provider/model 身份。AGY 的固定角色是
 `research-only`，使用 Google surface、`plan` 模式和
 `gemini-3.6-flash-high`。Grok 同样是 `research-only`，使用 X.com
-surface、`web-only` 模式和 `grok-4.5`。`configured` 只表示检测到该
-profile 文档指定的凭据环境变量；只读状态命令不会读取凭据值或私有 CLI
-凭据存储。
+surface、`web-only` 模式和 `grok-4.5`。
 
 所有 Provider 初始状态都是 disabled 和 unqualified。`provider enable <id>`
-只记录项目级偏好，没有当前资格证据时仍不能授权执行。
-`provider disable <id>` 会立即阻止新的资格验证或执行，但保留凭据和历史
-证据。偏好存放在 `~/.codex-ground-control/providers/<project-key>/`，
-不会记录项目路径或凭据值。
+只记录仓库级偏好，没有当前资格证据时仍不能授权执行。只要共享同一 Git
+common storage，Local、linked Worktree、App 管理的 Worktree 和 Handoff
+都会共享这份偏好；独立 clone 使用独立身份。`provider disable <id>` 会立即
+阻止新的资格验证或执行，但保留凭据和历史证据。偏好存放在
+`~/.codex-ground-control/providers/<repository-key>/`，不会记录仓库路径或
+凭据值。
 
 实时资格验证绝不会隐式发生：
 
@@ -411,7 +430,7 @@ Command、argv、shell、tools、环境、工作目录和递归委派全部固�
 
 整个架构只有一个 Codex 主控和若干受限外部叶子适配器。Provider 门禁彼此
 独立，默认发布验证活动完全离线，所有实时 Provider 操作都要求显式
-`--allow-live`。v0.1 的原生门禁和外部写入门禁保持 blocked；任何 Provider
+`--allow-live`。v0.2 的原生门禁和外部写入门禁保持 blocked；任何 Provider
 都不能写项目或声称任务已经完成。
 
 ## Matt Pocock skills 来源
@@ -437,7 +456,7 @@ npm test
 ```sh
 npm pack
 npm install --prefix /tmp/codex-ground-control \
-  ./codex-ground-control-0.1.0.tgz
+  ./codex-ground-control-0.2.0.tgz
 /tmp/codex-ground-control/node_modules/.bin/codex-ground-control --help
 ```
 
@@ -449,10 +468,12 @@ CLI，并禁止 CLI 进程访问网络。覆盖范围包括 dry-run、空白或�
 
 ## 适用范围
 
-Ground Control v0.1 有意保持边界收敛：面向 macOS 终端个人用户，只有一个
-Codex 主控，默认采用项目本地安装，并只允许通过独立门禁的叶子适配器。
-它不承诺 GUI、团队权限、Windows/Linux 支持、通用 Agent 编排、Provider
-写权限，也不允许外部模型自主宣布完成。
+Ground Control v0.2 有意保持边界收敛：面向 macOS ChatGPT 桌面 App
+个人用户，每个 task 只有一个 Codex 工作区写入者，默认采用项目本地安装，
+Local/Worktree/Handoff 生命周期由 App 管理，并只允许通过独立门禁的叶子
+适配器。它不重新实现 App UI，不创建或调度 Codex task/Worktree，不承诺
+团队权限或 Windows/Linux 支持，不提供通用 Agent 编排或 Provider 写权限，
+也不允许外部模型自主宣布完成。
 
 ## 许可证
 

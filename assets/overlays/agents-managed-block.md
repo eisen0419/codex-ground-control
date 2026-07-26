@@ -6,6 +6,12 @@ instructions outside these markers.
 
 ### Workflow control
 
+- Treat the current ChatGPT desktop app task and its App-selected Local or
+  Worktree checkout as the host context. Ground Control must not create,
+  remove, move, or hand off App worktrees.
+- Use the Ground Control skill as the App-facing interface. Its deterministic
+  CLI is an internal bootstrap, diagnosis, qualification, and Provider runtime,
+  not a second task or worktree orchestrator.
 - Identify the applicable Matt Pocock engineering phase before delegating any
   work.
 - A skill marked as user-only must be explicitly invoked by the user. The

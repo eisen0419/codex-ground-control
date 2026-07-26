@@ -58,26 +58,27 @@ function releaseLockAssets() {
 }
 
 function overlayAssets() {
-  const overlayRoot = join(
-    packageRoot,
-    "assets",
-    "overlays",
-    "multi-agent-router",
-  );
-
-  return listFiles(overlayRoot).map((absolutePath) => {
-    const contents = readFileSync(absolutePath);
-    return {
-      path: `.agents/skills/multi-agent-router/${portablePath(
-        relative(overlayRoot, absolutePath),
-      )}`,
-      contents,
-      sha256: sha256(contents),
-      source: {
-        kind: "ground-control-overlay",
-        path: portablePath(relative(packageRoot, absolutePath)),
-      },
-    };
+  return ["ground-control", "multi-agent-router"].flatMap((skill) => {
+    const overlayRoot = join(
+      packageRoot,
+      "assets",
+      "overlays",
+      skill,
+    );
+    return listFiles(overlayRoot).map((absolutePath) => {
+      const contents = readFileSync(absolutePath);
+      return {
+        path: `.agents/skills/${skill}/${portablePath(
+          relative(overlayRoot, absolutePath),
+        )}`,
+        contents,
+        sha256: sha256(contents),
+        source: {
+          kind: "ground-control-overlay",
+          path: portablePath(relative(packageRoot, absolutePath)),
+        },
+      };
+    });
   });
 }
 

@@ -1,8 +1,9 @@
-# Ground Control v0.1 release-candidate procedure
+# Ground Control v0.2 release-candidate procedure
 
 Run the release-candidate command only from a clean checkout on macOS with
-Node.js 22 or newer, Git, Codex CLI, and any provider credentials required for
-the live campaigns:
+Node.js 22 or newer, Git, and any Provider credentials required for the live
+campaigns. A standalone Codex CLI is optional host-compatibility evidence; its
+absence does not block the App-native core:
 
 ```sh
 npm run release-candidate -- --allow-live
@@ -11,7 +12,7 @@ npm run release-candidate -- --allow-live
 The command runs `release-lock:verify`, type checking, and the complete test
 suite before packing. It packs the npm artifact twice in isolated npm
 environments and requires identical SHA-256 hashes. It then installs the real
-tarball under a temporary `HOME`, creates fresh Git worktrees, and exercises
+tarball under a temporary `HOME`, creates fresh Git repositories, and exercises
 the public CLI for initialization, idempotent re-initialization, diagnosis,
 offline qualification, evidence verification, all five independent live
 provider campaigns, safe uninstall, exact project restoration, and a
@@ -20,7 +21,7 @@ user-modification conflict.
 Each run uses a new non-overwriting directory under `release-candidate/`. Its
 main artifacts are:
 
-- `codex-ground-control-0.1.0.tgz`
+- `codex-ground-control-0.2.0.tgz`
 - `release-report.json`
 - `RELEASE_CANDIDATE.md`
 - `receipts/` with one public CLI receipt per operation
@@ -32,8 +33,8 @@ not covered by `release-lock.json`. The license check requires the project MIT
 license, complete third-party notices, locked Matt skills provenance, and zero
 unlicensed runtime dependencies.
 
-Live qualification is deliberately serial because all providers share one
-project-scoped state file. A provider failure remains attached to that
+Live qualification is deliberately serial because all Providers share one
+repository-scoped state file. A Provider failure remains attached to that
 provider, the remaining campaigns continue, and the offline evidence is
 verified again afterward. A live campaign that is not run keeps the overall
 gate blocked. A campaign that ran but failed remains a current partial

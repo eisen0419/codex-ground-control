@@ -418,7 +418,7 @@ export function validateQualificationReceiptBehavior(receipt) {
   if (
     receipt?.schemaVersion !== "1" ||
     receipt?.product !== "codex-ground-control" ||
-    receipt?.version !== "0.1.0" ||
+    receipt?.version !== "0.2.0" ||
     receipt?.command !== "qualify" ||
     typeof receipt?.projectRoot !== "string" ||
     receipt.projectRoot.length === 0

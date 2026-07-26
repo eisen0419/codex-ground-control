@@ -1,0 +1,3 @@
+interface:
+  display_name: "Ground Control"
+  short_description: "Run the App-native fail-closed Codex workflow"

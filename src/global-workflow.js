@@ -267,7 +267,7 @@ function createGlobalManifest(
   return {
     schemaVersion: "3",
     product: "codex-ground-control",
-    version: "0.1.0",
+    version: "0.2.0",
     scope: "global",
     releaseLock: {
       path: `${GLOBAL_STATE_DIRECTORY}/release-lock.json`,
@@ -346,7 +346,7 @@ function readGlobalInstallation(homeRoot) {
   if (
     manifest.schemaVersion !== "3" ||
     manifest.product !== "codex-ground-control" ||
-    manifest.version !== "0.1.0" ||
+    manifest.version !== "0.2.0" ||
     manifest.scope !== "global" ||
     !Array.isArray(manifest.assets) ||
     !Array.isArray(manifest.createdDirectories) ||
@@ -363,7 +363,7 @@ function manifestHasSupportedShape(manifest) {
   return (
     manifest?.schemaVersion === "3" &&
     manifest.product === "codex-ground-control" &&
-    manifest.version === "0.1.0" &&
+    manifest.version === "0.2.0" &&
     manifest.scope === "global" &&
     Array.isArray(manifest.assets) &&
     Array.isArray(manifest.createdDirectories) &&

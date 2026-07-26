@@ -3,6 +3,7 @@
 <p align="center">
   <a href="https://www.npmjs.com/package/codex-ground-control/v/0.1.0"><img src="https://img.shields.io/npm/v/codex-ground-control?label=npm&amp;color=CB3837" alt="npm version" /></a>
   <a href="https://github.com/eisen0419/codex-ground-control/releases/latest"><img src="https://img.shields.io/github/v/release/eisen0419/codex-ground-control?display_name=tag&amp;sort=semver&amp;color=4493F8" alt="GitHub release" /></a>
+  <img src="https://img.shields.io/badge/main-v0.2_App--native_in_development-F59E0B" alt="main: v0.2 App-native in development" />
   <img src="https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 22 or newer" />
   <img src="https://img.shields.io/badge/platform-macOS-111111?logo=apple&amp;logoColor=white" alt="Platform: macOS" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-08C?style=flat" alt="License: MIT" /></a>
@@ -13,27 +14,36 @@
 </p>
 
 <p align="center">
-  <strong>A local-first, fail-closed workflow control plane for Codex.</strong><br />
-  Install a reproducible engineering workflow, qualify every execution boundary,
-  and keep one Codex coordinator in control.
+  <strong>An App-native, local-first, fail-closed workflow control plane for Codex.</strong><br />
+  Work in Local or an App-managed Worktree, qualify every execution boundary,
+  and keep one Codex completion authority in control.
 </p>
 
 <h3 align="center">
-  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0"><ins>Get Ground Control v0.1.0</ins></a>
+  <a href="#quick-start"><ins>Try the App-native v0.2 development build</ins></a>
+  ·
+  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0">Get the latest published v0.1.0</a>
 </h3>
 
 <p align="center">
   <a href="#architecture">Architecture</a> ·
   <a href="#quick-start">Quick start</a> ·
-  <a href="#cli">CLI</a> ·
+  <a href="#runtime-cli">Runtime CLI</a> ·
   <a href="#optional-provider-lifecycle">Provider boundaries</a> ·
   <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0">Release audit</a>
 </p>
 
-Ground Control is for individual macOS terminal users who already have
-Codex CLI installed. The v0.1 package can initialize, diagnose, qualify, inspect
-provider state, and uninstall itself from a Git worktree without provider
-credentials, a second download, or network access.
+Ground Control v0.2 is designed for people doing software development with
+Codex in the ChatGPT desktop app on macOS. The App owns chats, tasks, Local
+checkouts, Worktrees, Handoff, branches, and approvals. Ground Control is the
+skill-driven workflow layer inside the current App task; it does not require a
+separately installed Codex CLI and it never creates, removes, or hands off an
+App Worktree.
+
+The `codex-ground-control` executable still provides deterministic bootstrap,
+diagnosis, qualification, and bounded Provider operations. It now sits behind
+the Ground Control skill as an internal runtime rather than acting as the
+product UI or a second task orchestrator.
 
 Ground Control for Codex is an independent community project. It is not
 affiliated with or endorsed by OpenAI or Matt Pocock.
@@ -44,12 +54,13 @@ affiliated with or endorsed by OpenAI or Matt Pocock.
 <tr>
 <td width="50%" valign="top">
 
-### Reproducible by default
+### Native to the Codex App
 
-Ships pinned, unmodified Matt Pocock skills with a separate Ground Control
-Router overlay and a verifiable release lock.
+Start from a Local or App-managed Worktree task. Ground Control installs an
+App-facing skill and operates only in the checkout supplied to that task.
 
-`init --dry-run` previews the exact managed surface before any write.
+Local, Worktree, and Handoff share one repository identity when they share Git
+common storage; separate clones stay isolated.
 
 </td>
 <td width="50%" valign="top">
@@ -90,95 +101,85 @@ Conflicts fail closed and remain available for human resolution.
 ## Architecture
 
 Ground Control separates installation, execution, and evidence. `codex-main`
-is the only coordinator, workspace writer, and completion authority. Optional
-providers are bounded leaf adapters: they can return candidate evidence, but
-they cannot write the project, delegate again, change authorization, or declare
-completion.
+inside the current App task is the only workspace writer and completion
+authority. Optional providers are bounded leaf adapters: they can return
+candidate evidence, but they cannot write the project, delegate again, change
+authorization, or declare completion. The App—not Ground Control—owns task and
+Worktree lifecycle.
 
-```mermaid
-flowchart TB
-    user["Developer"]
-    cli["codex-ground-control CLI"]
-    repo[("Existing Git worktree")]
-    evidence[("Append-only evidence<br/>receipts · hashes · reproduction")]
+<p align="center">
+  <a href="docs/architecture/ground-control.html">
+    <img src="docs/assets/ground-control-architecture.png" alt="Ground Control App-native architecture: ChatGPT desktop app to Codex task to Ground Control skill, with the CLI behind the skill, one Codex writer, repository-scoped identity, independent gates, and bounded Provider leaves" />
+  </a>
+</p>
 
-    subgraph control["Project-local control plane"]
-        lifecycle["init / uninstall<br/>managed files · exact restoration"]
-        doctor["doctor<br/>read-only diagnostics"]
-        lab["Qualification Lab<br/>offline campaign · verify · reproduce"]
-        workflow["Pinned Matt skills<br/>Ground Control Router overlay"]
-        ownership["Ownership manifest<br/>backups · release provenance"]
-    end
-
-    subgraph execution["Execution plane"]
-        main["codex-main<br/>sole coordinator · sole writer<br/>sole completion authority"]
-        gate{"Independent capability gate<br/>enabled + qualified + current?"}
-        fleet["FleetRunner<br/>fixed adapter · shell=false · bounded I/O"]
-        pi["Pi leaf profiles<br/>analysis · exploration · testing · review"]
-        agy["AGY research adapter<br/>public Google source only"]
-        grok["Grok research adapter<br/>public X sources only"]
-        blocked["Native agents and external writers<br/>blocked in v0.1"]
-    end
-
-    user --> cli
-    cli --> lifecycle
-    cli --> doctor
-    cli --> lab
-    lifecycle --> workflow
-    lifecycle --> ownership
-    workflow --> main
-    main ==>|"only writer"| repo
-    main --> gate
-    doctor -. "observes" .-> gate
-    lab --> fleet
-    gate -->|"passed + enabled + current<br/>explicit --allow-live"| fleet
-    gate -->|"missing / stale / blocked"| blocked
-    fleet --> pi
-    fleet --> agy
-    fleet --> grok
-    pi -. "candidate evidence" .-> main
-    agy -. "qualification evidence" .-> main
-    grok -. "qualification evidence" .-> main
-    lab --> evidence
-    fleet --> evidence
-    evidence -. "review + verify" .-> main
-```
+<p align="center">
+  <sub>
+    Generated and validated with <a href="https://github.com/tt-a1i/archify">Archify</a> ·
+    <a href="docs/architecture/ground-control.html">interactive HTML</a> ·
+    <a href="docs/architecture/ground-control.architecture.json">typed JSON source</a>
+  </sub>
+</p>
 
 The gate is evaluated per adapter and per current runtime fingerprint. A pass
 for one provider never qualifies another. The default release campaign is
 offline; all live provider operations require the explicit `--allow-live`
-flag. Native-agent and external-write gates remain blocked in v0.1.
+flag. Native-agent and external-write gates remain blocked in v0.2.
 
 ## Quick start
 
 Requirements:
 
 - macOS
+- ChatGPT desktop app with Codex
 - Node.js 22 or newer
 - Git
-- Codex CLI
 
-Run from an existing Git worktree. Preview the exact package version before
-applying project-local changes:
+No standalone Codex CLI is required.
 
-```sh
-npx --yes codex-ground-control@0.1.0 init --dry-run
-npx --yes codex-ground-control@0.1.0 init
-npx --yes codex-ground-control@0.1.0 doctor
-npx --yes codex-ground-control@0.1.0 qualify
-```
+1. Open the target Git repository in the ChatGPT desktop app.
+2. Start a Codex task in **Local** or in an App-created **Worktree**.
+3. For the current unreleased `main`, build the exact v0.2 development tarball
+   from this repository:
 
-Ground Control deliberately pins `0.1.0` in release instructions instead of
-using a mutable `latest` tag. Project-local installation is the default. It
-changes only the current Git worktree plus product-owned qualification and
-provider state under `~/.codex-ground-control/`; it does not install user-level
-Codex instructions or skills unless the separate explicit global flow is
-requested.
+   ```sh
+   npm pack --pack-destination /tmp/codex-ground-control-v0.2
+   ```
 
-### Audited tarball
+4. In the target App task, ask Codex to preview and install that tarball:
+
+   ```sh
+   npx --yes \
+     --package=/tmp/codex-ground-control-v0.2/codex-ground-control-0.2.0.tgz \
+     codex-ground-control init --dry-run
+   npx --yes \
+     --package=/tmp/codex-ground-control-v0.2/codex-ground-control-0.2.0.tgz \
+     codex-ground-control init
+   ```
+
+5. Start a fresh Codex task if the current task does not refresh newly installed
+   skills, then invoke **Ground Control**. The skill calls the runtime for
+   `doctor`, offline qualification, and Provider gates.
+
+Project-local installation is the default. It changes only the checkout
+selected by the App plus product-owned evidence and repository-scoped Provider
+state under `~/.codex-ground-control/`. It does not create or manage Worktrees.
+Global installation remains a separate, previewed, explicitly confirmed flow.
+
+> **Release status:** `0.2.0` is an unreleased development target on `main`.
+> Do not substitute the published `0.1.0` package for this App-native contract.
+
+If this repository already has a v0.1 managed workflow, ask the App task to run
+`npx --yes codex-ground-control@0.1.0 uninstall` first, review that exact
+restoration, and then install the v0.2 candidate. v0.2 deliberately refuses to
+reinterpret a v0.1 ownership manifest against a different asset inventory;
+repository-scoped Provider state and evidence remain available.
+
+### Latest published release: v0.1.0
 
 The npm package and GitHub Release attachment are byte-for-byte copies of the
-audited v0.1.0 candidate:
+audited v0.1.0 candidate. That release implements the earlier CLI-first
+contract; the App-native v0.2 changes described above are not published yet.
 
 - [npm package](https://www.npmjs.com/package/codex-ground-control/v/0.1.0)
 - [GitHub Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)
@@ -206,11 +207,12 @@ See the
 [v0.1.0 Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)
 for the complete audit and download verification.
 
-## CLI
+## Runtime CLI
 
-The examples below use the installed binary name. Run them from an existing Git
-worktree, or prefix a command with
-`npx --yes codex-ground-control@0.1.0`:
+The Ground Control skill invokes this deterministic interface behind the App
+experience. The examples below document the runtime contract for auditing,
+development, and automation; App-only users do not need to operate a separate
+Codex CLI:
 
 ```sh
 codex-ground-control init --dry-run
@@ -235,18 +237,21 @@ means invalid command usage.
 unchanged and performs no writes. A normal project-local installation:
 
 - copies pinned, unmodified Matt Pocock skills into `.agents/skills/`;
+- installs the App-facing Ground Control skill and its Codex metadata;
 - installs the Ground Control Router as a separate first-party overlay;
 - appends one clearly marked managed block to `AGENTS.md`;
 - records ownership, before/after SHA-256 hashes, release provenance, and the
   `AGENTS.md` backup association in `.codex-ground-control/manifest.json`.
 
 Re-running `init` against the same release is idempotent. `doctor` is read-only:
-it verifies macOS, Node.js, the Git boundary, Codex CLI, the installation
-manifest, managed block, vendored skills and release lock. It also reports
-ambient hooks, native Codex entry points, Pi/AGY/Grok public CLI versions, and
-the independent `core`, provider, `native`, and `write` gates. Provider
-detection or credential presence never means enabled, authorized, or qualified.
-Optional provider absence does not fail `core`.
+it verifies macOS, Node.js, the Git boundary, installation manifest, managed
+block, vendored skills, and release lock. A standalone Codex CLI, when present,
+is reported only as optional host-compatibility information; absence or version
+drift does not fail `core`. Doctor also reports ambient hooks, native Codex
+entry points, Pi/AGY/Grok public CLI versions, and the independent `core`,
+Provider, `native`, and `write` gates. Provider detection or credential
+presence never means enabled, authorized, or qualified. Optional Provider
+absence does not fail `core`.
 
 Each doctor finding has a stable ID, severity, state, scope, observed summary,
 and next action. Human output groups core, provider, and fail-closed boundary
@@ -263,8 +268,8 @@ Project-local installation remains the default. Without `--global`, `init` and
 configuration. `doctor` only reads the presence and shape of
 `~/.codex/hooks.json` and the two native entry-point flags in
 `~/.codex/config.toml`, without printing their contents. Qualification evidence
-and project-scoped provider preferences are the explicit product-owned
-exception under `~/.codex-ground-control/`; they do not alter Codex or provider
+and repository-scoped Provider preferences are the explicit product-owned
+exception under `~/.codex-ground-control/`; they do not alter Codex or Provider
 configuration.
 
 ### Explicit global installation
@@ -331,24 +336,45 @@ values.
 
 Pi GLM (`zai-coding-cn/glm-5.2`), Pi DeepSeek
 (`deepseek/deepseek-v4-pro`), Pi MiniMax (`minimax-cn/MiniMax-M3`), AGY, and
-Grok are independent optional gates. `provider list` reports the same
-detected, configured, enabled, qualified, drifted, disabled, blocked, and
-execution-decision fields in JSON and human modes. Each Pi entry also reports
-its exact public provider/model identity. AGY reports its `research-only`
-role, Google surface, fixed `plan` mode, and
+Grok are independent optional gates. Every gate has an immutable
+`ProviderRuntimeProfile/Auth` binding: executable, manifest-controlled argv,
+`shell: false`, an environment allowlist, provider-owned authentication,
+presence probe, conflict policy, and status authority.
+
+`provider list` reports the same status chain in JSON and human modes:
+`detected → authenticated → enabled → qualified → current → run-authorized`.
+`authenticated` is tri-state: `true` means a safe local binding was observed,
+`false` means absent or unsafe, and `null` means the provider has no safe
+read-only presence probe. It does not prove that a remote session is still
+valid. `qualified` records a saved passed live qualification; `current` also
+requires its evidence and full runtime profile fingerprint to remain unchanged.
+`run-authorized` is never saved and is true only for the current `qualify` or
+`run` request carrying `--allow-live`. The legacy `configured` field remains a
+presence-only compatibility alias.
+
+Pi authentication stays in one profile-specific API key environment variable.
+AGY authentication stays in its provider-native system keyring, so its
+read-only status is `unknown`; ambient `GOOGLE_API_KEY` and `GEMINI_API_KEY`
+values are ignored. Grok authentication stays in `~/.grok/auth.json`; the
+read-only probe rejects unsafe paths plus empty or oversized files, and an
+authorized run copies only the safe bytes into a disposable `GROK_HOME`.
+Ground Control never merges these
+credentials into one login or stores their values.
+
+Each Pi entry also reports its exact public provider/model identity. AGY reports
+its `research-only` role, Google surface, fixed `plan` mode, and
 `gemini-3.6-flash-high` model. Grok reports its `research-only` role, X.com
-surface, fixed `web-only` mode, and `grok-4.5` model. `configured` means only
-that the profile's documented credential environment variable was observed;
-read-only status commands do not read provider credential values or private CLI
-credential stores.
+surface, fixed `web-only` mode, and `grok-4.5` model.
 
 All providers ship disabled and unqualified. `provider enable <id>` records a
-project-scoped preference but cannot authorize execution without current
-qualification evidence. `provider disable <id>` immediately blocks new
+repository-scoped preference but cannot authorize execution without current
+qualification evidence. Local, linked Worktrees, App-managed Worktrees, and
+Handoff share that preference when they share the same Git common storage;
+a separate clone gets a separate identity. `provider disable <id>` immediately blocks new
 qualification or execution while preserving credentials and historical
 evidence. Preferences are stored under
-`~/.codex-ground-control/providers/<project-key>/` without the project path or
-credential values.
+`~/.codex-ground-control/providers/<repository-key>/` without the repository
+path or credential values.
 
 Live qualification is never implicit:
 
@@ -442,7 +468,7 @@ either switch makes earlier evidence `qualification-drifted`.
 The architecture has one single Codex coordinator and only bounded external
 leaf adapters. Provider gates are independent, the default release campaign is
 offline, and every live provider operation requires explicit `--allow-live`.
-The native and external write gates remain blocked in v0.1; no provider is
+The native and external write gates remain blocked in v0.2; no provider is
 allowed to write the project or claim completion.
 
 ## Matt Pocock skills provenance
@@ -471,7 +497,7 @@ To smoke-test a locally packed artifact:
 ```sh
 npm pack
 npm install --prefix /tmp/codex-ground-control \
-  ./codex-ground-control-0.1.0.tgz
+  ./codex-ground-control-0.2.0.tgz
 /tmp/codex-ground-control/node_modules/.bin/codex-ground-control --help
 ```
 
@@ -485,11 +511,13 @@ evidence retention, and exact restoration through the public executable.
 
 ## Scope
 
-Ground Control v0.1 is intentionally narrow: individual macOS terminal users,
-one Codex coordinator, project-local installation by default, and independently
-gated leaf adapters. It does not promise a GUI, team authorization,
-Windows/Linux support, general-purpose agent orchestration, provider write
-access, or autonomous completion by an external model.
+Ground Control v0.2 is intentionally narrow: individual macOS ChatGPT desktop
+app users, one Codex workspace writer per task, project-local installation by
+default, App-owned Local/Worktree/Handoff lifecycle, and independently gated
+leaf adapters. It does not reimplement the App UI, create or steer Codex tasks
+or Worktrees, promise team authorization or Windows/Linux support, provide
+general-purpose agent orchestration, grant Provider write access, or allow
+autonomous completion by an external model.
 
 ## License
 

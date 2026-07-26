@@ -137,7 +137,7 @@ async function fetchAllowlistedSource(
         rules.fetchTimeoutMilliseconds,
       ),
       headers: {
-        "user-agent": "codex-ground-control/0.1",
+        "user-agent": "codex-ground-control/0.2",
       },
     });
     if (response.status >= 300 && response.status < 400) {

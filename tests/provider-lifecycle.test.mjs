@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   chmodSync,
   existsSync,
@@ -223,6 +224,18 @@ function runHuman(args, context, extraEnvironment = {}) {
   });
 }
 
+function withoutRuntimeAuthentication(provider) {
+  const {
+    runtimeProfile,
+    authentication,
+    authenticated,
+    current,
+    runAuthorized,
+    ...legacyState
+  } = provider;
+  return legacyState;
+}
+
 function withProject(callback) {
   const projectDirectory = mkdtempSync(
     join(packedCli.sandbox, "project-"),
@@ -330,7 +343,9 @@ test("provider list reports three independent Pi profiles without writing state"
       "5 optional providers; 0 executable, 5 blocked.",
     );
     assert.deepEqual(
-      listed.receipt.result.providers,
+      listed.receipt.result.providers.map(
+        withoutRuntimeAuthentication,
+      ),
       [
         ...piProfiles,
         {
@@ -368,6 +383,299 @@ test("provider list reports three independent Pi profiles without writing state"
       projectBefore,
     );
     assert.deepEqual(snapshotFiles(context.homeDirectory), homeBefore);
+  });
+});
+
+test("provider list exposes provider-owned runtime and authentication profiles", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-with-auth-profiles-"),
+    );
+    for (const [command, version] of [
+      ["pi", "1.2.3"],
+      ["agy", "1.1.7"],
+      ["grok", "0.2.93"],
+    ]) {
+      writeFileSync(
+        join(providerBin, command),
+        `#!/bin/sh\nprintf '${command} ${version}\\n'\n`,
+      );
+      chmodSync(join(providerBin, command), 0o755);
+    }
+    writeGrokAuthentication(context.homeDirectory);
+    const listed = runJson(
+      ["provider", "list"],
+      context,
+      {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+        ZAI_CODING_CN_API_KEY: "pi-credential",
+        GOOGLE_API_KEY: "ignored-agy-environment-credential",
+        XAI_API_KEY: "ignored-grok-environment-credential",
+      },
+    );
+
+    assert.equal(listed.status, 0);
+    const providers = new Map(
+      listed.receipt.result.providers.map((provider) => [
+        provider.id,
+        provider,
+      ]),
+    );
+    assert.deepEqual(providers.get("pi-glm").runtimeProfile, {
+      executable: "pi",
+      argv: "manifest-controlled",
+      shell: false,
+      environment: "manifest-allowlist",
+      authentication: {
+        owner: "provider-cli",
+        source: "environment",
+        credentialBindings: ["env:ZAI_CODING_CN_API_KEY"],
+        presenceProbe: "environment-variable",
+        statusAuthority: "ground-control-presence-probe",
+        materialization: "allowlisted-environment",
+        conflictPolicy: "profile-isolated",
+      },
+    });
+    assert.deepEqual(providers.get("pi-glm").authentication, {
+      status: "present",
+    });
+    assert.equal(providers.get("pi-glm").authenticated, true);
+
+    assert.deepEqual(providers.get("agy").runtimeProfile.authentication, {
+      owner: "provider-cli",
+      source: "system-keyring",
+      credentialBindings: ["system-keyring"],
+      presenceProbe: "unavailable",
+      statusAuthority: "provider-live-run",
+      materialization: "provider-native",
+      conflictPolicy: "ignore-unbound-environment",
+    });
+    assert.deepEqual(providers.get("agy").authentication, {
+      status: "unknown",
+    });
+    assert.equal(providers.get("agy").authenticated, null);
+    assert.equal(providers.get("agy").configured, false);
+
+    assert.deepEqual(providers.get("grok").runtimeProfile.authentication, {
+      owner: "provider-cli",
+      source: "cached-file",
+      credentialBindings: ["file:~/.grok/auth.json"],
+      presenceProbe: "safe-file",
+      statusAuthority: "ground-control-presence-probe",
+      materialization: "isolated-run-copy",
+      conflictPolicy: "ignore-unbound-environment",
+    });
+    assert.deepEqual(providers.get("grok").authentication, {
+      status: "present",
+    });
+    assert.equal(providers.get("grok").authenticated, true);
+    assert.equal(providers.get("grok").configured, true);
+
+    for (const provider of providers.values()) {
+      assert.equal(provider.current, false);
+      assert.equal(provider.runAuthorized, false);
+    }
+    assert.equal(
+      listed.stdout.includes("ignored-agy-environment-credential"),
+      false,
+    );
+    assert.equal(
+      listed.stdout.includes("ignored-grok-environment-credential"),
+      false,
+    );
+  });
+});
+
+test("Grok authentication status fails closed for unsafe or oversized cached files", () => {
+  for (const fixture of [
+    "symlinked-parent",
+    "empty-file",
+    "oversized-file",
+  ]) {
+    withProject((context) => {
+      const secret = `grok-${fixture}-must-not-appear`;
+      if (fixture === "symlinked-parent") {
+        const externalHome = mkdtempSync(
+          join(packedCli.sandbox, "external-grok-status-"),
+        );
+        writeGrokAuthentication(externalHome, secret);
+        symlinkSync(
+          join(externalHome, ".grok"),
+          join(context.homeDirectory, ".grok"),
+        );
+      } else if (fixture === "empty-file") {
+        writeGrokAuthentication(context.homeDirectory, "");
+      } else {
+        writeGrokAuthentication(
+          context.homeDirectory,
+          `${secret}${"x".repeat(65_536)}`,
+        );
+      }
+      assert.equal(runJson(["init"], context).status, 0);
+
+      const listed = runJson(["provider", "list"], context);
+      const grok = listed.receipt.result.providers.find(
+        ({ id }) => id === "grok",
+      );
+
+      assert.deepEqual(grok.authentication, {
+        status: "unsafe",
+      });
+      assert.equal(grok.authenticated, false);
+      assert.equal(grok.configured, false);
+      assert.equal(listed.stdout.includes(secret), false);
+    });
+  }
+});
+
+test("provider state follows one Git repository across Local and linked Worktree", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    execFileSync("/usr/bin/git", ["add", "."], {
+      cwd: context.projectDirectory,
+      env: environment(context.homeDirectory, packedCli.runtimeBin),
+    });
+    execFileSync(
+      "/usr/bin/git",
+      [
+        "-c",
+        "user.name=Ground Control Test",
+        "-c",
+        "user.email=ground-control@example.invalid",
+        "commit",
+        "-m",
+        "test: initialize App-native workflow",
+      ],
+      {
+        cwd: context.projectDirectory,
+        env: environment(context.homeDirectory, packedCli.runtimeBin),
+      },
+    );
+    const worktreeParent = mkdtempSync(
+      join(packedCli.sandbox, "app-worktree-"),
+    );
+    const worktreeDirectory = join(worktreeParent, "checkout");
+    execFileSync(
+      "/usr/bin/git",
+      ["worktree", "add", "--detach", worktreeDirectory],
+      {
+        cwd: context.projectDirectory,
+        env: environment(context.homeDirectory, packedCli.runtimeBin),
+      },
+    );
+    const worktreeContext = {
+      ...context,
+      projectDirectory: worktreeDirectory,
+    };
+    const worktreesBeforeGroundControl = execFileSync(
+      "/usr/bin/git",
+      ["worktree", "list", "--porcelain"],
+      {
+        cwd: context.projectDirectory,
+        env: environment(context.homeDirectory, packedCli.runtimeBin),
+        encoding: "utf8",
+      },
+    );
+
+    assert.equal(
+      runJson(["provider", "enable", "pi-glm"], context).status,
+      0,
+    );
+    const fromWorktree = runJson(["provider", "list"], worktreeContext);
+    assert.equal(fromWorktree.status, 0);
+    assert.equal(
+      fromWorktree.receipt.result.providers.find(
+        ({ id }) => id === "pi-glm",
+      ).enabled,
+      true,
+    );
+
+    assert.equal(
+      runJson(["provider", "disable", "pi-glm"], worktreeContext).status,
+      0,
+    );
+    const fromLocal = runJson(["provider", "list"], context);
+    assert.equal(
+      fromLocal.receipt.result.providers.find(
+        ({ id }) => id === "pi-glm",
+      ).enabled,
+      false,
+    );
+    assert.equal(
+      Object.keys(snapshotFiles(context.homeDirectory)).filter((path) =>
+        path.endsWith("/state.json")
+      ).length,
+      1,
+    );
+    const legacyLocalRoot = execFileSync(
+      "/usr/bin/git",
+      ["rev-parse", "--show-toplevel"],
+      {
+        cwd: context.projectDirectory,
+        env: environment(context.homeDirectory, packedCli.runtimeBin),
+        encoding: "utf8",
+      },
+    ).trim();
+    const legacyLocalKey = createHash("sha256")
+      .update(legacyLocalRoot)
+      .digest("hex")
+      .slice(0, 32);
+    assert.ok(
+      Object.hasOwn(
+        snapshotFiles(context.homeDirectory),
+        `.codex-ground-control/providers/${legacyLocalKey}/state.json`,
+      ),
+    );
+
+    assert.equal(
+      runJson(["provider", "enable", "pi-glm"], context).status,
+      0,
+    );
+    const cloneParent = mkdtempSync(join(packedCli.sandbox, "app-clone-"));
+    const cloneDirectory = join(cloneParent, "checkout");
+    execFileSync(
+      "/usr/bin/git",
+      ["clone", "--local", context.projectDirectory, cloneDirectory],
+      {
+        env: environment(context.homeDirectory, packedCli.runtimeBin),
+      },
+    );
+    const cloneContext = {
+      ...context,
+      projectDirectory: cloneDirectory,
+    };
+    const fromClone = runJson(["provider", "list"], cloneContext);
+    assert.equal(fromClone.status, 0);
+    assert.equal(
+      fromClone.receipt.result.providers.find(
+        ({ id }) => id === "pi-glm",
+      ).enabled,
+      false,
+    );
+    assert.equal(
+      runJson(["provider", "enable", "pi-glm"], cloneContext).status,
+      0,
+    );
+    assert.equal(
+      Object.keys(snapshotFiles(context.homeDirectory)).filter((path) =>
+        path.endsWith("/state.json")
+      ).length,
+      2,
+    );
+    assert.equal(
+      execFileSync(
+        "/usr/bin/git",
+        ["worktree", "list", "--porcelain"],
+        {
+          cwd: context.projectDirectory,
+          env: environment(context.homeDirectory, packedCli.runtimeBin),
+          encoding: "utf8",
+        },
+      ),
+      worktreesBeforeGroundControl,
+    );
   });
 });
 
@@ -1002,6 +1310,13 @@ test("Grok rejects unsupported CLI versions and missing cached auth before resea
       errorCode: "PROVIDER_QUALIFICATION_FAILED",
     },
     {
+      id: "empty-auth",
+      version: "0.2.93",
+      writeAuth: true,
+      authContents: "",
+      errorCode: "PROVIDER_QUALIFICATION_FAILED",
+    },
+    {
       id: "symlinked-auth-parent",
       version: "0.2.93",
       writeAuth: false,
@@ -1012,7 +1327,10 @@ test("Grok rejects unsupported CLI versions and missing cached auth before resea
     withProject((context) => {
       assert.equal(runJson(["init"], context).status, 0);
       if (fixture.writeAuth) {
-        writeGrokAuthentication(context.homeDirectory);
+        writeGrokAuthentication(
+          context.homeDirectory,
+          fixture.authContents,
+        );
       }
       if (fixture.symlinkAuth) {
         const externalHome = mkdtempSync(
@@ -2260,7 +2578,9 @@ test("provider enable records only preference and disable preserves credential o
       providerEnvironment,
     );
     assert.deepEqual(
-      detected.receipt.result.providers[0],
+      withoutRuntimeAuthentication(
+        detected.receipt.result.providers[0],
+      ),
       {
         id: "pi-glm",
         family: "pi",
@@ -2406,6 +2726,10 @@ test("Pi GLM qualification binds exact model identity, argv, environment, and ev
       /^[0-9a-f]{64}$/,
     );
     assert.match(
+      qualified.receipt.result.qualification.fingerprints.runtimeProfile,
+      /^[0-9a-f]{64}$/,
+    );
+    assert.match(
       qualified.receipt.result.qualification.fingerprints.adapter,
       /^[0-9a-f]{64}$/,
     );
@@ -2510,6 +2834,7 @@ test("Pi GLM qualification binds exact model identity, argv, environment, and ev
         "probe",
         "providerCli",
         "providerLifecycle",
+        "runtimeProfile",
         "schema",
         "sourceRules",
       ],
@@ -2656,6 +2981,10 @@ test("qualified Pi profile returns candidate evidence through a fixed no-tools e
     );
     assert.match(
       candidate.receipt.result.execution.fingerprints.providerCli,
+      /^[0-9a-f]{64}$/,
+    );
+    assert.match(
+      candidate.receipt.result.execution.fingerprints.runtimeProfile,
       /^[0-9a-f]{64}$/,
     );
     assert.match(
@@ -2844,7 +3173,8 @@ test("one Pi identity failure or profile drift leaves the other profiles and off
       );
       assert.equal(drifted.receipt.result.providers[0].qualified, true);
       assert.equal(drifted.receipt.result.providers[0].drifted, false);
-      assert.equal(drifted.receipt.result.providers[1].qualified, false);
+      assert.equal(drifted.receipt.result.providers[1].qualified, true);
+      assert.equal(drifted.receipt.result.providers[1].current, false);
       assert.equal(drifted.receipt.result.providers[1].drifted, true);
       assert.equal(drifted.receipt.result.providers[2].qualified, true);
       assert.equal(drifted.receipt.result.providers[2].drifted, false);
@@ -2890,14 +3220,22 @@ test("one Pi identity failure or profile drift leaves the other profiles and off
       providerEnvironment,
     );
     assert.equal(listed.receipt.result.providers[0].qualified, true);
-    assert.equal(listed.receipt.result.providers[0].blocked, false);
+    assert.equal(listed.receipt.result.providers[0].blocked, true);
+    assert.equal(
+      listed.receipt.result.providers[0].reason,
+      "provider-live-authorization-required",
+    );
     assert.equal(
       listed.receipt.result.providers[1].qualification,
       "failed",
     );
     assert.equal(listed.receipt.result.providers[1].blocked, true);
     assert.equal(listed.receipt.result.providers[2].qualified, true);
-    assert.equal(listed.receipt.result.providers[2].blocked, false);
+    assert.equal(listed.receipt.result.providers[2].blocked, true);
+    assert.equal(
+      listed.receipt.result.providers[2].reason,
+      "provider-live-authorization-required",
+    );
 
     const candidate = runJson(
       [
@@ -3056,6 +3394,9 @@ test("provider CLI drift invalidates only that gate until explicit requalificati
       providerEnvironment,
     );
     assert.equal(first.status, 0);
+    assert.equal(first.receipt.result.provider.qualified, true);
+    assert.equal(first.receipt.result.provider.current, true);
+    assert.equal(first.receipt.result.provider.runAuthorized, true);
     const firstIndex =
       first.receipt.result.qualification.evidence.index.replace(
         "~/",
@@ -3071,7 +3412,9 @@ test("provider CLI drift invalidates only that gate until explicit requalificati
 
     const pi = drifted.receipt.result.providers[0];
     assert.equal(pi.enabled, true);
-    assert.equal(pi.qualified, false);
+    assert.equal(pi.qualified, true);
+    assert.equal(pi.current, false);
+    assert.equal(pi.runAuthorized, false);
     assert.equal(pi.drifted, true);
     assert.equal(pi.blocked, true);
     assert.equal(pi.reason, "provider-drifted");
@@ -3092,7 +3435,26 @@ test("provider CLI drift invalidates only that gate until explicit requalificati
     );
     assert.equal(requalified.status, 0);
     assert.equal(requalified.receipt.result.provider.qualified, true);
+    assert.equal(requalified.receipt.result.provider.current, true);
+    assert.equal(
+      requalified.receipt.result.provider.runAuthorized,
+      true,
+    );
     assert.equal(requalified.receipt.result.provider.drifted, false);
+    const awaitingAuthorization = runJson(
+      ["provider", "list"],
+      context,
+      providerEnvironment,
+    ).receipt.result.providers[0];
+    assert.equal(awaitingAuthorization.qualified, true);
+    assert.equal(awaitingAuthorization.current, true);
+    assert.equal(awaitingAuthorization.runAuthorized, false);
+    assert.equal(awaitingAuthorization.blocked, true);
+    assert.equal(awaitingAuthorization.decision, "blocked");
+    assert.equal(
+      awaitingAuthorization.reason,
+      "provider-live-authorization-required",
+    );
     assert.notEqual(
       requalified.receipt.result.qualification.fingerprint,
       first.receipt.result.qualification.fingerprint,
@@ -3208,7 +3570,11 @@ test("one provider failure leaves another qualified provider and offline core us
       providerEnvironment,
     );
     assert.equal(listed.receipt.result.providers[0].qualified, true);
-    assert.equal(listed.receipt.result.providers[0].blocked, false);
+    assert.equal(listed.receipt.result.providers[0].blocked, true);
+    assert.equal(
+      listed.receipt.result.providers[0].reason,
+      "provider-live-authorization-required",
+    );
     assert.equal(listed.receipt.result.providers[3].qualified, false);
     assert.equal(listed.receipt.result.providers[3].blocked, true);
     for (const index of [1, 2, 4]) {
@@ -3249,9 +3615,20 @@ test("human and JSON modes expose the same decisions and invalid requests fail s
           `^  ${provider.id}: ${provider.decision} ` +
           `\\(${provider.reason}\\); ` +
           `detected=${provider.detected ? "yes" : "no"} ` +
+          `authenticated=${
+            provider.authenticated === null
+              ? "unknown"
+              : provider.authenticated
+                ? "yes"
+                : "no"
+          } ` +
           `configured=${provider.configured ? "yes" : "no"} ` +
           `enabled=${provider.enabled ? "yes" : "no"} ` +
           `qualified=${provider.qualified ? "yes" : "no"} ` +
+          `current=${provider.current ? "yes" : "no"} ` +
+          `run-authorized=${
+            provider.runAuthorized ? "yes" : "no"
+          } ` +
           `drifted=${provider.drifted ? "yes" : "no"} ` +
           `disabled=${provider.disabled ? "yes" : "no"} ` +
           `blocked=${provider.blocked ? "yes" : "no"}` +
@@ -3419,9 +3796,17 @@ test("Grok failure leaves qualified Pi and AGY plus offline core usable", () => 
         providerEnvironment,
       ).receipt.result.providers;
       assert.equal(listed[0].qualified, true);
-      assert.equal(listed[0].blocked, false);
+      assert.equal(listed[0].blocked, true);
+      assert.equal(
+        listed[0].reason,
+        "provider-live-authorization-required",
+      );
       assert.equal(listed[3].qualified, true);
-      assert.equal(listed[3].blocked, false);
+      assert.equal(listed[3].blocked, true);
+      assert.equal(
+        listed[3].reason,
+        "provider-live-authorization-required",
+      );
       assert.equal(listed[4].qualified, false);
       assert.equal(listed[4].blocked, true);
       for (const index of [0, 1, 2, 3]) {

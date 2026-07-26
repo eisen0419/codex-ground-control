@@ -217,6 +217,7 @@ try {
   );
   if (
     sourceAuth.state !== "file" ||
+    sourceAuth.contents.byteLength === 0 ||
     sourceAuth.contents.byteLength > 65_536
   ) {
     throw new Error("Grok cached authentication is unsafe.");

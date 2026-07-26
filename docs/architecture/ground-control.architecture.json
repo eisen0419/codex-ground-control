@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Ground Control for Codex",
+    "subtitle": "App-native control plane · App-owned worktrees · one Codex writer",
+    "output": "ground-control.html",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "viewBox": [1600, 800],
+    "views": [
+      {
+        "id": "app-native-path",
+        "label": "App-native primary path",
+        "focus": ["developer", "app", "task", "skill", "main", "gate", "fleet", "providers"],
+        "note": "Follow intent from the ChatGPT desktop app to one Codex writer and bounded Provider leaves."
+      },
+      {
+        "id": "app-ownership",
+        "label": "App ownership",
+        "focus": ["app", "task", "checkout", "repository"],
+        "note": "The App owns Local, Worktree, Handoff, branch controls, and task lifecycle."
+      },
+      {
+        "id": "runtime-and-gates",
+        "label": "Internal runtime and gates",
+        "focus": ["skill", "runtime", "gate", "runtime-profile", "auth-binding", "fleet", "blocked"],
+        "note": "The skill calls a deterministic runtime; provider-owned auth and a fingerprinted runtime profile stay behind fail-closed gates."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "developer",
+      "type": "external",
+      "label": "Developer",
+      "sublabel": "intent + approval",
+      "pos": [24, 330],
+      "size": [118, 66]
+    },
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "ChatGPT Desktop App",
+      "sublabel": "task · branch · approval",
+      "pos": [176, 330],
+      "size": [170, 66],
+      "tag": "owns lifecycle"
+    },
+    {
+      "id": "task",
+      "type": "cloud",
+      "label": "Codex Task",
+      "sublabel": "Local or App Worktree",
+      "pos": [382, 330],
+      "size": [154, 66]
+    },
+    {
+      "id": "skill",
+      "type": "backend",
+      "label": "Ground Control Skill",
+      "sublabel": "App-facing workflow",
+      "pos": [572, 330],
+      "size": [166, 66]
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "codex-main",
+      "sublabel": "completion authority",
+      "pos": [774, 330],
+      "size": [150, 66],
+      "tag": "only writer"
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "Capability Gate",
+      "sublabel": "auth · enabled · current",
+      "pos": [980, 330],
+      "size": [178, 66],
+      "tag": "+ explicit --allow-live"
+    },
+    {
+      "id": "fleet",
+      "type": "backend",
+      "label": "FleetRunner",
+      "sublabel": "fixed adapter · bounded I/O",
+      "pos": [1194, 330],
+      "size": [160, 66]
+    },
+    {
+      "id": "providers",
+      "type": "external",
+      "label": "Provider Leaves",
+      "sublabel": "Pi · AGY · Grok",
+      "pos": [1390, 330],
+      "size": [156, 66],
+      "tag": "candidate evidence"
+    },
+    {
+      "id": "runtime",
+      "type": "backend",
+      "label": "Runtime CLI",
+      "sublabel": "init · doctor · qualify",
+      "pos": [572, 510],
+      "size": [166, 66],
+      "tag": "behind the skill"
+    },
+    {
+      "id": "checkout",
+      "type": "database",
+      "label": "App-selected Checkout",
+      "sublabel": "current task workspace",
+      "pos": [767, 510],
+      "size": [164, 66]
+    },
+    {
+      "id": "repository",
+      "type": "database",
+      "label": "Repository Identity",
+      "sublabel": "Git common storage key",
+      "pos": [762, 630],
+      "size": [174, 70],
+      "tag": "Local · Worktree · Handoff"
+    },
+    {
+      "id": "blocked",
+      "type": "security",
+      "label": "Blocked Boundaries",
+      "sublabel": "native agents · external writers",
+      "pos": [980, 510],
+      "size": [178, 66],
+      "tag": "no authority"
+    },
+    {
+      "id": "runtime-profile",
+      "type": "backend",
+      "label": "Provider Runtime Profile",
+      "sublabel": "fixed argv · env allowlist",
+      "pos": [1184, 500],
+      "size": [180, 66],
+      "tag": "fingerprinted"
+    },
+    {
+      "id": "auth-binding",
+      "type": "security",
+      "label": "Provider-owned Auth",
+      "sublabel": "env · keyring · safe file",
+      "pos": [1184, 620],
+      "size": [180, 66],
+      "tag": "no shared vault"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "App-owned Local · Worktree · Handoff context",
+      "wraps": ["task", "skill", "main", "checkout", "repository"],
+      "pad": 18
+    },
+    {
+      "kind": "security-group",
+      "label": "Bounded leaf execution",
+      "wraps": ["gate", "fleet", "providers", "blocked", "runtime-profile", "auth-binding"],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "id": "developer-to-app",
+      "from": "developer",
+      "to": "app",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app-to-task",
+      "from": "app",
+      "to": "task",
+      "label": "Local · Worktree · Handoff",
+      "variant": "emphasis",
+      "labelAt": [364, 305]
+    },
+    {
+      "id": "task-to-skill",
+      "from": "task",
+      "to": "skill",
+      "variant": "emphasis"
+    },
+    {
+      "id": "skill-to-main",
+      "from": "skill",
+      "to": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "main-to-gate",
+      "from": "main",
+      "to": "gate",
+      "label": "bounded brief",
+      "variant": "emphasis",
+      "labelAt": [952, 305]
+    },
+    {
+      "id": "gate-to-fleet",
+      "from": "gate",
+      "to": "fleet",
+      "label": "authorized",
+      "variant": "emphasis",
+      "labelAt": [1176, 305]
+    },
+    {
+      "id": "fleet-to-providers",
+      "from": "fleet",
+      "to": "providers",
+      "variant": "emphasis"
+    },
+    {
+      "id": "providers-to-main",
+      "from": "providers",
+      "to": "main",
+      "label": "candidate evidence",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [[1448, 250], [849, 250]],
+      "labelAt": [1138, 250],
+      "labelDy": -12
+    },
+    {
+      "id": "skill-to-runtime",
+      "from": "skill",
+      "to": "runtime",
+      "label": "internal call",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 40
+    },
+    {
+      "id": "main-to-checkout",
+      "from": "main",
+      "to": "checkout",
+      "label": "sole writer",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 40
+    },
+    {
+      "id": "checkout-to-repository",
+      "from": "checkout",
+      "to": "repository",
+      "label": "stable identity",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 34
+    },
+    {
+      "id": "gate-to-blocked",
+      "from": "gate",
+      "to": "blocked",
+      "label": "missing · stale · write",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 40
+    },
+    {
+      "id": "runtime-profile-to-fleet",
+      "from": "runtime-profile",
+      "to": "fleet",
+      "label": "fixed argv + env",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "auth-binding-to-runtime-profile",
+      "from": "auth-binding",
+      "to": "runtime-profile",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "App ownership",
+      "items": [
+        "ChatGPT desktop app owns tasks, Local, Worktrees, Handoff, branches, and approvals",
+        "Ground Control never creates, removes, moves, or hands off an App Worktree"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "One writer",
+      "items": [
+        "codex-main writes only the checkout selected for the current App task",
+        "Provider leaves return candidate evidence and cannot declare completion"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Stable identity + evidence",
+      "items": [
+        "Local, linked Worktrees, and Handoff share the Git common-storage identity",
+        "The runtime verifies append-only evidence before any bounded live execution"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Fail-closed gates",
+      "items": [
+        "Status is detected → authenticated → enabled → qualified → current → run-authorized",
+        "AGY keyring stays provider-native; Grok auth is copied only into disposable GROK_HOME",
+        "Native agents and external writers remain blocked"
+      ]
+    }
+  ]
+}

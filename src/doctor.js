@@ -1,6 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { inspectFile } from "./safe-files.js";
-import { providerDefinitions } from "./provider-lifecycle.js";
+import {
+  inspectProviderAuthentication,
+  providerDefinitions,
+} from "./provider-lifecycle.js";
 
 const VERSION_ENVIRONMENT_KEYS = [
   "PATH",
@@ -299,9 +302,32 @@ function providerFinding(provider, version, credentialState) {
     "info",
     "detected",
     provider.id,
-    `CLI ${version.version} detected; credentials ${credentialState}`,
+    `CLI ${version.version} detected; ` +
+      (provider.authentication.source === "environment"
+        ? `credentials ${credentialState}`
+        : `authentication ${credentialState}`),
     "Run explicit live qualification before enabling this provider.",
   );
+}
+
+function authenticationObservation(provider, authentication) {
+  if (provider.authentication.source === "environment") {
+    return authentication.status === "present"
+      ? "present in environment"
+      : "not observed";
+  }
+  if (provider.authentication.source === "system-keyring") {
+    return "provider-native status unavailable";
+  }
+  if (authentication.status === "present") {
+    return "cached authentication present";
+  }
+  if (authentication.status === "unsafe") {
+    return "cached authentication unsafe";
+  }
+  return authentication.status === "absent"
+    ? "cached authentication not observed"
+    : "authentication status unavailable";
 }
 
 const INSTALLATION_CHECKS = [
@@ -443,7 +469,7 @@ export function diagnoseRuntime(options) {
           "incompatible",
           "core",
           platform,
-          "Run Ground Control v0.1 on macOS.",
+          "Run Ground Control v0.2 on macOS.",
         ),
     Number.isInteger(nodeMajor) && nodeMajor >= 22
       ? finding(
@@ -484,19 +510,23 @@ export function diagnoseRuntime(options) {
           "codex.cli",
           "info",
           "healthy",
-          "core",
+          "host",
           `Codex CLI ${codex.version}`,
-          "No action required.",
+          "Optional compatibility surface detected.",
         )
       : finding(
           "codex.cli",
-          "error",
-          codex.state,
-          "core",
+          codex.state === "missing" ? "info" : "warning",
           codex.state === "missing"
-            ? "Codex CLI not found"
-            : "Codex CLI version unavailable",
-          "Install or repair the Codex CLI, then run doctor again.",
+            ? "optional-unavailable"
+            : "optional-incompatible",
+          "host",
+          codex.state === "missing"
+            ? "standalone Codex CLI not found"
+            : "standalone Codex CLI version unavailable",
+          codex.state === "missing"
+            ? "No action required when using Codex in the ChatGPT desktop app."
+            : "Repair the standalone Codex CLI only if that optional surface is needed.",
         ),
     ...installationFindings(
       options.installation,
@@ -511,11 +541,14 @@ export function diagnoseRuntime(options) {
       ...options,
       environment,
     });
-    const credentialState = provider.credentialVariables.some(
-      (name) => Object.hasOwn(environment, name),
-    )
-      ? "present in environment"
-      : "not observed";
+    const authentication = inspectProviderAuthentication(
+      provider,
+      { environment },
+    );
+    const credentialState = authenticationObservation(
+      provider,
+      authentication,
+    );
     findings.push(
       providerFinding(provider, version, credentialState),
     );
@@ -524,6 +557,7 @@ export function diagnoseRuntime(options) {
         version.state === "healthy" ? "disabled" : "unavailable",
       availability:
         version.state === "healthy" ? "detected" : version.state,
+      authentication: authentication.status,
       credential: credentialState,
       qualification: "unqualified",
       enabled: false,
@@ -554,7 +588,7 @@ export function diagnoseRuntime(options) {
           "info",
           "blocked",
           "native",
-          "blocked by v0.1 policy",
+          "blocked by v0.2 policy",
           "Keep native subagents disabled.",
         ),
     writeBoundaryConflict

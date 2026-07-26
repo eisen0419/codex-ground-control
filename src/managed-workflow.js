@@ -158,7 +158,7 @@ function readManifest(projectRoot) {
   if (
     manifest.schemaVersion !== "2" ||
     manifest.product !== "codex-ground-control" ||
-    manifest.version !== "0.1.0" ||
+    manifest.version !== "0.2.0" ||
     !Array.isArray(manifest.assets) ||
     !Array.isArray(manifest.createdDirectories) ||
     !manifest.managedBlock ||
@@ -467,7 +467,7 @@ function applyNewInstallation(projectRoot, planned) {
   const manifest = {
     schemaVersion: "2",
     product: "codex-ground-control",
-    version: "0.1.0",
+    version: "0.2.0",
     releaseLock: {
       path: ".codex-ground-control/release-lock.json",
       sha256: release.lockSha256,

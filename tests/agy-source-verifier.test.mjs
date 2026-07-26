@@ -55,7 +55,7 @@ test("AGY verifier independently fetches one allowlisted public source", async (
   assert.equal(calls[0].options.redirect, "manual");
   assert.equal(
     calls[0].options.headers["user-agent"],
-    "codex-ground-control/0.1",
+    "codex-ground-control/0.2",
   );
   assert.deepEqual(evidence, {
     checkedAt: "2026-07-26T00:00:00.000Z",

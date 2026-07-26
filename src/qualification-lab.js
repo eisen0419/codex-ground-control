@@ -29,7 +29,7 @@ import {
 import { inspectNativeRuntimeBoundary } from "./doctor.js";
 import { inspectFile } from "./safe-files.js";
 
-const PACKAGE_VERSION = "0.1.0";
+const PACKAGE_VERSION = "0.2.0";
 const PACKAGE_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const CAMPAIGN_URL = new URL(
   "../fixtures/qualification/offline-core-v1.json",

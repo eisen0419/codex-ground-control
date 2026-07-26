@@ -1,7 +1,7 @@
 {
   "name": "codex-ground-control",
-  "version": "0.1.0",
-  "description": "A local-first, fail-closed workflow control plane for Codex.",
+  "version": "0.2.0",
+  "description": "An App-native, local-first, fail-closed workflow control plane for Codex.",
   "type": "module",
   "engines": {
     "node": ">=22"

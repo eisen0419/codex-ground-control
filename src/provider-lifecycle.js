@@ -15,6 +15,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import {
+  basename,
   delimiter,
   dirname,
   join,
@@ -91,6 +92,15 @@ export const providerDefinitions = Object.freeze([
     modelProvider: "zai-coding-cn",
     model: "glm-5.2",
     credentialVariables: ["ZAI_CODING_CN_API_KEY"],
+    authentication: {
+      owner: "provider-cli",
+      source: "environment",
+      credentialBindings: ["env:ZAI_CODING_CN_API_KEY"],
+      presenceProbe: "environment-variable",
+      statusAuthority: "ground-control-presence-probe",
+      materialization: "allowlisted-environment",
+      conflictPolicy: "profile-isolated",
+    },
   },
   {
     id: "pi-deepseek",
@@ -99,6 +109,15 @@ export const providerDefinitions = Object.freeze([
     modelProvider: "deepseek",
     model: "deepseek-v4-pro",
     credentialVariables: ["DEEPSEEK_API_KEY"],
+    authentication: {
+      owner: "provider-cli",
+      source: "environment",
+      credentialBindings: ["env:DEEPSEEK_API_KEY"],
+      presenceProbe: "environment-variable",
+      statusAuthority: "ground-control-presence-probe",
+      materialization: "allowlisted-environment",
+      conflictPolicy: "profile-isolated",
+    },
   },
   {
     id: "pi-minimax",
@@ -107,6 +126,15 @@ export const providerDefinitions = Object.freeze([
     modelProvider: "minimax-cn",
     model: "MiniMax-M3",
     credentialVariables: ["MINIMAX_API_KEY"],
+    authentication: {
+      owner: "provider-cli",
+      source: "environment",
+      credentialBindings: ["env:MINIMAX_API_KEY"],
+      presenceProbe: "environment-variable",
+      statusAuthority: "ground-control-presence-probe",
+      materialization: "allowlisted-environment",
+      conflictPolicy: "profile-isolated",
+    },
   },
   {
     id: "agy",
@@ -116,7 +144,16 @@ export const providerDefinitions = Object.freeze([
     mode: "plan",
     model: "gemini-3.6-flash-high",
     minimumVersion: "1.1.7",
-    credentialVariables: ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+    credentialVariables: [],
+    authentication: {
+      owner: "provider-cli",
+      source: "system-keyring",
+      credentialBindings: ["system-keyring"],
+      presenceProbe: "unavailable",
+      statusAuthority: "provider-live-run",
+      materialization: "provider-native",
+      conflictPolicy: "ignore-unbound-environment",
+    },
   },
   {
     id: "grok",
@@ -126,7 +163,16 @@ export const providerDefinitions = Object.freeze([
     mode: "web-only",
     model: "grok-4.5",
     minimumVersion: "0.2.93",
-    credentialVariables: ["XAI_API_KEY", "GROK_API_KEY"],
+    credentialVariables: [],
+    authentication: {
+      owner: "provider-cli",
+      source: "cached-file",
+      credentialBindings: ["file:~/.grok/auth.json"],
+      presenceProbe: "safe-file",
+      statusAuthority: "ground-control-presence-probe",
+      materialization: "isolated-run-copy",
+      conflictPolicy: "ignore-unbound-environment",
+    },
   },
 ]);
 
@@ -396,8 +442,49 @@ function publicVersion(provider, options) {
       };
 }
 
+function repositoryIdentityRoot(projectRoot) {
+  const git = spawnSync(
+    "git",
+    ["rev-parse", "--git-common-dir"],
+    {
+      cwd: projectRoot,
+      encoding: "utf8",
+      env: process.env,
+      maxBuffer: 64 * 1024,
+      shell: false,
+      timeout: 5_000,
+    },
+  );
+  if (
+    git.error ||
+    git.status !== 0 ||
+    git.signal ||
+    typeof git.stdout !== "string" ||
+    git.stdout.trim() === ""
+  ) {
+    throw new ProviderLifecycleError(
+      "PROVIDER_STATE_UNSAFE",
+      "Git common storage could not be resolved for Provider state.",
+    );
+  }
+  let commonDirectory;
+  try {
+    commonDirectory = realpathSync(
+      resolve(projectRoot, git.stdout.trim()),
+    );
+  } catch {
+    throw new ProviderLifecycleError(
+      "PROVIDER_STATE_UNSAFE",
+      "Git common storage could not be resolved safely.",
+    );
+  }
+  return basename(commonDirectory) === ".git"
+    ? dirname(commonDirectory)
+    : commonDirectory;
+}
+
 function projectKey(projectRoot) {
-  return sha256(resolve(projectRoot)).slice(0, 32);
+  return sha256(repositoryIdentityRoot(projectRoot)).slice(0, 32);
 }
 
 function statePath(key) {
@@ -640,6 +727,9 @@ function providerContract(provider, runtime) {
         version: runtime.version,
         executableSha256: runtime.executableSha256,
       }),
+    ),
+    runtimeProfile: sha256(
+      canonicalJson(publicRuntimeProfile(provider)),
     ),
     adapter: sha256(
       canonicalJson(
@@ -957,6 +1047,7 @@ function qualificationDecision(
   if (saved.qualification === null) {
     return {
       qualified: false,
+      current: false,
       drifted: false,
       qualification: "unqualified",
     };
@@ -964,13 +1055,15 @@ function qualificationDecision(
   if (saved.qualification.status === "failed") {
     return {
       qualified: false,
+      current: false,
       drifted: false,
       qualification: "failed",
     };
   }
   if (runtime.state !== "detected") {
     return {
-      qualified: false,
+      qualified: true,
+      current: false,
       drifted: true,
       qualification: "drifted",
     };
@@ -980,7 +1073,8 @@ function qualificationDecision(
     current = providerContract(provider, runtime);
   } catch {
     return {
-      qualified: false,
+      qualified: true,
+      current: false,
       drifted: true,
       qualification: "drifted",
     };
@@ -995,17 +1089,82 @@ function qualificationDecision(
     current.fingerprint !== saved.qualification.fingerprint ||
     !currentEvidence;
   return {
-    qualified: !drifted,
+    qualified: true,
+    current: !drifted,
     drifted,
     qualification: drifted ? "drifted" : "current",
   };
 }
 
+function publicRuntimeProfile(provider) {
+  return {
+    executable: provider.command,
+    argv: "manifest-controlled",
+    shell: false,
+    environment: "manifest-allowlist",
+    authentication: structuredClone(provider.authentication),
+  };
+}
+
+export function inspectProviderAuthentication(
+  provider,
+  options = {},
+) {
+  const environment = options.environment ?? process.env;
+  if (provider.authentication.presenceProbe === "unavailable") {
+    return { status: "unknown" };
+  }
+  if (
+    provider.authentication.presenceProbe ===
+    "environment-variable"
+  ) {
+    const present = provider.credentialVariables.some(
+      (name) =>
+        typeof environment[name] === "string" &&
+        environment[name].length > 0,
+    );
+    return { status: present ? "present" : "absent" };
+  }
+  if (provider.authentication.presenceProbe === "safe-file") {
+    const homeDirectory = environment.HOME;
+    if (
+      typeof homeDirectory !== "string" ||
+      homeDirectory.length === 0
+    ) {
+      return { status: "unknown" };
+    }
+    try {
+      const file = inspectFile(
+        homeDirectory,
+        ".grok/auth.json",
+      );
+      if (file.state === "absent") {
+        return { status: "absent" };
+      }
+      return {
+        status:
+          file.contents.byteLength > 0 &&
+          file.contents.byteLength <= 65_536
+            ? "present"
+            : "unsafe",
+      };
+    } catch {
+      return { status: "unsafe" };
+    }
+  }
+  return { status: "unknown" };
+}
+
 function providerStatus(provider, options) {
   const runtime = publicVersion(provider, options);
-  const configured = provider.credentialVariables.some(
-    (name) => Object.hasOwn(options.environment, name),
+  const authentication = inspectProviderAuthentication(
+    provider,
+    options,
   );
+  const configured = authentication.status === "present";
+  const authenticated = authentication.status === "unknown"
+    ? null
+    : configured;
   const saved = options.state.providers[provider.id];
   const gate = qualificationDecision(
     provider,
@@ -1014,6 +1173,9 @@ function providerStatus(provider, options) {
     options,
   );
   const enabled = saved.enabled;
+  const runAuthorized =
+    options.allowLive === true &&
+    ["qualify", "run"].includes(options.operation);
   let reason = null;
   if (!enabled) {
     reason = "provider-disabled";
@@ -1021,11 +1183,13 @@ function providerStatus(provider, options) {
     reason = "provider-unavailable";
   } else if (gate.drifted) {
     reason = "provider-drifted";
-  } else if (!gate.qualified) {
+  } else if (!gate.current) {
     reason =
       gate.qualification === "failed"
         ? "provider-qualification-failed"
         : "provider-unqualified";
+  } else if (!runAuthorized) {
+    reason = "provider-live-authorization-required";
   }
   const blocked = reason !== null;
   return {
@@ -1046,9 +1210,14 @@ function providerStatus(provider, options) {
         }
       : {}),
     detected: runtime.state === "detected",
+    runtimeProfile: publicRuntimeProfile(provider),
+    authentication,
+    authenticated,
     configured,
     enabled,
     qualified: gate.qualified,
+    current: gate.current,
+    runAuthorized,
     drifted: gate.drifted,
     disabled: !enabled,
     blocked,
@@ -1519,6 +1688,7 @@ function runLiveQualification(
         fingerprint: contract.fingerprint,
         fingerprints: {
           providerCli: contract.components.providerCli,
+          runtimeProfile: contract.components.runtimeProfile,
           adapter: contract.components.adapter,
         },
         ...(identity
@@ -1732,6 +1902,7 @@ function runPiCandidate(definition, options, stored) {
         fingerprint: contract.fingerprint,
         fingerprints: {
           providerCli: contract.components.providerCli,
+          runtimeProfile: contract.components.runtimeProfile,
           adapter: contract.components.adapter,
         },
         evidence: {

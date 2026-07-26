@@ -1,0 +1,324 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Ground Control for Codex",
+    "subtitle": "App-native 控制面 · App 管理 Worktree · 唯一 Codex 写入者",
+    "output": "ground-control.zh-CN.html",
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "viewBox": [1600, 800],
+    "views": [
+      {
+        "id": "app-native-path",
+        "label": "App-native 主路径",
+        "focus": ["developer", "app", "task", "skill", "main", "gate", "fleet", "providers"],
+        "note": "从 ChatGPT 桌面 App 中的用户意图，一直追踪到唯一 Codex 写入者和受限 Provider 叶子。"
+      },
+      {
+        "id": "app-ownership",
+        "label": "App 生命周期所有权",
+        "focus": ["app", "task", "checkout", "repository"],
+        "note": "Local、Worktree、Handoff、branch controls 和 task 生命周期均由 App 管理。"
+      },
+      {
+        "id": "runtime-and-gates",
+        "label": "内部运行时与门禁",
+        "focus": ["skill", "runtime", "gate", "runtime-profile", "auth-binding", "fleet", "blocked"],
+        "note": "skill 调用确定性运行时；Provider 自有认证与带指纹的运行时配置始终位于失败时保持关闭的门禁之后。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "developer",
+      "type": "external",
+      "label": "开发者",
+      "sublabel": "意图 + 授权",
+      "pos": [24, 330],
+      "size": [118, 66]
+    },
+    {
+      "id": "app",
+      "type": "frontend",
+      "label": "ChatGPT 桌面 App",
+      "sublabel": "task · branch · approval",
+      "pos": [176, 330],
+      "size": [170, 66],
+      "tag": "管理生命周期"
+    },
+    {
+      "id": "task",
+      "type": "cloud",
+      "label": "Codex Task",
+      "sublabel": "Local 或 App Worktree",
+      "pos": [382, 330],
+      "size": [154, 66]
+    },
+    {
+      "id": "skill",
+      "type": "backend",
+      "label": "Ground Control Skill",
+      "sublabel": "面向 App 的工作流入口",
+      "pos": [572, 330],
+      "size": [166, 66]
+    },
+    {
+      "id": "main",
+      "type": "backend",
+      "label": "codex-main",
+      "sublabel": "唯一完成裁决主体",
+      "pos": [774, 330],
+      "size": [150, 66],
+      "tag": "唯一写入者"
+    },
+    {
+      "id": "gate",
+      "type": "security",
+      "label": "能力门禁",
+      "sublabel": "auth · enabled · current",
+      "pos": [980, 330],
+      "size": [178, 66],
+      "tag": "+ 显式 --allow-live"
+    },
+    {
+      "id": "fleet",
+      "type": "backend",
+      "label": "FleetRunner",
+      "sublabel": "固定适配器 · 有界 I/O",
+      "pos": [1194, 330],
+      "size": [160, 66]
+    },
+    {
+      "id": "providers",
+      "type": "external",
+      "label": "Provider 叶子",
+      "sublabel": "Pi · AGY · Grok",
+      "pos": [1390, 330],
+      "size": [156, 66],
+      "tag": "仅返回候选证据"
+    },
+    {
+      "id": "runtime",
+      "type": "backend",
+      "label": "运行时 CLI",
+      "sublabel": "init · doctor · qualify",
+      "pos": [572, 510],
+      "size": [166, 66],
+      "tag": "位于 skill 后面"
+    },
+    {
+      "id": "checkout",
+      "type": "database",
+      "label": "App 选定的 Checkout",
+      "sublabel": "当前 task 工作区",
+      "pos": [767, 510],
+      "size": [164, 66]
+    },
+    {
+      "id": "repository",
+      "type": "database",
+      "label": "仓库身份",
+      "sublabel": "Git common storage key",
+      "pos": [762, 630],
+      "size": [174, 70],
+      "tag": "Local · Worktree · Handoff"
+    },
+    {
+      "id": "blocked",
+      "type": "security",
+      "label": "被阻断的边界",
+      "sublabel": "原生 Agent · 外部写入者",
+      "pos": [980, 510],
+      "size": [178, 66],
+      "tag": "没有授权"
+    },
+    {
+      "id": "runtime-profile",
+      "type": "backend",
+      "label": "Provider 运行时配置",
+      "sublabel": "固定 argv · 环境 allowlist",
+      "pos": [1184, 500],
+      "size": [180, 66],
+      "tag": "纳入指纹"
+    },
+    {
+      "id": "auth-binding",
+      "type": "security",
+      "label": "Provider 自有认证",
+      "sublabel": "环境变量 · keyring · 安全文件",
+      "pos": [1184, 620],
+      "size": [180, 66],
+      "tag": "没有共享凭据库"
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "App 管理的 Local · Worktree · Handoff 上下文",
+      "wraps": ["task", "skill", "main", "checkout", "repository"],
+      "pad": 18
+    },
+    {
+      "kind": "security-group",
+      "label": "受限叶子执行",
+      "wraps": ["gate", "fleet", "providers", "blocked", "runtime-profile", "auth-binding"],
+      "pad": 18
+    }
+  ],
+  "connections": [
+    {
+      "id": "developer-to-app",
+      "from": "developer",
+      "to": "app",
+      "variant": "emphasis"
+    },
+    {
+      "id": "app-to-task",
+      "from": "app",
+      "to": "task",
+      "label": "Local · Worktree · Handoff",
+      "variant": "emphasis",
+      "labelAt": [364, 305]
+    },
+    {
+      "id": "task-to-skill",
+      "from": "task",
+      "to": "skill",
+      "variant": "emphasis"
+    },
+    {
+      "id": "skill-to-main",
+      "from": "skill",
+      "to": "main",
+      "variant": "emphasis"
+    },
+    {
+      "id": "main-to-gate",
+      "from": "main",
+      "to": "gate",
+      "label": "有界 brief",
+      "variant": "emphasis",
+      "labelAt": [952, 305]
+    },
+    {
+      "id": "gate-to-fleet",
+      "from": "gate",
+      "to": "fleet",
+      "label": "已授权",
+      "variant": "emphasis",
+      "labelAt": [1176, 305]
+    },
+    {
+      "id": "fleet-to-providers",
+      "from": "fleet",
+      "to": "providers",
+      "variant": "emphasis"
+    },
+    {
+      "id": "providers-to-main",
+      "from": "providers",
+      "to": "main",
+      "label": "候选证据",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "top",
+      "via": [[1448, 250], [849, 250]],
+      "labelAt": [1138, 250],
+      "labelDy": -12
+    },
+    {
+      "id": "skill-to-runtime",
+      "from": "skill",
+      "to": "runtime",
+      "label": "内部调用",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 40
+    },
+    {
+      "id": "main-to-checkout",
+      "from": "main",
+      "to": "checkout",
+      "label": "唯一写入者",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 40
+    },
+    {
+      "id": "checkout-to-repository",
+      "from": "checkout",
+      "to": "repository",
+      "label": "稳定仓库身份",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 34
+    },
+    {
+      "id": "gate-to-blocked",
+      "from": "gate",
+      "to": "blocked",
+      "label": "缺失 · 过期 · 写入",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 40
+    },
+    {
+      "id": "runtime-profile-to-fleet",
+      "from": "runtime-profile",
+      "to": "fleet",
+      "label": "固定 argv + 环境",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "auth-binding-to-runtime-profile",
+      "from": "auth-binding",
+      "to": "runtime-profile",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "App 生命周期所有权",
+      "items": [
+        "ChatGPT 桌面 App 管理 task、Local、Worktree、Handoff、branch 和 approval",
+        "Ground Control 绝不创建、删除、移动或 handoff App Worktree"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "唯一写入者",
+      "items": [
+        "codex-main 只写入当前 App task 选定的 checkout",
+        "Provider 叶子仅返回候选证据，不能宣布任务完成"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "稳定身份与证据",
+      "items": [
+        "Local、linked Worktree 与 Handoff 共享 Git common storage 身份",
+        "任何有界实时执行前，运行时都必须验证只追加证据"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "失败时保持关闭",
+      "items": [
+        "状态链为 detected → authenticated → enabled → qualified → current → run-authorized",
+        "AGY keyring 归 Provider 所有；Grok auth 只复制到一次性 GROK_HOME",
+        "原生 Agent 和外部写入者始终保持 blocked"
+      ]
+    }
+  ]
+}

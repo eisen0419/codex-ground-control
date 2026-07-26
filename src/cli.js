@@ -12,7 +12,7 @@ import {
   validateQualificationReceiptBehavior,
 } from "./qualification-contract.js";
 
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 export const EXIT_SUCCESS = 0;
 export const EXIT_BLOCKED = 2;
 export const EXIT_USAGE = 64;
@@ -170,6 +170,10 @@ function renderDoctor(result) {
       ),
     ],
     [
+      "Host compatibility:",
+      findings.filter(({ scope }) => scope === "host"),
+    ],
+    [
       "Optional providers:",
       findings.filter(({ id }) => id.startsWith("provider.")),
     ],
@@ -220,6 +224,8 @@ function renderProvider(result) {
   const providers = result.result.providers ??
     [result.result.provider];
   const yesNo = (value) => value ? "yes" : "no";
+  const yesNoUnknown = (value) =>
+    value === null ? "unknown" : yesNo(value);
   return [
     "Ground Control providers:",
     ...providers.map(
@@ -227,9 +233,12 @@ function renderProvider(result) {
         `  ${provider.id}: ${provider.decision} ` +
         `(${provider.reason ?? "qualification-current"}); ` +
         `detected=${yesNo(provider.detected)} ` +
+        `authenticated=${yesNoUnknown(provider.authenticated)} ` +
         `configured=${yesNo(provider.configured)} ` +
         `enabled=${yesNo(provider.enabled)} ` +
         `qualified=${yesNo(provider.qualified)} ` +
+        `current=${yesNo(provider.current)} ` +
+        `run-authorized=${yesNo(provider.runAuthorized)} ` +
         `drifted=${yesNo(provider.drifted)} ` +
         `disabled=${yesNo(provider.disabled)} ` +
         `blocked=${yesNo(provider.blocked)}` +

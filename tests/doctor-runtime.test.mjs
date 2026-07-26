@@ -264,7 +264,7 @@ test("doctor reports a healthy core without promoting unavailable optional provi
   });
 });
 
-test("doctor returns a blocker receipt when the Codex CLI is missing", () => {
+test("doctor keeps the App-native core healthy when standalone Codex CLI is missing", () => {
   withProject((context) => {
     assert.equal(runJson(["init"], context).status, 0);
     const emptyRuntimeBin = mkdtempSync(
@@ -280,27 +280,23 @@ test("doctor returns a blocker receipt when the Codex CLI is missing", () => {
       { PATH: `${emptyRuntimeBin}:/usr/bin:/bin` },
     );
 
-    assert.equal(diagnosed.status, 2);
-    assert.equal(diagnosed.receipt.status, "blocked");
-    assert.equal(diagnosed.receipt.exitCode, 2);
-    assert.equal(diagnosed.receipt.error.code, "DOCTOR_BLOCKED");
-    assert.equal(diagnosed.receipt.result.health, "blocked");
-    assert.equal(diagnosed.receipt.result.gates.core.status, "blocked");
-    assert.deepEqual(
-      diagnosed.receipt.result.gates.core.findingIds,
-      ["codex.cli"],
-    );
+    assert.equal(diagnosed.status, 0);
+    assert.equal(diagnosed.receipt.status, "ok");
+    assert.equal(diagnosed.receipt.exitCode, 0);
+    assert.equal(diagnosed.receipt.result.health, "healthy");
+    assert.equal(diagnosed.receipt.result.gates.core.status, "passed");
+    assert.deepEqual(diagnosed.receipt.result.gates.core.findingIds, []);
     assert.deepEqual(
       diagnosed.receipt.result.findings.find(
         ({ id }) => id === "codex.cli",
       ),
       {
         id: "codex.cli",
-        severity: "error",
-        state: "missing",
-        scope: "core",
-        observed: "Codex CLI not found",
-        action: "Install or repair the Codex CLI, then run doctor again.",
+        severity: "info",
+        state: "optional-unavailable",
+        scope: "host",
+        observed: "standalone Codex CLI not found",
+        action: "No action required when using Codex in the ChatGPT desktop app.",
       },
     );
     assert.deepEqual(snapshotFiles(context.projectDirectory), projectBefore);
@@ -569,7 +565,7 @@ test("global doctor classifies managed skill drift inside the selected scope", (
   });
 });
 
-test("human doctor output groups core, provider, and fail-closed boundary findings", () => {
+test("human doctor output groups host, core, provider, and fail-closed findings", () => {
   withProject((context) => {
     assert.equal(runJson(["init"], context).status, 0);
 
@@ -582,6 +578,11 @@ test("human doctor output groups core, provider, and fail-closed boundary findin
       /^Ground Control doctor: healthy \(project\)\n/,
     );
     assert.match(healthy.stdout, /^Core \(passed\):$/m);
+    assert.match(healthy.stdout, /^Host compatibility:$/m);
+    assert.match(
+      healthy.stdout,
+      /^  HEALTHY codex\.cli: Codex CLI 0\.145\.0/m,
+    );
     assert.match(healthy.stdout, /^Optional providers:$/m);
     assert.match(
       healthy.stdout,
@@ -590,32 +591,29 @@ test("human doctor output groups core, provider, and fail-closed boundary findin
     assert.match(healthy.stdout, /^Fail-closed boundaries:$/m);
     assert.match(
       healthy.stdout,
-      /^  BLOCKED gate\.native: blocked by v0\.1 policy/m,
+      /^  BLOCKED gate\.native: blocked by v0\.2 policy/m,
     );
 
     const emptyRuntimeBin = mkdtempSync(
       join(packedCli.sandbox, "runtime-without-codex-"),
     );
     symlinkSync(process.execPath, join(emptyRuntimeBin, "node"));
-    const blocked = runHuman(
+    const appOnly = runHuman(
       ["doctor"],
       context,
       { PATH: `${emptyRuntimeBin}:/usr/bin:/bin` },
     );
 
-    assert.equal(blocked.status, 2);
+    assert.equal(appOnly.status, 0);
     assert.match(
-      blocked.stdout,
-      /^Ground Control doctor: blocked \(project\)\n/,
+      appOnly.stdout,
+      /^Ground Control doctor: healthy \(project\)\n/,
     );
     assert.match(
-      blocked.stdout,
-      /^  MISSING codex\.cli: Codex CLI not found/m,
+      appOnly.stdout,
+      /^  OPTIONAL-UNAVAILABLE codex\.cli: standalone Codex CLI not found/m,
     );
-    assert.equal(
-      blocked.stderr,
-      "Ground Control doctor found operational blockers.\n",
-    );
+    assert.equal(appOnly.stderr, "");
   });
 });
 
@@ -655,6 +653,7 @@ test("provider detection reports only public version and credential presence", (
     assert.deepEqual(diagnosed.receipt.result.gates["pi-glm"], {
       status: "disabled",
       availability: "detected",
+      authentication: "present",
       credential: "present in environment",
       qualification: "unqualified",
       enabled: false,
@@ -685,7 +684,83 @@ test("provider detection reports only public version and credential presence", (
   });
 });
 
-test("doctor classifies an unreadable Codex public version as incompatible", () => {
+test("doctor uses each provider native authentication source without reading secrets", () => {
+  withProject((context) => {
+    assert.equal(runJson(["init"], context).status, 0);
+    const providerBin = mkdtempSync(
+      join(packedCli.sandbox, "runtime-with-provider-auth-"),
+    );
+    for (const [command, version] of [
+      ["agy", "1.1.7"],
+      ["grok", "0.2.93"],
+    ]) {
+      writeFileSync(
+        join(providerBin, command),
+        `#!/bin/sh\nprintf '${command} ${version}\\n'\n`,
+      );
+      chmodSync(join(providerBin, command), 0o755);
+    }
+    mkdirSync(join(context.homeDirectory, ".grok"));
+    writeFileSync(
+      join(context.homeDirectory, ".grok", "auth.json"),
+      "cached-auth-must-not-appear",
+      { mode: 0o600 },
+    );
+
+    const diagnosed = runJson(
+      ["doctor"],
+      context,
+      {
+        PATH:
+          `${providerBin}:${packedCli.runtimeBin}:/usr/bin:/bin`,
+        GOOGLE_API_KEY: "ignored-agy-secret",
+        GEMINI_API_KEY: "ignored-agy-secret-2",
+        XAI_API_KEY: "ignored-grok-secret",
+      },
+    );
+
+    assert.equal(diagnosed.status, 0);
+    assert.equal(
+      diagnosed.receipt.result.gates.agy.authentication,
+      "unknown",
+    );
+    assert.equal(
+      diagnosed.receipt.result.gates.agy.credential,
+      "provider-native status unavailable",
+    );
+    assert.equal(
+      diagnosed.receipt.result.gates.grok.authentication,
+      "present",
+    );
+    assert.equal(
+      diagnosed.receipt.result.gates.grok.credential,
+      "cached authentication present",
+    );
+    assert.match(
+      diagnosed.receipt.result.findings.find(
+        ({ id }) => id === "provider.agy",
+      ).observed,
+      /authentication provider-native status unavailable$/,
+    );
+    assert.match(
+      diagnosed.receipt.result.findings.find(
+        ({ id }) => id === "provider.grok",
+      ).observed,
+      /authentication cached authentication present$/,
+    );
+    for (const secret of [
+      "cached-auth-must-not-appear",
+      "ignored-agy-secret",
+      "ignored-agy-secret-2",
+      "ignored-grok-secret",
+    ]) {
+      assert.equal(diagnosed.stdout.includes(secret), false);
+      assert.equal(diagnosed.stderr.includes(secret), false);
+    }
+  });
+});
+
+test("doctor reports an unreadable standalone Codex CLI as optional incompatible", () => {
   withProject((context) => {
     assert.equal(runJson(["init"], context).status, 0);
     const incompatibleBin = mkdtempSync(
@@ -709,18 +784,19 @@ test("doctor classifies an unreadable Codex public version as incompatible", () 
       { PATH: `${incompatibleBin}:/usr/bin:/bin` },
     );
 
-    assert.equal(diagnosed.status, 2);
+    assert.equal(diagnosed.status, 0);
+    assert.equal(diagnosed.receipt.result.gates.core.status, "passed");
     assert.deepEqual(
       diagnosed.receipt.result.findings.find(
         ({ id }) => id === "codex.cli",
       ),
       {
         id: "codex.cli",
-        severity: "error",
-        state: "incompatible",
-        scope: "core",
-        observed: "Codex CLI version unavailable",
-        action: "Install or repair the Codex CLI, then run doctor again.",
+        severity: "warning",
+        state: "optional-incompatible",
+        scope: "host",
+        observed: "standalone Codex CLI version unavailable",
+        action: "Repair the standalone Codex CLI only if that optional surface is needed.",
       },
     );
     assert.equal(diagnosed.stdout.includes(injectedSecret), false);
@@ -772,7 +848,7 @@ test("runtime fixture classifies unsupported platform and Node.js versions indep
       state: "incompatible",
       scope: "core",
       observed: "linux",
-      action: "Run Ground Control v0.1 on macOS.",
+      action: "Run Ground Control v0.2 on macOS.",
     },
   );
   assert.deepEqual(

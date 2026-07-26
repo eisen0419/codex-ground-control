@@ -16,20 +16,60 @@ import test from "node:test";
 
 const repositoryRoot = new URL("..", import.meta.url);
 
-test("public and maintainer docs describe a version-pinned independent release workflow", () => {
+test("public docs describe the App-native contract and preserve the audited release history", () => {
   const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+  const readmeZh = readFileSync(
+    new URL("../docs/readme/README.zh-CN.md", import.meta.url),
+    "utf8",
+  );
+  const architecture = JSON.parse(
+    readFileSync(
+      new URL(
+        "../docs/architecture/ground-control.architecture.json",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  );
   const releasing = readFileSync(
     new URL("../docs/RELEASING.md", import.meta.url),
+    "utf8",
+  );
+  const appNativeContract = readFileSync(
+    new URL("../docs/specs/app-native-v0.2.md", import.meta.url),
+    "utf8",
+  );
+  const groundControlSkill = readFileSync(
+    new URL(
+      "../assets/overlays/ground-control/SKILL.md",
+      import.meta.url,
+    ),
     "utf8",
   );
 
   assert.match(
     readme,
-    /macOS terminal users who already have\s+Codex CLI installed/,
+    /ChatGPT desktop app on macOS/,
   );
   assert.match(
     readme,
-    /npx --yes codex-ground-control@0\.1\.0 init --dry-run/,
+    /No standalone Codex CLI is required/,
+  );
+  assert.match(
+    readme,
+    /App—not Ground Control—owns task and\s+Worktree lifecycle/,
+  );
+  assert.match(
+    readme,
+    /codex-ground-control-0\.2\.0\.tgz/,
+  );
+  assert.match(
+    readme,
+    /latest published release: v0\.1\.0/i,
+  );
+  assert.match(
+    readmeZh,
+    /不需要单独安装 Codex CLI/,
   );
   assert.match(
     readme,
@@ -40,6 +80,59 @@ test("public and maintainer docs describe a version-pinned independent release w
   assert.match(
     readme,
     /native and external write gates remain blocked/i,
+  );
+  for (const document of [
+    readme,
+    readmeZh,
+    appNativeContract,
+    groundControlSkill,
+  ]) {
+    assert.match(
+      document,
+      /detected[\s\S]*authenticated[\s\S]*enabled[\s\S]*qualified[\s\S]*current[\s\S]*run-authorized/i,
+    );
+  }
+  assert.match(appNativeContract, /ProviderRuntimeProfile\/Auth/);
+  assert.match(
+    appNativeContract,
+    /AGY[\s\S]*system keyring/i,
+  );
+  assert.match(
+    appNativeContract,
+    /Grok[\s\S]*~\/\.grok\/auth\.json[\s\S]*disposable `GROK_HOME`/i,
+  );
+  assert.deepEqual(
+    architecture.connections
+      .slice(0, 7)
+      .map(({ from, to }) => `${from}->${to}`),
+    [
+      "developer->app",
+      "app->task",
+      "task->skill",
+      "skill->main",
+      "main->gate",
+      "gate->fleet",
+      "fleet->providers",
+    ],
+  );
+  const architectureComponents = new Map(
+    architecture.components.map((component) => [component.id, component]),
+  );
+  assert.ok(
+    architectureComponents.get("runtime").pos[1] >
+      architectureComponents.get("skill").pos[1],
+  );
+  assert.equal(
+    architectureComponents.get("runtime").tag,
+    "behind the skill",
+  );
+  assert.equal(
+    architectureComponents.get("runtime-profile").label,
+    "Provider Runtime Profile",
+  );
+  assert.equal(
+    architectureComponents.get("auth-binding").label,
+    "Provider-owned Auth",
   );
   assert.match(
     releasing,
@@ -100,10 +193,10 @@ test("release candidate is reproducible at the packed CLI seam and skipped gates
     assert.deepEqual(summary, {
       schemaVersion: "1",
       status: "blocked",
-      version: "0.1.0",
+      version: "0.2.0",
       report: "release-report.json",
       markdownReport: "RELEASE_CANDIDATE.md",
-      tarball: "codex-ground-control-0.1.0.tgz",
+      tarball: "codex-ground-control-0.2.0.tgz",
     });
 
     const reportBytes = readFileSync(
@@ -112,7 +205,7 @@ test("release candidate is reproducible at the packed CLI seam and skipped gates
     const report = JSON.parse(reportBytes);
     assert.equal(report.schemaVersion, "1");
     assert.equal(report.product, "codex-ground-control");
-    assert.equal(report.version, "0.1.0");
+    assert.equal(report.version, "0.2.0");
     assert.equal(report.status, "blocked");
     assert.deepEqual(report.publication, {
       npm: "not-published",
@@ -199,7 +292,7 @@ test("release candidate is reproducible at the packed CLI seam and skipped gates
       join(outputDirectory, "RELEASE_CANDIDATE.md"),
       "utf8",
     );
-    assert.match(markdown, /^# Ground Control for Codex v0\.1\.0 release candidate/m);
+    assert.match(markdown, /^# Ground Control for Codex v0\.2\.0 release candidate/m);
     assert.match(markdown, /Overall gate: \*\*BLOCKED\*\*/);
     assert.match(markdown, /Offline evidence: \*\*PASSED \(17\/17\)\*\*/);
     assert.match(markdown, /Live provider evidence: \*\*NOT RUN\*\*/);
