@@ -104,7 +104,7 @@ Ground Control 将安装、执行和证据三个平面分离。当前 App task �
 Control。
 
 <p align="center">
-  <a href="../architecture/ground-control.zh-CN.html">
+  <a href="https://eisen0419.github.io/codex-ground-control/architecture/ground-control.zh-CN.html">
     <img src="../assets/ground-control-architecture-motion.zh-CN.gif" width="960" alt="Ground Control App-native 架构的 Archify 动效：从 ChatGPT 桌面 App、Codex task 到 Ground Control skill，CLI 位于 skill 后面，并保持唯一 Codex 写入者、仓库级身份、独立门禁和受限 Provider 叶子" />
   </a>
 </p>
@@ -113,7 +113,7 @@ Control。
   <sub>
     基于已验证 <a href="https://github.com/tt-a1i/archify">Archify</a> trace 生成的 6 秒动效预览 ·
     <a href="../assets/ground-control-architecture.zh-CN.png">静态 PNG</a> ·
-    <a href="../architecture/ground-control.zh-CN.html">交互式 HTML 文件</a> ·
+    <a href="https://eisen0419.github.io/codex-ground-control/architecture/ground-control.zh-CN.html">交互式 HTML</a> ·
     <a href="../architecture/ground-control.zh-CN.architecture.json">typed JSON 源文件</a>
   </sub>
 </p>
