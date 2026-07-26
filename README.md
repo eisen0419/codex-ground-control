@@ -1,40 +1,190 @@
-# Ground Control for Codex
+<h1 align="center">Ground Control for Codex</h1>
 
-A local-first, fail-closed workflow control plane for Codex.
+<p align="center">
+  <a href="https://www.npmjs.com/package/codex-ground-control/v/0.1.0"><img src="https://img.shields.io/npm/v/codex-ground-control?label=npm&amp;color=CB3837" alt="npm version" /></a>
+  <a href="https://github.com/eisen0419/codex-ground-control/releases/latest"><img src="https://img.shields.io/github/v/release/eisen0419/codex-ground-control?display_name=tag&amp;sort=semver&amp;color=4493F8" alt="GitHub release" /></a>
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 22 or newer" />
+  <img src="https://img.shields.io/badge/platform-macOS-111111?logo=apple&amp;logoColor=white" alt="Platform: macOS" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-08C?style=flat" alt="License: MIT" /></a>
+</p>
 
-Ground Control v0.1 is for individual macOS terminal users who already have
-Codex CLI installed. It does not promise a GUI, team authorization, or
-Windows/Linux support.
+<p align="center">
+  <sub>English · <a href="https://github.com/eisen0419/codex-ground-control/blob/main/docs/readme/README.zh-CN.md">简体中文</a></sub>
+</p>
 
-The v0.1 package installs a reproducible, project-local engineering workflow
-for Codex. It combines pinned Matt Pocock skills with a separate Ground Control
-Router overlay and single-coordinator rules. The packed artifact can initialize,
-diagnose, qualify, inspect provider state, and uninstall itself in a fresh Git
-worktree without provider credentials, a second download, or network access.
+<p align="center">
+  <strong>A local-first, fail-closed workflow control plane for Codex.</strong><br />
+  Install a reproducible engineering workflow, qualify every execution boundary,
+  and keep one Codex coordinator in control.
+</p>
+
+<h3 align="center">
+  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0"><ins>Get Ground Control v0.1.0</ins></a>
+</h3>
+
+<p align="center">
+  <a href="#architecture">Architecture</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#cli">CLI</a> ·
+  <a href="#optional-provider-lifecycle">Provider boundaries</a> ·
+  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0">Release audit</a>
+</p>
+
+Ground Control is for individual macOS terminal users who already have
+Codex CLI installed. The v0.1 package can initialize, diagnose, qualify, inspect
+provider state, and uninstall itself from a Git worktree without provider
+credentials, a second download, or network access.
 
 Ground Control for Codex is an independent community project. It is not
 affiliated with or endorsed by OpenAI or Matt Pocock.
 
-## Requirements
+## Why Ground Control?
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Reproducible by default
+
+Ships pinned, unmodified Matt Pocock skills with a separate Ground Control
+Router overlay and a verifiable release lock.
+
+`init --dry-run` previews the exact managed surface before any write.
+
+</td>
+<td width="50%" valign="top">
+
+### Fail closed, never open
+
+Missing, stale, blocked, or mismatched capability evidence prevents execution
+instead of silently relaxing the boundary.
+
+Provider detection and credentials never imply authorization.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Evidence you can verify
+
+Offline qualification produces immutable receipts, hashes, issue records, and
+reproducible scenarios without model or provider-network calls.
+
+`qualify verify` detects tampering and runtime drift.
+
+</td>
+<td width="50%" valign="top">
+
+### Ownership you can reverse
+
+Managed files carry before/after hashes and exact backup associations.
+Uninstall restores only verified product-owned bytes.
+
+Conflicts fail closed and remain available for human resolution.
+
+</td>
+</tr>
+</table>
+
+## Architecture
+
+Ground Control separates installation, execution, and evidence. `codex-main`
+is the only coordinator, workspace writer, and completion authority. Optional
+providers are bounded leaf adapters: they can return candidate evidence, but
+they cannot write the project, delegate again, change authorization, or declare
+completion.
+
+```mermaid
+flowchart TB
+    user["Developer"]
+    cli["codex-ground-control CLI"]
+    repo[("Existing Git worktree")]
+    evidence[("Append-only evidence<br/>receipts · hashes · reproduction")]
+
+    subgraph control["Project-local control plane"]
+        lifecycle["init / uninstall<br/>managed files · exact restoration"]
+        doctor["doctor<br/>read-only diagnostics"]
+        lab["Qualification Lab<br/>offline campaign · verify · reproduce"]
+        workflow["Pinned Matt skills<br/>Ground Control Router overlay"]
+        ownership["Ownership manifest<br/>backups · release provenance"]
+    end
+
+    subgraph execution["Execution plane"]
+        main["codex-main<br/>sole coordinator · sole writer<br/>sole completion authority"]
+        gate{"Independent capability gate<br/>enabled + qualified + current?"}
+        fleet["FleetRunner<br/>fixed adapter · shell=false · bounded I/O"]
+        pi["Pi leaf profiles<br/>analysis · exploration · testing · review"]
+        agy["AGY research adapter<br/>public Google source only"]
+        grok["Grok research adapter<br/>public X sources only"]
+        blocked["Native agents and external writers<br/>blocked in v0.1"]
+    end
+
+    user --> cli
+    cli --> lifecycle
+    cli --> doctor
+    cli --> lab
+    lifecycle --> workflow
+    lifecycle --> ownership
+    workflow --> main
+    main ==>|"only writer"| repo
+    main --> gate
+    doctor -. "observes" .-> gate
+    lab --> fleet
+    gate -->|"passed + enabled + current<br/>explicit --allow-live"| fleet
+    gate -->|"missing / stale / blocked"| blocked
+    fleet --> pi
+    fleet --> agy
+    fleet --> grok
+    pi -. "candidate evidence" .-> main
+    agy -. "qualification evidence" .-> main
+    grok -. "qualification evidence" .-> main
+    lab --> evidence
+    fleet --> evidence
+    evidence -. "review + verify" .-> main
+```
+
+The gate is evaluated per adapter and per current runtime fingerprint. A pass
+for one provider never qualifies another. The default release campaign is
+offline; all live provider operations require the explicit `--allow-live`
+flag. Native-agent and external-write gates remain blocked in v0.1.
+
+## Quick start
+
+Requirements:
 
 - macOS
 - Node.js 22 or newer
 - Git
 - Codex CLI
 
-## Version-pinned installation
-
-After version 0.1.0 is published, preview the project-local installation from
-an existing Git worktree with an exact package version:
+Run from an existing Git worktree. Preview the exact package version before
+applying project-local changes:
 
 ```sh
 npx --yes codex-ground-control@0.1.0 init --dry-run
 npx --yes codex-ground-control@0.1.0 init
+npx --yes codex-ground-control@0.1.0 doctor
+npx --yes codex-ground-control@0.1.0 qualify
 ```
 
-Ground Control never uses an unpinned `latest` tag in its release instructions.
-This repository has not published the package yet. For a local release
-candidate tarball, use the same executable seam without contacting npm:
+Ground Control deliberately pins `0.1.0` in release instructions instead of
+using a mutable `latest` tag. Project-local installation is the default. It
+changes only the current Git worktree plus product-owned qualification and
+provider state under `~/.codex-ground-control/`; it does not install user-level
+Codex instructions or skills unless the separate explicit global flow is
+requested.
+
+### Audited tarball
+
+The npm package and GitHub Release attachment are byte-for-byte copies of the
+audited v0.1.0 candidate:
+
+- [npm package](https://www.npmjs.com/package/codex-ground-control/v/0.1.0)
+- [GitHub Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)
+- SHA-256: `a480fa43563f03f62eec30ca6a62e02d7bf6f01183187da38e88d6e1d0da0c18`
+
+Use a downloaded tarball without contacting npm:
 
 ```sh
 npx --yes --offline \
@@ -42,25 +192,25 @@ npx --yes --offline \
   codex-ground-control init --dry-run
 ```
 
-Project-local installation is the default. It changes only the current Git
-worktree plus product-owned qualification/provider state under
-`~/.codex-ground-control/`; it does not install user-level Codex instructions
-or skills unless the separate explicit global flow is requested.
+### v0.1.0 qualification
 
-## Local package smoke test
+| Release gate | Audited result |
+| --- | --- |
+| v0.1.0 source | [`6b7e17e`](https://github.com/eisen0419/codex-ground-control/commit/6b7e17e48f6d273421e5b136d01478785803689a) |
+| Test and static gates | 94/94 tests, typecheck, release-lock, and diff check passed |
+| Offline core | 17/17 scenarios passed; evidence verified; network not used |
+| Optional providers | Pi GLM, Pi DeepSeek, Pi MiniMax, AGY, and Grok ended disabled, unqualified, and blocked; live evidence remains partial |
+| Failure isolation | Passed; optional-provider failures did not affect the qualified offline core |
 
-```sh
-npm pack
-npm install --prefix /tmp/codex-ground-control \
-  ./codex-ground-control-0.1.0.tgz
-/tmp/codex-ground-control/node_modules/.bin/codex-ground-control --help
-```
-
-No package has been published by this repository.
+See the
+[v0.1.0 Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)
+for the complete audit and download verification.
 
 ## CLI
 
-Run commands from an existing Git worktree:
+The examples below use the installed binary name. Run them from an existing Git
+worktree, or prefix a command with
+`npx --yes codex-ground-control@0.1.0`:
 
 ```sh
 codex-ground-control init --dry-run
@@ -316,6 +466,15 @@ npm run typecheck
 npm test
 ```
 
+To smoke-test a locally packed artifact:
+
+```sh
+npm pack
+npm install --prefix /tmp/codex-ground-control \
+  ./codex-ground-control-0.1.0.tgz
+/tmp/codex-ground-control/node_modules/.bin/codex-ground-control --help
+```
+
 The acceptance suite packs and installs the real npm tarball into a temporary
 home, creates a fresh Git repository, denies network calls in the CLI process,
 and verifies dry-run, empty and existing project instructions, idempotent
@@ -323,6 +482,14 @@ initialization, explicit global confirmation, private backups, interrupted
 install recovery, symlink fault injection, doctor integrity checks, drift
 refusal, runtime incompatibility, provider isolation, secret non-disclosure,
 evidence retention, and exact restoration through the public executable.
+
+## Scope
+
+Ground Control v0.1 is intentionally narrow: individual macOS terminal users,
+one Codex coordinator, project-local installation by default, and independently
+gated leaf adapters. It does not promise a GUI, team authorization,
+Windows/Linux support, general-purpose agent orchestration, provider write
+access, or autonomous completion by an external model.
 
 ## License
 
