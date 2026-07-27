@@ -1,0 +1,21 @@
+{
+  "name": "codex-ground-control",
+  "version": "0.2.0",
+  "description": "App-native Pi LeafRun status and Codex-native permission surfaces for Ground Control.",
+  "mcpServers": "./.mcp.json",
+  "skills": "./assets/overlays/",
+  "interface": {
+    "displayName": "Ground Control for Codex",
+    "shortDescription": "Visible, fail-closed Pi LeafRuns inside Codex",
+    "developerName": "Ground Control community project",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/eisen0419/codex-ground-control",
+    "defaultPrompt": [
+      "Prepare a visible, bounded Pi LeafRun for this task."
+    ]
+  }
+}

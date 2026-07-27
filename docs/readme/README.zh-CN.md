@@ -1,9 +1,9 @@
 <h1 align="center">Ground Control for Codex</h1>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/codex-ground-control/v/0.1.0"><img src="https://img.shields.io/npm/v/codex-ground-control?label=npm&amp;color=CB3837" alt="npm 版本" /></a>
+  <a href="https://www.npmjs.com/package/codex-ground-control/v/0.2.0"><img src="https://img.shields.io/npm/v/codex-ground-control?label=npm&amp;color=CB3837" alt="npm 版本" /></a>
   <a href="https://github.com/eisen0419/codex-ground-control/releases/latest"><img src="https://img.shields.io/github/v/release/eisen0419/codex-ground-control?display_name=tag&amp;sort=semver&amp;color=4493F8" alt="GitHub Release" /></a>
-  <img src="https://img.shields.io/badge/main-v0.2_App--native_开发中-F59E0B" alt="main：v0.2 App-native 开发中" />
+  <img src="https://img.shields.io/badge/release-v0.2.0_App--native-2EA44F" alt="正式版：v0.2.0 App-native" />
   <img src="https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 22 或更高版本" />
   <img src="https://img.shields.io/badge/platform-macOS-111111?logo=apple&amp;logoColor=white" alt="支持平台：macOS" />
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-08C?style=flat" alt="许可证：MIT" /></a>
@@ -20,9 +20,9 @@
 </p>
 
 <h3 align="center">
-  <a href="#快速开始"><ins>试用 App-native v0.2 开发版</ins></a>
+  <a href="#快速开始"><ins>安装 App-native v0.2.0</ins></a>
   ·
-  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0">获取最新正式版 v0.1.0</a>
+  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.2.0">查看 v0.2.0 发布审计</a>
 </h3>
 
 <p align="center">
@@ -30,7 +30,7 @@
   <a href="#快速开始">快速开始</a> ·
   <a href="#运行时-cli">运行时 CLI</a> ·
   <a href="#可选-provider-生命周期">Provider 边界</a> ·
-  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0">发布审计</a>
+  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.2.0">发布审计</a>
 </p>
 
 Ground Control v0.2 面向在 macOS ChatGPT 桌面 App 中使用 Codex 开发软件
@@ -123,6 +123,47 @@ Provider 自动获得资格。默认发布资格验证活动（campaign）完全
 实时 Provider 操作都必须显式传入 `--allow-live`。v0.2 中，原生 Agent
 门禁和外部写入门禁始终保持 blocked。
 
+### 隔离的 App surface 资格验证
+
+在任何 Pi 实时资格验证之前，Ground Control skill 都可以无参数调用
+`qualify_app_surface`。该工具复用生产环境的 widget 资源和真实 host
+elicitation 表单，但不会读取 Provider 资格状态、创建 `LeafRunIntent`、
+授予 `--allow-live`，也不会调用生产 LeafRun 操作。
+
+无论用户接受、拒绝、取消，还是 host 不支持 elicitation 或发生错误，
+Provider 启动数为 `0`，worker 启动数为 `0`，网络请求数也为 `0`。通过只表示
+MCP App widget 与 host 往返链路通过；它不等于 Pi、原生 Codex reviewer
+或无人观察的像素级渲染已经通过资格验证。卡片可以在不进入实时运行的前提下
+重复执行同一项隔离检查。
+
+### App 内可见的 Pi LeafRun
+
+v0.2 软件包包含一个 MCP App 状态卡，用于在当前 Codex task 中展示有界的
+Pi 工作。Ground Control skill 会先调用 `prepare_leaf_run`：它只创建一个
+短期有效、按仓库隔离的 intent，并显示 **Ready**，不会启动 Pi。用户点击
+**Start with Codex permissions** 后，状态卡会调用仅 App 可见的
+`start_leaf_run`。Codex 会先按照用户为 Ground Control 选择的原生权限档位
+——**Always ask**、**Any changes**、**Important actions**、**Never ask** 或
+**Use my default**——决定是否分发这次调用。Ground Control 不会再弹出第二层
+确认，也不会保存或覆盖这项设置。
+
+`start_leaf_run` 会如实标记为非只读、可访问外部系统且幂等。若用户在 Codex
+侧拒绝或取消，MCP server 根本收不到启动调用，Provider 启动数仍为零。即使
+调用已获分发，intent 过期、brief 改变或资格指纹漂移仍会在启动 Pi 前
+fail-closed。用户选择交互更少的 Codex 权限档位后，可以省去每次鼠标确认，
+但不会绕过这些运行时门禁。
+
+受支持的产品边界是安装在 Codex 中的本地 plugin。MCP 不会向这个 stdio
+server 提供带签名的 host 授权凭证，因此其他本地 MCP client 的直接调用不在
+支持范围内，也不会形成更强的操作系统权限边界。仅 App 可见性与 Codex 权限
+策略由 host 执行；上述运行时校验仍由 server 强制执行。
+
+运行期间，状态卡通过 `get_leaf_run` 显示 **Working**、耗时、从已验证 Pi
+`message_end.usage` 原样取得的 token/成本，以及 evidence receipt。缺失用量
+时状态为 `unknown`，绝不估算。**Done** 只表示候选证据可交给
+`codex-main` 复核；Pi 仍无权写入工作区或宣布完成，状态卡也不会冒充 Codex
+原生子 Agent task。
+
 ## 快速开始
 
 环境要求：
@@ -136,24 +177,14 @@ Provider 自动获得资格。默认发布资格验证活动（campaign）完全
 
 1. 在 ChatGPT 桌面 App 中打开目标 Git 仓库。
 2. 在 **Local** 或由 App 创建的 **Worktree** 中启动 Codex task。
-3. 当前 `main` 尚未发布，请先在本仓库构建精确的 v0.2 开发版 tarball：
+3. 在目标 App task 中，让 Codex 预览并安装固定版本的 v0.2 正式版：
 
    ```sh
-   npm pack --pack-destination /tmp/codex-ground-control-v0.2
+   npx --yes codex-ground-control@0.2.0 init --dry-run
+   npx --yes codex-ground-control@0.2.0 init
    ```
 
-4. 在目标 App task 中，让 Codex 预览并安装这个 tarball：
-
-   ```sh
-   npx --yes \
-     --package=/tmp/codex-ground-control-v0.2/codex-ground-control-0.2.0.tgz \
-     codex-ground-control init --dry-run
-   npx --yes \
-     --package=/tmp/codex-ground-control-v0.2/codex-ground-control-0.2.0.tgz \
-     codex-ground-control init
-   ```
-
-5. 如果当前 task 没有刷新刚安装的 skill，请新建一个 Codex task，然后调用
+4. 如果当前 task 没有刷新刚安装的 skill，请新建一个 Codex task，然后调用
    **Ground Control**。skill 会在背后调用运行时，执行 `doctor`、离线资格
    验证和 Provider 门禁。
 
@@ -161,44 +192,49 @@ Provider 自动获得资格。默认发布资格验证活动（campaign）完全
 `~/.codex-ground-control/` 下由产品拥有的证据和仓库级 Provider 状态。
 它不创建或管理 Worktree。全局安装仍是单独预览、单独显式确认的流程。
 
-> **发布状态：** `0.2.0` 目前只是 `main` 上尚未发布的开发目标。不要用已经
-> 发布的 `0.1.0` 软件包替代这里描述的 App-native 契约。
+> **发布状态：** `0.2.0` 是 npm 与 GitHub 上当前的 App-native 正式版。
+> 安装和恢复时请固定版本号。
 
 如果仓库已经安装 v0.1 托管工作流，请先让 App task 运行
 `npx --yes codex-ground-control@0.1.0 uninstall`，复核精确恢复结果后，再安装
-v0.2 候选制品。v0.2 会拒绝把 v0.1 所有权清单套用到新的资产清单，而不是
+v0.2。v0.2 会拒绝把 v0.1 所有权清单套用到新的资产清单，而不是
 冒险猜测升级；仓库级 Provider 状态和历史证据仍然保留。
 
-### 最新正式版：v0.1.0
+### 最新正式版：v0.2.0
 
-npm 软件包与 GitHub Release 附件都和已审计的 v0.1.0 候选制品逐字节一致。
-该版本实现的是此前的 CLI-first 契约，不包含上文尚未发布的 App-native v0.2
-改动：
+npm 软件包与 GitHub Release 附件都和已审计的 v0.2.0 候选制品逐字节一致。
+Release 页面记录源码提交、完整测试与资格验证结果、各 Provider 最终状态、
+制品大小和 SHA-256 摘要。
 
-- [npm 软件包](https://www.npmjs.com/package/codex-ground-control/v/0.1.0)
-- [GitHub Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)
-- SHA-256：`a480fa43563f03f62eec30ca6a62e02d7bf6f01183187da38e88d6e1d0da0c18`
+- [npm 软件包](https://www.npmjs.com/package/codex-ground-control/v/0.2.0)
+- [GitHub Release 与发布审计](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.2.0)
 
 下载 tarball 后，可以在不访问 npm 的情况下运行：
 
 ```sh
 npx --yes --offline \
-  --package=./codex-ground-control-0.1.0.tgz \
+  --package=./codex-ground-control-0.2.0.tgz \
   codex-ground-control init --dry-run
 ```
 
-### v0.1.0 资格状态
+### v0.2.0 资格状态
 
-| 发布门禁 | 审计结果 |
+| 发布门禁 | 已发布证据 |
 | --- | --- |
-| v0.1.0 源码 | [`6b7e17e`](https://github.com/eisen0419/codex-ground-control/commit/6b7e17e48f6d273421e5b136d01478785803689a) |
-| 测试与静态门禁 | 94/94 tests、typecheck、release-lock 和 diff check 全部通过 |
-| 离线核心 | 17/17 场景通过；证据验证通过；未使用网络 |
-| 可选 Provider | Pi GLM、Pi DeepSeek、Pi MiniMax、AGY 和 Grok 最终均为 disabled、unqualified、blocked；实时证据仍为 partial |
-| 故障隔离 | 通过；可选 Provider 失败没有影响已通过资格验证的离线核心 |
+| 源码 | 不可变的 [`v0.2.0`](https://github.com/eisen0419/codex-ground-control/tree/v0.2.0) tag |
+| App surface | fresh task 中的 Host 接受与重复隔离自检证据 |
+| 测试与静态门禁 | 完整测试、typecheck、release-lock 与可复现 double-pack |
+| 离线核心 | 隔离 campaign、证据校验与场景复现 |
+| 可选 Provider | 每个 Provider 分别报告最终 enabled、qualified、current 与 blocked 状态 |
 
 完整审计和下载验证请查看
-[v0.1.0 Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)。
+[v0.2.0 Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.2.0)。
+
+### 上一个已审计版本：v0.1.0
+
+CLI-first 的 v0.1.0 仍可用于审计和固定版本恢复。已发布 tarball 的 SHA-256
+为 `a480fa43563f03f62eec30ca6a62e02d7bf6f01183187da38e88d6e1d0da0c18`。
+详情见 [v0.1.0 Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)。
 
 ## 运行时 CLI
 
@@ -396,8 +432,13 @@ AGY 和 Grok 回执只保留固定公开 probe、已验证的公开来源观测�
 属于 `codex-main`，且不会应用工作区修改。Grok 回执还会记录公开研究边界，
 并确认临时认证既未保留也未写入证据。
 
-Pi profile 获得当前资格证据后，主 Codex 可以通过显式 live flag 发送一个
-有界 brief：
+Pi profile 获得当前资格证据后，请让 Ground Control skill 准备一个 App
+内可见、有界的 Pi LeafRun。在 App-native 路径中，用户从 MCP App 状态卡
+启动精确 intent，Codex 按已配置的原生插件权限策略决定是否分发。MCP
+server 只会把 Codex host 已分发的 `start_leaf_run` 转换为内部、仅限当次
+运行的 `--allow-live`；不会再增加一层权限弹窗。
+
+等价的内部执行层仍然是：
 
 ```sh
 codex-ground-control provider run pi-deepseek review "Review only this supplied boundary." --allow-live

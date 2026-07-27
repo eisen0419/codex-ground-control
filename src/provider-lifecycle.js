@@ -487,6 +487,10 @@ function projectKey(projectRoot) {
   return sha256(repositoryIdentityRoot(projectRoot)).slice(0, 32);
 }
 
+export function resolveProviderProjectKey(projectRoot) {
+  return projectKey(projectRoot);
+}
+
 function statePath(key) {
   return `.codex-ground-control/providers/${key}/state.json`;
 }
@@ -1266,6 +1270,42 @@ export function listProviderStates(options = {}) {
   };
 }
 
+export function resolveCurrentProviderQualification(options = {}) {
+  const definition = providerDefinitions.find(
+    ({ id, family }) =>
+      id === options.providerId && family === "pi",
+  );
+  if (!definition) {
+    throw new ProviderLifecycleError(
+      "PROVIDER_ID_INVALID",
+      "The requested Pi provider ID is invalid.",
+    );
+  }
+  const stored = readState(options);
+  const provider = providerStatus(
+    definition,
+    statusOptions(options, stored, stored.state),
+  );
+  const qualification =
+    stored.state.providers[definition.id].qualification;
+  if (
+    !provider.enabled ||
+    !provider.current ||
+    provider.qualification !== "passed" ||
+    !validQualification(qualification)
+  ) {
+    throw new ProviderLifecycleError(
+      "PROVIDER_TRANSITION_UNSUPPORTED",
+      "Enable and qualify the current Pi profile before preparing a LeafRun.",
+    );
+  }
+  return {
+    providerId: definition.id,
+    fingerprint: qualification.fingerprint,
+    qualifiedAt: qualification.qualifiedAt,
+  };
+}
+
 function parseProbeOutput(contents) {
   let candidate = contents.toString("utf8").trim();
   const fenced = candidate.match(
@@ -1732,13 +1772,84 @@ function stringArray(value) {
   );
 }
 
+function nonnegativeFinite(value) {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0
+  );
+}
+
+function runtimeUsageMatches(value) {
+  if (
+    exactKeys(value, [
+      "schemaVersion",
+      "source",
+      "status",
+    ]) &&
+    value.schemaVersion === "1" &&
+    value.source === "pi-message-end" &&
+    value.status === "unknown"
+  ) {
+    return true;
+  }
+  return (
+    exactKeys(value, [
+      "schemaVersion",
+      "source",
+      "status",
+      "inputTokens",
+      "outputTokens",
+      "cacheReadTokens",
+      "cacheWriteTokens",
+      "totalTokens",
+      "cost",
+    ]) &&
+    value.schemaVersion === "1" &&
+    value.source === "pi-message-end" &&
+    value.status === "reported" &&
+    [
+      value.inputTokens,
+      value.outputTokens,
+      value.cacheReadTokens,
+      value.cacheWriteTokens,
+      value.totalTokens,
+    ].every(nonnegativeFinite) &&
+    value.totalTokens ===
+      value.inputTokens +
+        value.outputTokens +
+        value.cacheReadTokens +
+        value.cacheWriteTokens &&
+    exactKeys(value.cost, [
+      "input",
+      "output",
+      "cacheRead",
+      "cacheWrite",
+      "total",
+    ]) &&
+    Object.values(value.cost).every(nonnegativeFinite)
+  );
+}
+
 function candidateOutputMatches(
   value,
   definition,
   activity,
 ) {
+  if (
+    !exactKeys(value, [
+      "schemaVersion",
+      "candidate",
+      "runtimeUsage",
+    ]) ||
+    value.schemaVersion !== "1" ||
+    !runtimeUsageMatches(value.runtimeUsage)
+  ) {
+    return false;
+  }
+  const candidate = value.candidate;
   return (
-    exactKeys(value, [
+    exactKeys(candidate, [
       "schemaVersion",
       "profile",
       "provider",
@@ -1750,16 +1861,16 @@ function candidateOutputMatches(
       "findings",
       "suggestedChecks",
     ]) &&
-    value.schemaVersion === "1" &&
-    value.profile === definition.id &&
-    value.provider === definition.modelProvider &&
-    value.model === definition.model &&
-    value.activity === activity &&
-    value.disposition === "candidate-evidence" &&
-    value.completionAuthority === "codex-main" &&
-    typeof value.summary === "string" &&
-    stringArray(value.findings) &&
-    stringArray(value.suggestedChecks)
+    candidate.schemaVersion === "1" &&
+    candidate.profile === definition.id &&
+    candidate.provider === definition.modelProvider &&
+    candidate.model === definition.model &&
+    candidate.activity === activity &&
+    candidate.disposition === "candidate-evidence" &&
+    candidate.completionAuthority === "codex-main" &&
+    typeof candidate.summary === "string" &&
+    stringArray(candidate.findings) &&
+    stringArray(candidate.suggestedChecks)
   );
 }
 
@@ -1856,6 +1967,15 @@ function runPiCandidate(definition, options, stored) {
     provider: definition.modelProvider,
     model: definition.model,
   };
+  const runtimeUsage = runtimeUsageMatches(
+    payload?.runtimeUsage,
+  )
+    ? payload.runtimeUsage
+    : {
+        schemaVersion: "1",
+        source: "pi-message-end",
+        status: "unknown",
+      };
   writeExclusiveJson(
     join(runDirectory, "provider-run.json"),
     {
@@ -1870,7 +1990,8 @@ function runPiCandidate(definition, options, stored) {
         fleetReceipt.status ?? fleetReceipt.error?.code ?? "failed",
       disposition: "candidate-evidence",
       completionAuthority: "codex-main",
-      candidate: passed ? payload : null,
+      runtimeUsage,
+      candidate: passed ? payload.candidate : null,
       finishedAt,
     },
   );
@@ -1899,6 +2020,7 @@ function runPiCandidate(definition, options, stored) {
         runIdentity: fleetReceipt.runIdentity,
         activity: options.activity,
         identity,
+        runtimeUsage,
         fingerprint: contract.fingerprint,
         fingerprints: {
           providerCli: contract.components.providerCli,
@@ -1915,7 +2037,7 @@ function runPiCandidate(definition, options, stored) {
         completionAuthority: "codex-main",
         reviewRequired: true,
         workspaceChangesApplied: false,
-        output: passed ? payload : null,
+        output: passed ? payload.candidate : null,
       },
       summary:
         `${definition.id} candidate execution ${terminalState}; ` +
@@ -1980,6 +2102,19 @@ export function runProviderOperation(options = {}) {
       throw new ProviderLifecycleError(
         "PROVIDER_TRANSITION_UNSUPPORTED",
         "Enable and qualify the current Pi profile before execution.",
+      );
+    }
+    const expectedFingerprint =
+      options.expectedQualificationFingerprint;
+    if (
+      expectedFingerprint !== undefined &&
+      (!/^[0-9a-f]{64}$/.test(expectedFingerprint) ||
+        stored.state.providers[definition.id].qualification
+          ?.fingerprint !== expectedFingerprint)
+    ) {
+      throw new ProviderLifecycleError(
+        "PROVIDER_QUALIFICATION_DRIFTED",
+        "Pi qualification changed after LeafRun authorization.",
       );
     }
     return runPiCandidate(definition, options, stored);

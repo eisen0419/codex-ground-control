@@ -45,7 +45,27 @@ function shellQuote(value) {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
-function piMessageEnd(provider, model, text) {
+const fixturePiUsage = {
+  input: 100,
+  output: 20,
+  cacheRead: 30,
+  cacheWrite: 10,
+  totalTokens: 160,
+  cost: {
+    input: 0.01,
+    output: 0.004,
+    cacheRead: 0.001,
+    cacheWrite: 0.001,
+    total: 0.016,
+  },
+};
+
+function piMessageEnd(
+  provider,
+  model,
+  text,
+  usage = fixturePiUsage,
+) {
   return JSON.stringify({
     type: "message_end",
     message: {
@@ -53,6 +73,7 @@ function piMessageEnd(provider, model, text) {
       provider,
       model,
       content: [{ type: "text", text }],
+      usage,
       stopReason: "stop",
     },
   });
@@ -2900,8 +2921,11 @@ test("qualified Pi profile returns candidate evidence through a fixed no-tools e
         )}`,
         "    ;;",
         "  *)",
-        "    printf '%s\\n' " +
-          `'{"schemaVersion":"1","profile":"pi-deepseek","provider":"deepseek","model":"deepseek-v4-pro","activity":"analysis","disposition":"candidate-evidence","completionAuthority":"codex-main","summary":"bounded analysis","findings":[],"suggestedChecks":["main Codex verifies"]}'`,
+        `    ${printPiMessageEnd(
+          "deepseek",
+          "deepseek-v4-pro",
+          '{"schemaVersion":"1","profile":"pi-deepseek","provider":"deepseek","model":"deepseek-v4-pro","activity":"analysis","disposition":"candidate-evidence","completionAuthority":"codex-main","summary":"bounded analysis","findings":[],"suggestedChecks":["main Codex verifies"]}',
+        )}`,
         "    ;;",
         "esac",
         "",
@@ -2961,6 +2985,20 @@ test("qualified Pi profile returns candidate evidence through a fixed no-tools e
     assert.equal(
       candidate.receipt.result.execution.terminalState,
       "succeeded",
+    );
+    assert.deepEqual(
+      candidate.receipt.result.execution.runtimeUsage,
+      {
+        schemaVersion: "1",
+        source: "pi-message-end",
+        status: "reported",
+        inputTokens: 100,
+        outputTokens: 20,
+        cacheReadTokens: 30,
+        cacheWriteTokens: 10,
+        totalTokens: 160,
+        cost: fixturePiUsage.cost,
+      },
     );
     assert.equal(
       candidate.receipt.result.candidate.disposition,
@@ -3114,7 +3152,7 @@ test("one Pi identity failure or profile drift leaves the other profiles and off
         "    ;;",
         "  *)",
         "    printf " +
-          `'{"schemaVersion":"1","profile":"%s","provider":"%s","model":"%s","activity":"analysis","disposition":"candidate-evidence","completionAuthority":"codex-main","summary":"candidate","findings":[],"suggestedChecks":[]}\\n' "$profile" "$provider" "$model"`,
+          `'{"type":"message_end","message":{"role":"assistant","provider":"%s","model":"%s","content":[{"type":"text","text":"{\\\\\\"schemaVersion\\\\\\":\\\\\\"1\\\\\\",\\\\\\"profile\\\\\\":\\\\\\"%s\\\\\\",\\\\\\"provider\\\\\\":\\\\\\"%s\\\\\\",\\\\\\"model\\\\\\":\\\\\\"%s\\\\\\",\\\\\\"activity\\\\\\":\\\\\\"analysis\\\\\\",\\\\\\"disposition\\\\\\":\\\\\\"candidate-evidence\\\\\\",\\\\\\"completionAuthority\\\\\\":\\\\\\"codex-main\\\\\\",\\\\\\"summary\\\\\\":\\\\\\"candidate\\\\\\",\\\\\\"findings\\\\\\":[],\\\\\\"suggestedChecks\\\\\\":[]}"}],"stopReason":"stop"}}\\n' "$provider" "$model" "$profile" "$provider" "$model"`,
         "    ;;",
         "esac",
         "",

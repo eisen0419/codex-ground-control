@@ -34,3 +34,18 @@ The upstream project is licensed under the MIT License:
 
 Ground Control for Codex is an independent community project. It is not
 affiliated with or endorsed by Matt Pocock or OpenAI.
+
+## App runtime dependencies
+
+The npm tarball bundles these direct runtime dependencies so the Codex App
+integration can be installed and qualified without a registry connection:
+
+- `@modelcontextprotocol/ext-apps@1.7.5` — MIT
+- `@modelcontextprotocol/sdk@1.29.0` — MIT
+- `zod@4.4.3` — MIT
+
+Their transitive runtime dependencies use MIT, ISC, BSD-2-Clause, or
+BSD-3-Clause licenses. Every bundled package retains its own `package.json`
+license declaration and license file under the tarball's `node_modules/`
+tree. Exact package versions and registry integrity hashes are recorded in
+`package-lock.json` in the source repository.

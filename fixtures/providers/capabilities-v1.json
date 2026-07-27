@@ -48,15 +48,8 @@
       "type": "object",
       "required": {
         "schemaVersion": "string",
-        "profile": "string",
-        "provider": "string",
-        "model": "string",
-        "activity": "string",
-        "disposition": "string",
-        "completionAuthority": "string",
-        "summary": "string",
-        "findings": "array",
-        "suggestedChecks": "array"
+        "candidate": "object",
+        "runtimeUsage": "object"
       },
       "additionalProperties": false
     },

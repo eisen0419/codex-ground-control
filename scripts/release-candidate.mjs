@@ -24,6 +24,9 @@ import {
   resolve,
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  evaluateNpmRegistryPackage,
+} from "../src/release-name-checks.js";
 import { inspectFile } from "../src/safe-files.js";
 
 const repositoryRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -51,12 +54,15 @@ const repositoryCommands = [
   ["npm", ["test"]],
 ];
 const expectedPackageFileRoots = new Set([
+  ".codex-plugin",
+  ".mcp.json",
   "LICENSE",
   "README.md",
   "THIRD_PARTY_NOTICES.md",
   "assets",
   "bin",
   "fixtures",
+  "node_modules",
   "package.json",
   "release-lock.json",
   "schemas",
@@ -344,7 +350,48 @@ function countPatternMatches(contents, patterns) {
   return matches;
 }
 
-function scanPackage(packageRoot, packedFiles) {
+function bundledPackageName(path) {
+  const parts = portablePath(path).split("/");
+  const nodeModulesIndex = parts.lastIndexOf("node_modules");
+  if (
+    nodeModulesIndex === -1 ||
+    parts.length <= nodeModulesIndex + 1
+  ) {
+    return null;
+  }
+  const first = parts[nodeModulesIndex + 1];
+  if (first.startsWith("@")) {
+    return parts.length > nodeModulesIndex + 2
+      ? `${first}/${parts[nodeModulesIndex + 2]}`
+      : null;
+  }
+  return first;
+}
+
+function bundledPackageDirectory(path) {
+  const parts = portablePath(path).split("/");
+  const nodeModulesIndex = parts.lastIndexOf("node_modules");
+  if (nodeModulesIndex === -1) {
+    return null;
+  }
+  const packageEnd =
+    parts[nodeModulesIndex + 1]?.startsWith("@")
+      ? nodeModulesIndex + 3
+      : nodeModulesIndex + 2;
+  if (
+    parts.length !== packageEnd + 1 ||
+    parts[packageEnd] !== "package.json"
+  ) {
+    return null;
+  }
+  return parts.slice(0, packageEnd).join("/");
+}
+
+function scanPackage(
+  packageRoot,
+  packedFiles,
+  bundledPackageNames,
+) {
   const sensitiveValues = Object.entries(process.env)
     .filter(
       ([name, value]) =>
@@ -359,11 +406,17 @@ function scanPackage(packageRoot, packedFiles) {
       ...dependency.assets.map((asset) => asset.sourcePath),
     ]),
   );
+  const declaredBundledPackages = new Set(
+    bundledPackageNames,
+  );
   let secretMatches = 0;
   let personalPathMatches = 0;
   let privateArtifactFiles = 0;
   let undeclaredThirdPartyFiles = 0;
   for (const { path } of packedFiles) {
+    const thirdPartyRuntime = path.startsWith(
+      "node_modules/",
+    );
     if (
       isAbsolute(path) ||
       portablePath(path).split("/").includes("..")
@@ -375,10 +428,19 @@ function scanPackage(packageRoot, packedFiles) {
     if (!expectedPackageFileRoots.has(topLevel)) {
       undeclaredThirdPartyFiles += 1;
     }
+    if (
+      thirdPartyRuntime &&
+      !declaredBundledPackages.has(
+        bundledPackageName(path),
+      )
+    ) {
+      undeclaredThirdPartyFiles += 1;
+    }
     if (path.startsWith("vendor/") && !declaredVendorFiles.has(path)) {
       undeclaredThirdPartyFiles += 1;
     }
     if (
+      !thirdPartyRuntime &&
       privateArtifactPathPatterns.some((pattern) =>
         pattern.test(portablePath(path))
       )
@@ -393,10 +455,12 @@ function scanPackage(packageRoot, packedFiles) {
       contents,
       encodedSecretPatterns,
     );
-    personalPathMatches += countPatternMatches(
-      contents,
-      personalPathPatterns,
-    );
+    if (!thirdPartyRuntime) {
+      personalPathMatches += countPatternMatches(
+        contents,
+        personalPathPatterns,
+      );
+    }
   }
   const status =
     secretMatches === 0 &&
@@ -415,12 +479,85 @@ function scanPackage(packageRoot, packedFiles) {
   };
 }
 
-function auditLicenses(packageRoot) {
-  const runtimeDependencies = [
+function auditLicenses(
+  packageRoot,
+  packedFiles,
+  bundledPackageNames,
+) {
+  const runtimeDependencyNames = [
     ...Object.keys(packageMetadata.dependencies ?? {}),
     ...Object.keys(packageMetadata.optionalDependencies ?? {}),
     ...Object.keys(packageMetadata.peerDependencies ?? {}),
-  ].length;
+  ];
+  const runtimeDependencies = runtimeDependencyNames.length;
+  const declaredBundles =
+    packageMetadata.bundleDependencies ??
+    packageMetadata.bundledDependencies ??
+    [];
+  const bundledNames = new Set(bundledPackageNames);
+  const packedPaths = packedFiles.map(({ path }) => path);
+  const allowedRuntimeLicenses = new Set([
+    "MIT",
+    "ISC",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+  ]);
+  const bundledPackages = [];
+  for (const packageJsonPath of packedPaths) {
+    const packageDirectory =
+      bundledPackageDirectory(packageJsonPath);
+    if (packageDirectory === null) {
+      continue;
+    }
+    const metadata = JSON.parse(
+      readFileSync(
+        join(packageRoot, packageJsonPath),
+        "utf8",
+      ),
+    );
+    const licenseFiles = packedPaths.filter((path) => {
+      if (!path.startsWith(`${packageDirectory}/`)) {
+        return false;
+      }
+      const relativePath = path.slice(
+        packageDirectory.length + 1,
+      );
+      return (
+        !relativePath.includes("/") &&
+        /^(?:licen[sc]e|copying)(?:[._-].*)?$/i.test(
+          relativePath,
+        )
+      );
+    });
+    bundledPackages.push({
+      name: metadata.name,
+      version: metadata.version,
+      license: metadata.license,
+      licenseFiles,
+    });
+  }
+  const bundledLicensesValid =
+    bundledPackages.length >= bundledNames.size &&
+    bundledPackages.every(
+      ({ name, version, license, licenseFiles }) =>
+        bundledNames.has(name) &&
+        typeof version === "string" &&
+        version !== "" &&
+        allowedRuntimeLicenses.has(license) &&
+        licenseFiles.length >= 1,
+    ) &&
+    [...bundledNames].every((name) =>
+      bundledPackages.some(
+        (dependency) => dependency.name === name,
+      )
+    );
+  const bundleContractValid =
+    declaredBundles.length === runtimeDependencies &&
+    runtimeDependencyNames.every(
+      (name) =>
+        declaredBundles.includes(name) &&
+        bundledNames.has(name),
+    );
   let declaredLicensesValid = true;
   const notices = readFileSync(
     join(packageRoot, "THIRD_PARTY_NOTICES.md"),
@@ -446,7 +583,8 @@ function auditLicenses(packageRoot) {
   const status =
     packageMetadata.license === "MIT" &&
       packageLicense.startsWith("MIT License") &&
-      runtimeDependencies === 0 &&
+      bundleContractValid &&
+      bundledLicensesValid &&
       declaredLicensesValid
       ? "passed"
       : "failed";
@@ -454,7 +592,16 @@ function auditLicenses(packageRoot) {
     status,
     packageLicense: packageMetadata.license,
     runtimeDependencies,
-    thirdPartyDependencies: releaseLock.dependencies.length,
+    bundleDependencies: declaredBundles.length,
+    bundledPackages: bundledPackages.length,
+    bundledLicenseFiles: bundledPackages.reduce(
+      (total, dependency) =>
+        total + dependency.licenseFiles.length,
+      0,
+    ),
+    thirdPartyDependencies:
+      releaseLock.dependencies.length +
+      bundledPackages.length,
     notices: "THIRD_PARTY_NOTICES.md",
   };
 }
@@ -922,29 +1069,22 @@ async function checkNames() {
   const packageName = encodeURIComponent(packageMetadata.name);
   let npm;
   try {
-    const response = await fetch(
+    const response = await fetchJson(
       `https://registry.npmjs.org/${packageName}`,
-      {
-        redirect: "error",
-        signal: AbortSignal.timeout(15_000),
-        headers: {
-          accept: "application/json",
-          "user-agent":
-            `${packageMetadata.name}/${packageMetadata.version}`,
-        },
-      },
     );
-    npm = {
-      checked: true,
-      available: response.status === 404,
-      httpStatus: response.status,
-    };
-    await response.body?.cancel();
+    npm = evaluateNpmRegistryPackage(
+      response,
+      packageMetadata,
+    );
   } catch {
     npm = {
       checked: false,
-      available: null,
+      packageExists: null,
+      targetVersionAvailable: null,
       httpStatus: null,
+      latest: null,
+      existingVersions: [],
+      maintainers: [],
     };
   }
   let github;
@@ -1083,8 +1223,12 @@ function reportLimitations(
         ? "name-availability-checks-not-run"
         : "name-availability-checks-incomplete",
     );
-  } else if (nameChecks.npm.available !== true) {
-    limitations.push("npm-package-name-unavailable");
+  } else if (
+    nameChecks.npm.targetVersionAvailable !== true
+  ) {
+    limitations.push(
+      "npm-package-version-already-published",
+    );
   }
   limitations.push(
     "native-agent-execution-blocked",
@@ -1172,8 +1316,13 @@ async function main() {
     const packageScan = scanPackage(
       packageRoot,
       firstPack.metadata.files,
+      firstPack.metadata.bundled,
     );
-    const licenses = auditLicenses(packageRoot);
+    const licenses = auditLicenses(
+      packageRoot,
+      firstPack.metadata.files,
+      firstPack.metadata.bundled,
+    );
     const packageReport = {
       filename: firstPack.metadata.filename,
       bytes: statSync(candidateTarball).size,

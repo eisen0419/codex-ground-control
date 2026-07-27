@@ -2,6 +2,21 @@
   "name": "codex-ground-control",
   "version": "0.2.0",
   "description": "An App-native, local-first, fail-closed workflow control plane for Codex.",
+  "homepage": "https://eisen0419.github.io/codex-ground-control/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eisen0419/codex-ground-control.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eisen0419/codex-ground-control/issues"
+  },
+  "keywords": [
+    "codex",
+    "chatgpt",
+    "mcp-app",
+    "multi-agent",
+    "pi"
+  ],
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -10,6 +25,8 @@
     "codex-ground-control": "bin/codex-ground-control.js"
   },
   "files": [
+    ".codex-plugin",
+    ".mcp.json",
     "assets",
     "bin",
     "fixtures",
@@ -27,7 +44,20 @@
     "release-lock:verify": "node scripts/release-lock.mjs",
     "test": "node --test --test-reporter=spec tests/*.test.mjs",
     "test:tracer": "node --test --test-reporter=spec tests/tracer-bullet.test.mjs",
-    "typecheck": "node --check bin/codex-ground-control.js && node --check fixtures/providers/agy-research-adapter.mjs && node --check fixtures/providers/agy-source-verifier.mjs && node --check fixtures/providers/grok-research-adapter.mjs && node --check fixtures/providers/pi-leaf-adapter.mjs && node --check fixtures/providers/probe-adapter.mjs && node --check scripts/release-candidate.mjs && node --check src/cli.js && node --check src/doctor.js && node --check src/fleet-runner.js && node --check src/fleet-runner-worker.js && node --check src/global-workflow.js && node --check src/managed-workflow.js && node --check src/project-state.js && node --check src/provider-lifecycle.js && node --check src/qualification-contract.js && node --check src/qualification-lab.js && node --check src/safe-files.js && node --check src/workflow-assets.js && node --check src/workflow-error.js"
+    "typecheck": "node --check bin/codex-ground-control.js && node --check fixtures/providers/agy-research-adapter.mjs && node --check fixtures/providers/agy-source-verifier.mjs && node --check fixtures/providers/grok-research-adapter.mjs && node --check fixtures/providers/pi-leaf-adapter.mjs && node --check fixtures/providers/probe-adapter.mjs && node --check scripts/release-candidate.mjs && node --check src/cli.js && node --check src/doctor.js && node --check src/fleet-runner.js && node --check src/fleet-runner-worker.js && node --check src/global-workflow.js && node --check src/leaf-run.js && node --check src/leaf-run-worker-core.js && node --check src/leaf-run-worker.js && node --check src/managed-workflow.js && node --check src/mcp-app-server.js && node --check src/project-state.js && node --check src/provider-lifecycle.js && node --check src/qualification-contract.js && node --check src/qualification-lab.js && node --check src/release-name-checks.js && node --check src/safe-files.js && node --check src/workflow-assets.js && node --check src/workflow-error.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.5",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.4.3"
+  },
+  "bundleDependencies": [
+    "@modelcontextprotocol/ext-apps",
+    "@modelcontextprotocol/sdk",
+    "zod"
+  ],
+  "overrides": {
+    "@hono/node-server": "2.0.12"
   },
   "license": "MIT"
 }

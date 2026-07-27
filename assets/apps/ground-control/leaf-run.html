@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
+    <!-- text/html;profile=mcp-app -->
+    <title>Ground Control Pi 叶节点</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 14px;
+        color: var(--color-text-primary, #e8eefc);
+        background: var(--color-background-primary, #081426);
+      }
+
+      main {
+        border: 1px solid var(--color-border-secondary, #234266);
+        border-radius: var(--border-radius-lg, 14px);
+        background:
+          radial-gradient(circle at top right, #12345a 0, transparent 38%),
+          var(--color-background-secondary, #0c1a2e);
+        overflow: hidden;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px 12px;
+        border-bottom: 1px solid var(--color-border-secondary, #234266);
+      }
+
+      h1,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 15px;
+        letter-spacing: 0.01em;
+      }
+
+      .eyebrow {
+        margin-bottom: 5px;
+        color: var(--color-text-info, #63d7ff);
+        font: 700 10px/1 var(--font-mono, ui-monospace, monospace);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .badge {
+        min-width: 72px;
+        padding: 6px 10px;
+        border: 1px solid #2f6f98;
+        border-radius: 999px;
+        color: #87e8ff;
+        background: #0c2a42;
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .content {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1px;
+        background: var(--color-border-secondary, #234266);
+      }
+
+      .metric {
+        min-height: 72px;
+        padding: 13px 18px;
+        background: var(--color-background-secondary, #0c1a2e);
+      }
+
+      .label {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--color-text-secondary, #95a7c2);
+        font-size: 11px;
+      }
+
+      .value {
+        display: block;
+        overflow-wrap: anywhere;
+        font: 600 13px/1.45 var(--font-mono, ui-monospace, monospace);
+      }
+
+      footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 13px 18px 16px;
+      }
+
+      .note {
+        color: var(--color-text-secondary, #95a7c2);
+        font-size: 11px;
+        line-height: 1.45;
+      }
+
+      button {
+        border: 1px solid #39bcea;
+        border-radius: 9px;
+        padding: 8px 13px;
+        color: #03121d;
+        background: #75ddff;
+        font: 700 12px/1 var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.48;
+        cursor: not-allowed;
+      }
+
+      @media (max-width: 520px) {
+        .content {
+          grid-template-columns: 1fr;
+        }
+
+        footer {
+          align-items: stretch;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main aria-live="polite">
+      <header>
+        <div>
+          <p class="eyebrow" id="eyebrow">Ground Control · Pi 叶节点</p>
+          <h1 id="title">等待准备 LeafRun</h1>
+        </div>
+        <span class="badge" id="state">就绪</span>
+      </header>
+      <section class="content">
+        <div class="metric">
+          <span class="label" id="profile-label">配置 / 活动</span>
+          <span class="value" id="profile">—</span>
+        </div>
+        <div class="metric">
+          <span class="label" id="stage-label">阶段</span>
+          <span class="value" id="stage">等待意图</span>
+        </div>
+        <div class="metric">
+          <span class="label" id="duration-label">时长</span>
+          <span class="value" id="duration">—</span>
+        </div>
+        <div class="metric">
+          <span class="label" id="usage-label">运行用量</span>
+          <span class="value" id="usage">未知</span>
+        </div>
+        <div class="metric">
+          <span class="label" id="receipt-label">证据回执</span>
+          <span class="value" id="receipt">不可用</span>
+        </div>
+      </section>
+      <footer>
+        <p class="note" id="note">
+          访问 live Provider 前，Codex 会应用你的 plugin 权限设置。
+        </p>
+        <button id="start" type="button" disabled>
+          使用 Codex 权限启动
+        </button>
+      </footer>
+    </main>
+    <script>
+      (() => {
+        "use strict";
+
+        const COPY = {
+          "en-US": {
+            documentTitle: "Ground Control Pi Leaf",
+            eyebrow: "Ground Control · Pi Leaf",
+            initialTitle: "Waiting for a prepared LeafRun",
+            ready: "Ready",
+            profileLabel: "Profile / activity",
+            stageLabel: "Stage",
+            durationLabel: "Duration",
+            usageLabel: "Runtime usage",
+            receiptLabel: "Evidence receipt",
+            awaitingIntent: "Awaiting intent",
+            unknown: "Unknown",
+            unavailable: "Not available",
+            permissionNote:
+              "Codex applies your plugin permission setting before live provider access.",
+            startWithPermissions: "Start with Codex permissions",
+            usageUnknown: "Unknown (not estimated)",
+            selfTestTitle: "App surface self-test",
+            verified: "Verified",
+            blocked: "Blocked",
+            offlineNoProvider: "Offline / no Provider",
+            notApplicable: "Not applicable",
+            providerStartsZero: "Provider starts: 0",
+            selfTestPassedNote:
+              "The real widget and host elicitation responded. No live authorization was granted.",
+            selfTestBlockedFallback: "Self-test blocked",
+            selfTestIsolationHeld:
+              "Isolation held with zero Pi, Provider, worker, and network starts.",
+            repeatSelfTest: "Repeat isolated self-test",
+            working: "Working",
+            done: "Done",
+            intent: "Intent",
+            preparedNote:
+              "Codex will apply your Ground Control permission setting before provider network access.",
+            runningNote:
+              "Pi is running behind Ground Control. Codex remains the completion authority.",
+            terminalNote:
+              "Terminal evidence is available for Codex review.",
+            waitingForElicitation:
+              "Waiting for isolated host elicitation…",
+            selfTestIncomplete:
+              "The isolated App surface check did not complete.",
+            applyingPermissions: "Applying Codex permissions…",
+            startIncomplete:
+              "Codex permission or start request did not complete.",
+            activities: {
+              analysis: "analysis",
+              exploration: "exploration",
+              testing: "testing",
+              review: "review",
+            },
+            stages: {
+              "awaiting-authorization": "Awaiting authorization",
+              "provider-execution": "Provider execution",
+              "evidence-ready": "Evidence ready",
+              "host-elicitation-accepted":
+                "Host elicitation accepted",
+              "host-confirmation-not-affirmed":
+                "Host confirmation not affirmed",
+              "host-elicitation-declined":
+                "Host elicitation declined",
+              "host-elicitation-cancelled":
+                "Host elicitation cancelled",
+              "host-elicitation-unavailable":
+                "Host elicitation unavailable",
+              "host-elicitation-error":
+                "Host elicitation error",
+            },
+          },
+          "zh-CN": {
+            documentTitle: "Ground Control Pi 叶节点",
+            eyebrow: "Ground Control · Pi 叶节点",
+            initialTitle: "等待准备 LeafRun",
+            ready: "就绪",
+            profileLabel: "配置 / 活动",
+            stageLabel: "阶段",
+            durationLabel: "时长",
+            usageLabel: "运行用量",
+            receiptLabel: "证据回执",
+            awaitingIntent: "等待意图",
+            unknown: "未知",
+            unavailable: "不可用",
+            permissionNote:
+              "访问 live Provider 前，Codex 会应用你的 plugin 权限设置。",
+            startWithPermissions: "使用 Codex 权限启动",
+            usageUnknown: "未知（未估算）",
+            selfTestTitle: "App 界面隔离自检",
+            verified: "已验证",
+            blocked: "已阻止",
+            offlineNoProvider: "离线 / 未启用 Provider",
+            notApplicable: "不适用",
+            providerStartsZero: "Provider 启动：0",
+            selfTestPassedNote:
+              "真实 widget 与 Host 输入确认均已响应，未授予 live 权限。",
+            selfTestBlockedFallback: "隔离自检已阻止",
+            selfTestIsolationHeld:
+              "隔离仍成立：Pi、Provider、worker 和网络启动均为 0。",
+            repeatSelfTest: "重新运行隔离自检",
+            working: "运行中",
+            done: "已结束",
+            intent: "意图",
+            preparedNote:
+              "访问 Provider 网络前，Codex 会应用你的 Ground Control 权限设置。",
+            runningNote:
+              "Pi 正在 Ground Control 边界内运行，Codex 仍是唯一完成权威。",
+            terminalNote:
+              "终态证据已可供 Codex 审查。",
+            waitingForElicitation:
+              "正在等待隔离 Host 确认…",
+            selfTestIncomplete:
+              "隔离 App 界面检查未完成。",
+            applyingPermissions: "正在应用 Codex 权限…",
+            startIncomplete:
+              "Codex 权限或启动请求未完成。",
+            activities: {
+              analysis: "分析",
+              exploration: "探索",
+              testing: "测试",
+              review: "审查",
+            },
+            stages: {
+              "awaiting-authorization": "等待授权",
+              "provider-execution": "Provider 执行中",
+              "evidence-ready": "证据已就绪",
+              "host-elicitation-accepted":
+                "Host 确认已接受",
+              "host-confirmation-not-affirmed":
+                "Host 确认未勾选",
+              "host-elicitation-declined":
+                "Host 确认已拒绝",
+              "host-elicitation-cancelled":
+                "Host 确认已取消",
+              "host-elicitation-unavailable":
+                "Host 确认不可用",
+              "host-elicitation-error":
+                "Host 确认出错",
+            },
+          },
+        };
+
+        function normalizeLocale(locale) {
+          return typeof locale === "string" &&
+            /^zh(?:[-_]|$)/i.test(locale)
+            ? "zh-CN"
+            : "en-US";
+        }
+
+        let currentLocale = normalizeLocale(
+          (window.openai && window.openai.locale) ||
+            navigator.language ||
+            "zh-CN",
+        );
+
+        const elements = {
+          eyebrow: document.getElementById("eyebrow"),
+          title: document.getElementById("title"),
+          state: document.getElementById("state"),
+          profileLabel:
+            document.getElementById("profile-label"),
+          profile: document.getElementById("profile"),
+          stageLabel: document.getElementById("stage-label"),
+          stage: document.getElementById("stage"),
+          durationLabel:
+            document.getElementById("duration-label"),
+          duration: document.getElementById("duration"),
+          usageLabel: document.getElementById("usage-label"),
+          usage: document.getElementById("usage"),
+          receiptLabel:
+            document.getElementById("receipt-label"),
+          receipt: document.getElementById("receipt"),
+          note: document.getElementById("note"),
+          start: document.getElementById("start"),
+        };
+        const pending = new Map();
+        let requestId = 0;
+        let bridgeReady = false;
+        let bridgeServerToolsAvailable = false;
+        let current = null;
+        let privateLeafRun = null;
+        let surfaceSelfTest = null;
+        let pollTimer = null;
+        let clockTimer = null;
+        let resizeObserver = null;
+        let resizeScheduled = false;
+        let lastWidth = 0;
+        let lastHeight = 0;
+
+        function copy() {
+          return COPY[currentLocale];
+        }
+
+        function formatActivity(activity) {
+          return copy().activities[activity] || activity;
+        }
+
+        function formatStage(stage) {
+          if (!stage) {
+            return copy().unknown;
+          }
+          return copy().stages[stage] || stage;
+        }
+
+        function applyStaticCopy() {
+          const localized = copy();
+          document.documentElement.lang = currentLocale;
+          document.title = localized.documentTitle;
+          elements.eyebrow.textContent = localized.eyebrow;
+          elements.profileLabel.textContent =
+            localized.profileLabel;
+          elements.stageLabel.textContent =
+            localized.stageLabel;
+          elements.durationLabel.textContent =
+            localized.durationLabel;
+          elements.usageLabel.textContent =
+            localized.usageLabel;
+          elements.receiptLabel.textContent =
+            localized.receiptLabel;
+          if (!current && !surfaceSelfTest) {
+            elements.title.textContent =
+              localized.initialTitle;
+            elements.state.textContent = localized.ready;
+            elements.stage.textContent =
+              localized.awaitingIntent;
+            elements.usage.textContent = localized.unknown;
+            elements.receipt.textContent =
+              localized.unavailable;
+            elements.note.textContent =
+              localized.permissionNote;
+            elements.start.textContent =
+              localized.startWithPermissions;
+          }
+        }
+
+        function setLocale(locale) {
+          currentLocale = normalizeLocale(locale);
+          applyStaticCopy();
+          render();
+          scheduleSizeChanged();
+        }
+
+        function post(message) {
+          window.parent.postMessage(message, "*");
+        }
+
+        function scheduleSizeChanged() {
+          if (!bridgeReady || resizeScheduled) {
+            return;
+          }
+          resizeScheduled = true;
+          window.requestAnimationFrame(() => {
+            resizeScheduled = false;
+            const root = document.documentElement;
+            const previousHeight = root.style.height;
+            root.style.height = "max-content";
+            const height = Math.ceil(
+              root.getBoundingClientRect().height,
+            );
+            root.style.height = previousHeight;
+            const width = Math.ceil(window.innerWidth);
+            if (width === lastWidth && height === lastHeight) {
+              return;
+            }
+            lastWidth = width;
+            lastHeight = height;
+            post({
+              jsonrpc: "2.0",
+              method: "ui/notifications/size-changed",
+              params: { width, height },
+            });
+          });
+        }
+
+        function startSizeNotifications() {
+          scheduleSizeChanged();
+          if (typeof ResizeObserver === "function") {
+            resizeObserver = new ResizeObserver(
+              scheduleSizeChanged,
+            );
+            resizeObserver.observe(document.documentElement);
+            resizeObserver.observe(document.body);
+          }
+          window.addEventListener(
+            "resize",
+            scheduleSizeChanged,
+          );
+        }
+
+        function request(method, params) {
+          const id = ++requestId;
+          post({ jsonrpc: "2.0", id, method, params });
+          return new Promise((resolve, reject) => {
+            pending.set(id, { resolve, reject });
+            window.setTimeout(() => {
+              if (pending.delete(id)) {
+                reject(new Error("MCP App request timed out."));
+              }
+            }, 60000);
+          });
+        }
+
+        async function callTool(name, args) {
+          if (
+            bridgeReady &&
+            bridgeServerToolsAvailable
+          ) {
+            return request("tools/call", {
+              name,
+              arguments: args,
+            });
+          }
+          if (window.openai && typeof window.openai.callTool === "function") {
+            return window.openai.callTool(name, args);
+          }
+          return request("tools/call", {
+            name,
+            arguments: args,
+          });
+        }
+
+        function formatDuration(state) {
+          if (typeof state.durationMs === "number") {
+            const seconds =
+              (state.durationMs / 1000).toFixed(1);
+            return currentLocale === "zh-CN"
+              ? `${seconds} 秒`
+              : `${seconds} s`;
+          }
+          if (state.startedAt) {
+            const elapsed = Math.max(0, Date.now() - Date.parse(state.startedAt));
+            const seconds = (elapsed / 1000).toFixed(1);
+            return currentLocale === "zh-CN"
+              ? `${seconds} 秒`
+              : `${seconds} s`;
+          }
+          return "—";
+        }
+
+        function formatUsage(usage) {
+          if (!usage || usage.status !== "reported") {
+            return copy().usageUnknown;
+          }
+          return currentLocale === "zh-CN"
+            ? `${usage.totalTokens} 个 token`
+            : `${usage.totalTokens} tokens`;
+        }
+
+        function terminal(state) {
+          return ["passed", "failed", "blocked"].includes(state);
+        }
+
+        function renderSurfaceSelfTest() {
+          const passed = surfaceSelfTest.state === "passed";
+          const localized = copy();
+          elements.title.textContent =
+            localized.selfTestTitle;
+          elements.state.textContent = passed
+            ? localized.verified
+            : localized.blocked;
+          elements.profile.textContent =
+            localized.offlineNoProvider;
+          elements.stage.textContent =
+            formatStage(surfaceSelfTest.stage);
+          elements.duration.textContent =
+            localized.notApplicable;
+          elements.usage.textContent =
+            localized.notApplicable;
+          elements.receipt.textContent =
+            localized.providerStartsZero;
+          elements.note.textContent = passed
+            ? localized.selfTestPassedNote
+            : currentLocale === "zh-CN"
+              ? `${formatStage(
+                  surfaceSelfTest.reason ||
+                    localized.selfTestBlockedFallback,
+                )}。${localized.selfTestIsolationHeld}`
+              : `${formatStage(
+                  surfaceSelfTest.reason ||
+                    localized.selfTestBlockedFallback,
+                )}. ${localized.selfTestIsolationHeld}`;
+          elements.start.textContent =
+            localized.repeatSelfTest;
+          elements.start.disabled = false;
+        }
+
+        function render() {
+          if (surfaceSelfTest) {
+            renderSurfaceSelfTest();
+            return;
+          }
+          if (!current) {
+            return;
+          }
+          const stateLabel =
+            current.state === "running"
+              ? copy().working
+              : terminal(current.state)
+                ? copy().done
+                : copy().ready;
+          elements.title.textContent =
+            current.intentId
+              ? `${copy().intent} ${current.intentId.slice(0, 8)}`
+              : "Pi Leaf";
+          elements.state.textContent = stateLabel;
+          elements.profile.textContent =
+            `${current.profile} / ${formatActivity(current.activity)}`;
+          elements.stage.textContent =
+            formatStage(current.stage);
+          elements.duration.textContent = formatDuration(current);
+          elements.usage.textContent = formatUsage(current.runtimeUsage);
+          elements.receipt.textContent =
+            current.receipt || copy().unavailable;
+          elements.note.textContent =
+            current.reason ||
+            (current.state === "prepared"
+              ? copy().preparedNote
+              : current.state === "running"
+                ? copy().runningNote
+                : copy().terminalNote);
+          elements.start.textContent =
+            copy().startWithPermissions;
+          elements.start.disabled =
+            current.state !== "prepared" ||
+            !privateLeafRun;
+        }
+
+        async function refresh() {
+          if (!privateLeafRun || !current) {
+            return;
+          }
+          const result = await callTool("get_leaf_run", {
+            projectRoot: privateLeafRun.projectRoot,
+            intentId: current.intentId,
+          });
+          acceptToolResult(result);
+          if (current && terminal(current.state) && pollTimer) {
+            window.clearInterval(pollTimer);
+            pollTimer = null;
+          }
+        }
+
+        function acceptToolResult(result) {
+          if (!result) {
+            return;
+          }
+          const payload = result.structuredContent || result;
+          if (
+            payload &&
+            payload.kind === "app-surface-self-test" &&
+            payload.state
+          ) {
+            surfaceSelfTest = payload;
+            current = null;
+            privateLeafRun = null;
+            if (pollTimer) {
+              window.clearInterval(pollTimer);
+              pollTimer = null;
+            }
+          } else if (payload && payload.intentId && payload.state) {
+            surfaceSelfTest = null;
+            current = payload;
+          }
+          const hidden = result._meta && result._meta.leafRun;
+          if (hidden) {
+            privateLeafRun = hidden;
+          }
+          render();
+          if (current && current.state === "running" && !pollTimer) {
+            pollTimer = window.setInterval(() => {
+              refresh().catch(() => {});
+            }, 1500);
+          }
+        }
+
+        elements.start.addEventListener("click", async () => {
+          if (surfaceSelfTest) {
+            elements.start.disabled = true;
+            elements.note.textContent =
+              copy().waitingForElicitation;
+            try {
+              const result = await callTool(
+                "qualify_app_surface",
+                { locale: currentLocale },
+              );
+              acceptToolResult(result);
+            } catch {
+              elements.note.textContent =
+                copy().selfTestIncomplete;
+              elements.start.disabled = false;
+            }
+            return;
+          }
+          if (!privateLeafRun || !current) {
+            return;
+          }
+          elements.start.disabled = true;
+          elements.note.textContent =
+            copy().applyingPermissions;
+          try {
+            const result = await callTool("start_leaf_run", {
+              projectRoot: privateLeafRun.projectRoot,
+              intentId: current.intentId,
+              brief: privateLeafRun.brief,
+            });
+            acceptToolResult(result);
+          } catch {
+            elements.note.textContent =
+              copy().startIncomplete;
+            render();
+          }
+        });
+
+        window.addEventListener("message", (event) => {
+          if (event.source !== window.parent) {
+            return;
+          }
+          const message = event.data;
+          if (!message || message.jsonrpc !== "2.0") {
+            return;
+          }
+          if (message.id && pending.has(message.id)) {
+            const entry = pending.get(message.id);
+            pending.delete(message.id);
+            if (message.error) {
+              entry.reject(new Error(message.error.message));
+            } else {
+              entry.resolve(message.result);
+            }
+            return;
+          }
+          if (
+            message.method ===
+              "ui/notifications/host-context-changed" &&
+            message.params?.locale
+          ) {
+            setLocale(message.params.locale);
+            return;
+          }
+          if (message.method === "ui/notifications/tool-result") {
+            acceptToolResult(message.params);
+          }
+        });
+
+        function handleOpenAiGlobals(event) {
+          const locale = event.detail?.globals?.locale;
+          if (locale) {
+            setLocale(locale);
+          }
+        }
+
+        window.addEventListener(
+          "openai:set_globals",
+          handleOpenAiGlobals,
+        );
+        clockTimer = window.setInterval(render, 500);
+        window.addEventListener("pagehide", () => {
+          window.clearInterval(clockTimer);
+          if (pollTimer) {
+            window.clearInterval(pollTimer);
+          }
+          if (resizeObserver) {
+            resizeObserver.disconnect();
+          }
+          window.removeEventListener(
+            "resize",
+            scheduleSizeChanged,
+          );
+          window.removeEventListener(
+            "openai:set_globals",
+            handleOpenAiGlobals,
+          );
+        });
+
+        applyStaticCopy();
+        if (window.openai && window.openai.toolOutput) {
+          acceptToolResult(window.openai.toolOutput);
+        }
+        request("ui/initialize", {
+          appInfo: {
+            name: "codex-ground-control",
+            version: "0.2.0",
+          },
+          appCapabilities: {},
+          protocolVersion: "2026-01-26",
+        })
+          .then((result) => {
+            bridgeServerToolsAvailable = Boolean(
+              result?.hostCapabilities?.serverTools,
+            );
+            setLocale(
+              result?.hostContext?.locale ||
+                (window.openai &&
+                  window.openai.locale) ||
+                currentLocale,
+            );
+            bridgeReady = true;
+            post({
+              jsonrpc: "2.0",
+              method: "ui/notifications/initialized",
+              params: {},
+            });
+            startSizeNotifications();
+          })
+          .catch(() => {});
+      })();
+    </script>
+  </body>
+</html>

@@ -47,13 +47,68 @@ CLI runtime behind this skill.
    npx --yes codex-ground-control@0.2.0 qualify --json
    ```
 
-5. Route optional Provider work through `multi-agent-router`. Provider detection,
+5. Route optional Provider work through `multi-agent-router`. For a visible Pi
+   run, prefer the packaged MCP App flow described below. Provider detection,
    credentials, or an enabled preference never imply qualification or
-   authorization.
+   authorization. Codex native plugin permissions are the user-facing
+   authorization policy for App tool calls.
 6. Read Provider status in this order:
    `detected → authenticated → enabled → qualified → current → run-authorized`.
    Treat `authenticated: null` as a truthful unavailable presence probe, not a
    pass. Do not infer `run-authorized` from any earlier stage.
+
+## App surface self-test
+
+Use the isolated App check before any live Pi qualification when the user wants
+to verify plugin loading, the real widget, or host elicitation:
+
+1. Call `qualify_app_surface` with no arguments. It must not resolve a Provider
+   qualification, create a production `LeafRunIntent`, start a worker, access
+   the network, or translate the result into `--allow-live`.
+2. Let the host present the elicitation form and let the returned production
+   widget show the isolated outcome. The card may repeat this same tool call.
+3. Treat accept, decline, cancel, missing elicitation support, and host errors
+   as self-test outcomes only. Every outcome must keep Provider, worker, and
+   network start counts at zero.
+4. Report a pass only for the MCP App widget/host transaction that was actually
+   observed. Do not infer Pi qualification, native reviewer qualification, or
+   pixel-level rendering that the user did not observe.
+
+## Visible Pi LeafRun
+
+Use the App card for `pi-glm`, `pi-deepseek`, and `pi-minimax` when the user
+would benefit from seeing a bounded leaf run in the current task:
+
+1. Call `prepare_leaf_run` with the App-selected checkout, fixed profile,
+   supported activity, and bounded brief. Preparation must not start Pi.
+2. Let the returned MCP App card show `Ready`. Do not call the app-only
+   `start_leaf_run` tool on the user's behalf.
+3. When the user chooses **Start with Codex permissions**, let Codex apply the
+   user's native Ground Control permission setting before it dispatches the
+   app-only `start_leaf_run` tool. Ground Control must not issue a second
+   elicitation. A host denial means no start call is dispatched; expiry, brief
+   mismatch, or qualification drift still fails closed before any Provider
+   process starts.
+4. Let the card poll `get_leaf_run` and show `Working` or `Done`, elapsed time,
+   exact `RuntimeUsage v1` when Pi reports it, and the evidence receipt. Missing
+   usage is `unknown` and is never estimated.
+5. Treat the card as an interactive status surface, not a native Codex
+   sub-agent thread. `codex-main` still reviews the candidate evidence and
+   decides completion.
+
+The MCP App server may translate only a Codex host-dispatched
+`start_leaf_run` call into the internal CLI/runtime `--allow-live` flag for
+that run. It must not persist, override, or imitate the user's Codex permission
+setting, and the internal flag is not reusable authorization. If the MCP App
+is unavailable, stay fail-closed and report that visible LeafRun execution is
+unavailable; do not silently fall back to a live CLI call.
+
+The supported trust boundary is the local plugin installed in Codex. App-only
+visibility and permission dispatch are host-enforced; the MCP transport does
+not give the stdio server a signed host-approval receipt. Treat direct calls
+from another local MCP client as unsupported, never as a stronger OS privilege
+boundary. Runtime qualification, intent, drift, and idempotency checks remain
+server-enforced.
 
 ## Provider authentication
 
@@ -73,8 +128,9 @@ CLI runtime behind this skill.
 - `codex-main` remains the only coordinator, workspace writer, and completion
   authority.
 - Provider operations require their own current qualification and gate.
-- Live Provider execution additionally requires explicit user intent and
-  `--allow-live`.
+- Live Provider execution additionally requires explicit user intent, a
+  `start_leaf_run` call allowed by Codex native plugin permissions, and the
+  internal per-run `--allow-live` boundary.
 - Treat every Provider result as candidate evidence and verify it before use.
 - Global installation, Git writes, publication, and other external mutations
   require their own explicit authorization.

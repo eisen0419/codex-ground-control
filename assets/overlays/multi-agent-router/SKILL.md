@@ -37,6 +37,14 @@ bounded `analysis`, `exploration`, `testing`, or `review` brief through:
 codex-ground-control provider run <pi-profile> <activity> "<bounded brief>" --allow-live
 ```
 
+Inside the Codex App, prefer the Ground Control MCP App sequence
+`prepare_leaf_run → start_leaf_run → get_leaf_run`. The CLI command above is
+the internal execution layer after Codex native plugin permissions allow the
+app-only start call, not a second user-facing control plane. Ground Control
+must not add its own elicitation or persist a reusable permission. Never
+substitute model text, Provider detection, or prior qualification for the
+host-governed start call.
+
 Pass only the selected input text, never a workspace path or extra Pi
 arguments. The receipt must report `candidate-evidence`,
 `completionAuthority=codex-main`, a current fingerprint, and an evidence

@@ -13,10 +13,91 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import {
+  evaluateNpmRegistryPackage,
+} from "../src/release-name-checks.js";
 
 const repositoryRoot = new URL("..", import.meta.url);
 
-test("public docs describe the App-native contract and preserve the audited release history", () => {
+test("npm release name check accepts an existing package only when the target version is new", () => {
+  const existing = evaluateNpmRegistryPackage(
+    {
+      status: 200,
+      body: {
+        name: "codex-ground-control",
+        versions: {
+          "0.1.0": {},
+        },
+        "dist-tags": {
+          latest: "0.1.0",
+        },
+        maintainers: [
+          {
+            name: "eisen0419",
+            email: "eisen0419@example.test",
+          },
+        ],
+      },
+    },
+    {
+      name: "codex-ground-control",
+      version: "0.2.0",
+    },
+  );
+  assert.deepEqual(existing, {
+    checked: true,
+    packageExists: true,
+    targetVersionAvailable: true,
+    httpStatus: 200,
+    latest: "0.1.0",
+    existingVersions: ["0.1.0"],
+    maintainers: ["eisen0419"],
+  });
+
+  assert.equal(
+    evaluateNpmRegistryPackage(
+      {
+        status: 200,
+        body: {
+          name: "codex-ground-control",
+          versions: {
+            "0.1.0": {},
+            "0.2.0": {},
+          },
+        },
+      },
+      {
+        name: "codex-ground-control",
+        version: "0.2.0",
+      },
+    ).targetVersionAvailable,
+    false,
+  );
+
+  assert.deepEqual(
+    evaluateNpmRegistryPackage(
+      {
+        status: 404,
+        body: null,
+      },
+      {
+        name: "codex-ground-control",
+        version: "0.2.0",
+      },
+    ),
+    {
+      checked: true,
+      packageExists: false,
+      targetVersionAvailable: true,
+      httpStatus: 404,
+      latest: null,
+      existingVersions: [],
+      maintainers: [],
+    },
+  );
+});
+
+test("public docs describe the App-native v0.2 release and preserve the audited v0.1 history", () => {
   const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
   const readmeZh = readFileSync(
     new URL("../docs/readme/README.zh-CN.md", import.meta.url),
@@ -65,11 +146,24 @@ test("public docs describe the App-native contract and preserve the audited rele
   );
   assert.match(
     readme,
-    /latest published release: v0\.1\.0/i,
+    /latest published release: v0\.2\.0/i,
+  );
+  assert.match(
+    readme,
+    /npx --yes codex-ground-control@0\.2\.0 init --dry-run/,
   );
   assert.match(
     readmeZh,
     /不需要单独安装 Codex CLI/,
+  );
+  assert.match(readmeZh, /最新正式版：v0\.2\.0/);
+  assert.doesNotMatch(
+    readme,
+    /unreleased development target/i,
+  );
+  assert.doesNotMatch(
+    readmeZh,
+    /尚未发布的开发目标/,
   );
   assert.match(
     readme,
@@ -93,6 +187,40 @@ test("public docs describe the App-native contract and preserve the audited rele
     );
   }
   assert.match(appNativeContract, /ProviderRuntimeProfile\/Auth/);
+  assert.match(appNativeContract, /LeafRunIntent v1/);
+  assert.match(appNativeContract, /LeafRunEvent v1/);
+  assert.match(appNativeContract, /RuntimeUsage v1/);
+  assert.match(
+    appNativeContract,
+    /native plugin\s+permission setting[\s\S]*Provider process/i,
+  );
+  assert.match(
+    groundControlSkill,
+    /prepare_leaf_run[\s\S]*start_leaf_run[\s\S]*get_leaf_run/i,
+  );
+  assert.match(
+    readme,
+    /qualify_app_surface[\s\S]*zero Provider starts/i,
+  );
+  assert.match(
+    readmeZh,
+    /qualify_app_surface[\s\S]*Provider 启动数为 `0`/,
+  );
+  assert.match(
+    groundControlSkill,
+    /qualify_app_surface[\s\S]*must not[\s\S]*Provider/i,
+  );
+  assert.match(
+    appNativeContract,
+    /APP-19[\s\S]*qualify_app_surface[\s\S]*zero Provider/i,
+  );
+  for (const document of [readme, readmeZh]) {
+    assert.match(document, /MCP App/i);
+    assert.match(
+      document,
+      /unknown[\s\S]*(?:never estimated|不估算)/i,
+    );
+  }
   assert.match(
     appNativeContract,
     /AGY[\s\S]*system keyring/i,
@@ -103,15 +231,17 @@ test("public docs describe the App-native contract and preserve the audited rele
   );
   assert.deepEqual(
     architecture.connections
-      .slice(0, 7)
+      .slice(0, 9)
       .map(({ from, to }) => `${from}->${to}`),
     [
       "developer->app",
       "app->task",
       "task->skill",
-      "skill->main",
-      "main->gate",
-      "gate->fleet",
+      "skill->mcp-app",
+      "mcp-app->intent",
+      "intent->gate",
+      "gate->leaf-worker",
+      "leaf-worker->fleet",
       "fleet->providers",
     ],
   );
@@ -125,6 +255,14 @@ test("public docs describe the App-native contract and preserve the audited rele
   assert.equal(
     architectureComponents.get("runtime").tag,
     "behind the skill",
+  );
+  assert.equal(
+    architectureComponents.get("mcp-app").label,
+    "MCP App Status Card",
+  );
+  assert.equal(
+    architectureComponents.get("intent").tag,
+    "10-minute expiry",
   );
   assert.equal(
     architectureComponents.get("runtime-profile").label,
@@ -225,7 +363,15 @@ test("release candidate is reproducible at the packed CLI seam and skipped gates
     assert.equal(report.package.scan.privateArtifactFiles, 0);
     assert.equal(report.package.scan.undeclaredThirdPartyFiles, 0);
     assert.equal(report.package.licenses.status, "passed");
-    assert.equal(report.package.licenses.runtimeDependencies, 0);
+    assert.equal(report.package.licenses.runtimeDependencies, 3);
+    assert.equal(report.package.licenses.bundleDependencies, 3);
+    assert.ok(
+      report.package.licenses.bundledPackages >= 3,
+    );
+    assert.ok(
+      report.package.licenses.bundledLicenseFiles >=
+        report.package.licenses.bundledPackages,
+    );
 
     assert.deepEqual(report.repositoryChecks, {
       status: "not-run",

@@ -1,9 +1,9 @@
 <h1 align="center">Ground Control for Codex</h1>
 
 <p align="center">
-  <a href="https://www.npmjs.com/package/codex-ground-control/v/0.1.0"><img src="https://img.shields.io/npm/v/codex-ground-control?label=npm&amp;color=CB3837" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/codex-ground-control/v/0.2.0"><img src="https://img.shields.io/npm/v/codex-ground-control?label=npm&amp;color=CB3837" alt="npm version" /></a>
   <a href="https://github.com/eisen0419/codex-ground-control/releases/latest"><img src="https://img.shields.io/github/v/release/eisen0419/codex-ground-control?display_name=tag&amp;sort=semver&amp;color=4493F8" alt="GitHub release" /></a>
-  <img src="https://img.shields.io/badge/main-v0.2_App--native_in_development-F59E0B" alt="main: v0.2 App-native in development" />
+  <img src="https://img.shields.io/badge/release-v0.2.0_App--native-2EA44F" alt="Release: v0.2.0 App-native" />
   <img src="https://img.shields.io/badge/Node.js-%3E%3D22-339933?logo=nodedotjs&amp;logoColor=white" alt="Node.js 22 or newer" />
   <img src="https://img.shields.io/badge/platform-macOS-111111?logo=apple&amp;logoColor=white" alt="Platform: macOS" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-08C?style=flat" alt="License: MIT" /></a>
@@ -20,9 +20,9 @@
 </p>
 
 <h3 align="center">
-  <a href="#quick-start"><ins>Try the App-native v0.2 development build</ins></a>
+  <a href="#quick-start"><ins>Install App-native v0.2.0</ins></a>
   ·
-  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0">Get the latest published v0.1.0</a>
+  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.2.0">Read the v0.2.0 release audit</a>
 </h3>
 
 <p align="center">
@@ -30,7 +30,7 @@
   <a href="#quick-start">Quick start</a> ·
   <a href="#runtime-cli">Runtime CLI</a> ·
   <a href="#optional-provider-lifecycle">Provider boundaries</a> ·
-  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0">Release audit</a>
+  <a href="https://github.com/eisen0419/codex-ground-control/releases/tag/v0.2.0">Release audit</a>
 </p>
 
 Ground Control v0.2 is designed for people doing software development with
@@ -127,6 +127,51 @@ for one provider never qualifies another. The default release campaign is
 offline; all live provider operations require the explicit `--allow-live`
 flag. Native-agent and external-write gates remain blocked in v0.2.
 
+### Isolated App surface qualification
+
+Before any live Pi qualification, the Ground Control skill can call
+`qualify_app_surface` with no project, brief, or Provider input. The tool uses
+the production widget resource and a real host elicitation form, but it does
+not inspect Provider qualification, create a `LeafRunIntent`, grant
+`--allow-live`, or call the production LeafRun operations.
+
+Accept, decline, cancel, missing elicitation support, and host errors all
+preserve zero Provider starts, zero worker starts, and zero network requests.
+A passed result qualifies only the MCP App widget/host transaction. It does not
+qualify Pi, a native Codex reviewer, or an unobserved pixel-level render. The
+card can repeat the same isolated check without remounting into a live run.
+
+### Visible Pi LeafRuns in the App
+
+The v0.2 package includes an MCP App status card for bounded Pi work in the
+current Codex task. The Ground Control skill first calls `prepare_leaf_run`;
+this creates a short-lived, repository-scoped intent and shows **Ready** without
+starting Pi. The card's **Start with Codex permissions** action then calls the
+app-only `start_leaf_run` tool. Codex applies the user's native Ground Control
+permission setting—**Always ask**, **Any changes**, **Important actions**,
+**Never ask**, or **Use my default**—before deciding whether to dispatch it.
+Ground Control does not show a second confirmation or persist that setting.
+
+`start_leaf_run` is accurately annotated as non-read-only, open-world, and
+idempotent. A Codex denial or cancellation means the MCP server receives no
+start call and starts zero Provider processes. After dispatch, an expired
+intent, changed brief, or qualification drift still fails closed before Pi
+starts. Choosing a less interactive Codex permission mode removes the extra
+mouse click without weakening those runtime gates.
+
+The supported product boundary is the local plugin installed in Codex. MCP
+does not give this stdio server a signed host-approval receipt, so direct calls
+from another local MCP client are unsupported and do not create a stronger OS
+privilege boundary. Ground Control's App-only visibility and Codex permission
+policy are host-enforced; the runtime checks above remain server-enforced.
+
+While running, the card polls `get_leaf_run` and shows **Working**, duration,
+exact token/cost usage when validated Pi `message_end.usage` is present, and the
+evidence receipt. Missing usage is `unknown` and is never estimated. **Done**
+means candidate evidence is ready for `codex-main` review; it does not grant Pi
+workspace-write or completion authority, and the card does not impersonate a
+native Codex sub-agent task.
+
 ## Quick start
 
 Requirements:
@@ -140,25 +185,15 @@ No standalone Codex CLI is required.
 
 1. Open the target Git repository in the ChatGPT desktop app.
 2. Start a Codex task in **Local** or in an App-created **Worktree**.
-3. For the current unreleased `main`, build the exact v0.2 development tarball
-   from this repository:
+3. In the target App task, ask Codex to preview and install the version-pinned
+   v0.2 release:
 
    ```sh
-   npm pack --pack-destination /tmp/codex-ground-control-v0.2
+   npx --yes codex-ground-control@0.2.0 init --dry-run
+   npx --yes codex-ground-control@0.2.0 init
    ```
 
-4. In the target App task, ask Codex to preview and install that tarball:
-
-   ```sh
-   npx --yes \
-     --package=/tmp/codex-ground-control-v0.2/codex-ground-control-0.2.0.tgz \
-     codex-ground-control init --dry-run
-   npx --yes \
-     --package=/tmp/codex-ground-control-v0.2/codex-ground-control-0.2.0.tgz \
-     codex-ground-control init
-   ```
-
-5. Start a fresh Codex task if the current task does not refresh newly installed
+4. Start a fresh Codex task if the current task does not refresh newly installed
    skills, then invoke **Ground Control**. The skill calls the runtime for
    `doctor`, offline qualification, and Provider gates.
 
@@ -167,46 +202,53 @@ selected by the App plus product-owned evidence and repository-scoped Provider
 state under `~/.codex-ground-control/`. It does not create or manage Worktrees.
 Global installation remains a separate, previewed, explicitly confirmed flow.
 
-> **Release status:** `0.2.0` is an unreleased development target on `main`.
-> Do not substitute the published `0.1.0` package for this App-native contract.
+> **Release status:** `0.2.0` is the current App-native release on npm and
+> GitHub. Pin the version in installation and recovery commands.
 
 If this repository already has a v0.1 managed workflow, ask the App task to run
 `npx --yes codex-ground-control@0.1.0 uninstall` first, review that exact
-restoration, and then install the v0.2 candidate. v0.2 deliberately refuses to
+restoration, and then install v0.2. v0.2 deliberately refuses to
 reinterpret a v0.1 ownership manifest against a different asset inventory;
 repository-scoped Provider state and evidence remain available.
 
-### Latest published release: v0.1.0
+### Latest published release: v0.2.0
 
 The npm package and GitHub Release attachment are byte-for-byte copies of the
-audited v0.1.0 candidate. That release implements the earlier CLI-first
-contract; the App-native v0.2 changes described above are not published yet.
+audited v0.2.0 candidate. The Release page records the source commit, complete
+test and qualification results, per-Provider status, artifact size, and
+SHA-256 digest.
 
-- [npm package](https://www.npmjs.com/package/codex-ground-control/v/0.1.0)
-- [GitHub Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)
-- SHA-256: `a480fa43563f03f62eec30ca6a62e02d7bf6f01183187da38e88d6e1d0da0c18`
+- [npm package](https://www.npmjs.com/package/codex-ground-control/v/0.2.0)
+- [GitHub Release and audit](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.2.0)
 
 Use a downloaded tarball without contacting npm:
 
 ```sh
 npx --yes --offline \
-  --package=./codex-ground-control-0.1.0.tgz \
+  --package=./codex-ground-control-0.2.0.tgz \
   codex-ground-control init --dry-run
 ```
 
-### v0.1.0 qualification
+### v0.2.0 qualification
 
-| Release gate | Audited result |
+| Release gate | Published evidence |
 | --- | --- |
-| v0.1.0 source | [`6b7e17e`](https://github.com/eisen0419/codex-ground-control/commit/6b7e17e48f6d273421e5b136d01478785803689a) |
-| Test and static gates | 94/94 tests, typecheck, release-lock, and diff check passed |
-| Offline core | 17/17 scenarios passed; evidence verified; network not used |
-| Optional providers | Pi GLM, Pi DeepSeek, Pi MiniMax, AGY, and Grok ended disabled, unqualified, and blocked; live evidence remains partial |
-| Failure isolation | Passed; optional-provider failures did not affect the qualified offline core |
+| Source | Immutable [`v0.2.0`](https://github.com/eisen0419/codex-ground-control/tree/v0.2.0) tag |
+| App surface | Fresh-task Host acceptance and repeat-self-test evidence |
+| Test and static gates | Full suite, typecheck, release-lock, and reproducible double-pack |
+| Offline core | Isolated campaign plus evidence verification and reproduction |
+| Optional providers | Each Provider reports its own final enabled, qualified, current, and blocked state |
 
 See the
-[v0.1.0 Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0)
+[v0.2.0 Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.2.0)
 for the complete audit and download verification.
+
+### Previous audited release: v0.1.0
+
+The CLI-first v0.1.0 release remains available for audit and version-pinned
+recovery. Its published tarball SHA-256 is
+`a480fa43563f03f62eec30ca6a62e02d7bf6f01183187da38e88d6e1d0da0c18`.
+See the [v0.1.0 Release](https://github.com/eisen0419/codex-ground-control/releases/tag/v0.1.0).
 
 ## Runtime CLI
 
@@ -429,8 +471,14 @@ completion authority, and state that no workspace changes were applied. Grok
 receipts also record the public research boundary and that temporary
 authentication was neither retained nor recorded.
 
-After a Pi profile has current qualification evidence, the main Codex may send
-one bounded brief with an explicit live flag:
+After a Pi profile has current qualification evidence, ask the Ground Control
+skill to prepare one visible, bounded Pi LeafRun. In the App-native path, the
+user starts the exact intent from the MCP App card and Codex applies the
+configured native plugin permission policy. The MCP server translates only a
+Codex host-dispatched `start_leaf_run` call into the internal per-run
+`--allow-live` boundary; it does not add another permission prompt.
+
+The equivalent internal execution layer remains:
 
 ```sh
 codex-ground-control provider run pi-deepseek review "Review only this supplied boundary." --allow-live

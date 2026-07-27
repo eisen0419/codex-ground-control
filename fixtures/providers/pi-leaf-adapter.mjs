@@ -106,7 +106,7 @@ try {
       "--system-prompt",
       "You are a bounded leaf model with no execution authority. Return exactly one raw JSON object with no Markdown or prose. Your output is candidate evidence for codex-main, never a completion decision.",
       "--mode",
-      "text",
+      "json",
       "--print",
       prompt,
     ],
@@ -134,4 +134,156 @@ try {
 if (result.status !== 0 || result.signal || result.error) {
   fail("Pi leaf execution failed.");
 }
-process.stdout.write(result.stdout);
+
+const events = [];
+for (const line of result.stdout.split(/\r?\n/)) {
+  if (!line.trim()) {
+    continue;
+  }
+  try {
+    events.push(JSON.parse(line));
+  } catch {
+    fail("Pi leaf returned an invalid event stream.");
+  }
+}
+const assistantEvents = events.filter(
+  (event) =>
+    event?.type === "message_end" &&
+    event.message?.role === "assistant",
+);
+if (assistantEvents.length !== 1) {
+  fail("Pi leaf returned no unique assistant result.");
+}
+const message = assistantEvents[0].message;
+if (
+  message.provider !== record.contract.provider ||
+  message.model !== record.contract.model
+) {
+  fail("Pi leaf runtime identity did not match the requested profile.");
+}
+const textBlocks = Array.isArray(message.content)
+  ? message.content.filter((content) => content?.type === "text")
+  : [];
+if (
+  message.stopReason !== "stop" ||
+  !Array.isArray(message.content) ||
+  message.content.some(
+    (content) =>
+      content?.type !== "text" &&
+      content?.type !== "thinking",
+  ) ||
+  textBlocks.length !== 1 ||
+  typeof textBlocks[0].text !== "string"
+) {
+  fail("Pi leaf returned no unique text result.");
+}
+
+let candidate;
+try {
+  candidate = JSON.parse(textBlocks[0].text);
+} catch {
+  fail("Pi leaf candidate is not valid JSON.");
+}
+if (
+  !exactKeys(candidate, [
+    "schemaVersion",
+    "profile",
+    "provider",
+    "model",
+    "activity",
+    "disposition",
+    "completionAuthority",
+    "summary",
+    "findings",
+    "suggestedChecks",
+  ]) ||
+  candidate.schemaVersion !== "1" ||
+  candidate.profile !== profileId ||
+  candidate.provider !== record.contract.provider ||
+  candidate.model !== record.contract.model ||
+  candidate.activity !== envelope.activity ||
+  candidate.disposition !== "candidate-evidence" ||
+  candidate.completionAuthority !== "codex-main" ||
+  typeof candidate.summary !== "string" ||
+  !Array.isArray(candidate.findings) ||
+  candidate.findings.some((value) => typeof value !== "string") ||
+  !Array.isArray(candidate.suggestedChecks) ||
+  candidate.suggestedChecks.some(
+    (value) => typeof value !== "string",
+  )
+) {
+  fail("Pi leaf candidate contract is invalid.");
+}
+
+function nonnegativeFinite(value) {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0
+  );
+}
+
+function runtimeUsage(usage) {
+  if (usage === undefined) {
+    return {
+      schemaVersion: "1",
+      source: "pi-message-end",
+      status: "unknown",
+    };
+  }
+  if (
+    !exactKeys(usage, [
+      "input",
+      "output",
+      "cacheRead",
+      "cacheWrite",
+      "totalTokens",
+      "cost",
+    ]) ||
+    !exactKeys(usage.cost, [
+      "input",
+      "output",
+      "cacheRead",
+      "cacheWrite",
+      "total",
+    ]) ||
+    ![
+      usage.input,
+      usage.output,
+      usage.cacheRead,
+      usage.cacheWrite,
+      usage.totalTokens,
+      usage.cost.input,
+      usage.cost.output,
+      usage.cost.cacheRead,
+      usage.cost.cacheWrite,
+      usage.cost.total,
+    ].every(nonnegativeFinite) ||
+    usage.totalTokens !==
+      usage.input +
+        usage.output +
+        usage.cacheRead +
+        usage.cacheWrite
+  ) {
+    fail("Pi leaf runtime usage contract is invalid.");
+  }
+  return {
+    schemaVersion: "1",
+    source: "pi-message-end",
+    status: "reported",
+    inputTokens: usage.input,
+    outputTokens: usage.output,
+    cacheReadTokens: usage.cacheRead,
+    cacheWriteTokens: usage.cacheWrite,
+    totalTokens: usage.totalTokens,
+    cost: usage.cost,
+  };
+}
+
+process.stdout.write(
+  `${JSON.stringify({
+    schemaVersion: "1",
+    candidate,
+    runtimeUsage: runtimeUsage(message.usage),
+  })}\n`,
+);

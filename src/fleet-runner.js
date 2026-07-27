@@ -1,13 +1,19 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
+  closeSync,
+  constants,
   copyFileSync,
+  fstatSync,
+  fsyncSync,
   lstatSync,
   linkSync,
   mkdirSync,
+  openSync,
   readdirSync,
   realpathSync,
   unlinkSync,
+  writeSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -691,9 +697,21 @@ function terminateProcessGroup(child, signal) {
       process.kill(-child.pid, signal);
     }
   } catch (error) {
-    if (error?.code !== "ESRCH") {
-      throw error;
+    if (error?.code === "ESRCH") {
+      return;
     }
+    if (error?.code === "EPERM") {
+      try {
+        if (child.kill(signal) === false) {
+          return;
+        }
+      } catch (directError) {
+        if (directError?.code === "ESRCH") {
+          return;
+        }
+      }
+    }
+    throw error;
   }
 }
 
@@ -703,6 +721,7 @@ function runChild(
   options,
   timeoutMilliseconds,
   limits,
+  emitEvent,
 ) {
   return new Promise((resolveChild) => {
     const started = Date.now();
@@ -710,6 +729,7 @@ function runChild(
     const stderr = { chunks: [], bytes: 0 };
     let stopReason = null;
     let spawnError = null;
+    let terminationError = null;
     let escalationTimer = null;
     let closed = null;
 
@@ -719,34 +739,53 @@ function runChild(
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     });
+    emitEvent("process.started");
 
     const finish = () => {
       if (!closed || escalationTimer !== null) {
         return;
       }
-      resolveChild({
+      const effectiveStopReason =
+        terminationError !== null &&
+        closed.exitCode === null
+          ? "process-group-termination-failed"
+          : stopReason;
+      const result = {
         stdout: Buffer.concat(stdout.chunks, stdout.bytes),
         stderr: Buffer.concat(stderr.chunks, stderr.bytes),
         exitCode: closed.exitCode,
         signal: closed.signal,
-        stopReason,
-        spawnError,
+        stopReason: effectiveStopReason,
+        spawnError: spawnError ?? terminationError,
         durationMilliseconds: Date.now() - started,
+      };
+      emitEvent("process.exited", {
+        exitCode: result.exitCode,
+        signal: result.signal,
+        stopReason: result.stopReason,
+        stdoutBytes: stdout.bytes,
+        stderrBytes: stderr.bytes,
+        durationMilliseconds: result.durationMilliseconds,
       });
+      resolveChild(result);
     };
 
     const stop = (reason) => {
       if (stopReason === null) {
         stopReason = reason;
       }
-      terminateProcessGroup(child, "SIGTERM");
+      try {
+        terminateProcessGroup(child, "SIGTERM");
+      } catch (error) {
+        terminationError = error;
+      }
       if (escalationTimer === null) {
         escalationTimer = setTimeout(
           () => {
             try {
               terminateProcessGroup(child, "SIGKILL");
             } catch (error) {
-              spawnError = error;
+              terminationError = error;
             } finally {
               escalationTimer = null;
               finish();
@@ -762,16 +801,29 @@ function runChild(
         return;
       }
       const remaining = maximum - state.bytes;
+      const accepted = Math.min(chunk.byteLength, remaining);
       if (chunk.byteLength > remaining) {
         if (remaining > 0) {
           state.chunks.push(chunk.subarray(0, remaining));
           state.bytes += remaining;
+        }
+        if (accepted > 0) {
+          emitEvent("process.output", {
+            stream: state === stdout ? "stdout" : "stderr",
+            chunkBytes: accepted,
+            totalBytes: state.bytes,
+          });
         }
         stop(reason);
         return;
       }
       state.chunks.push(chunk);
       state.bytes += chunk.byteLength;
+      emitEvent("process.output", {
+        stream: state === stdout ? "stdout" : "stderr",
+        chunkBytes: accepted,
+        totalBytes: state.bytes,
+      });
     };
 
     child.stdout.on("data", (chunk) =>
@@ -919,6 +971,85 @@ function writeEvidence(runDirectory, relativePath, value) {
   }
 }
 
+function createEventJournal(
+  runDirectory,
+  runIdentity,
+  eventSink,
+) {
+  if (
+    eventSink !== undefined &&
+    typeof eventSink !== "function"
+  ) {
+    fail(
+      "FLEET_EVENT_SINK_INVALID",
+      "FleetRunner event sink must be a function.",
+    );
+  }
+  const relativePath = "events.jsonl";
+  writeEvidence(runDirectory, relativePath, "");
+  const descriptor = openSync(
+    join(runDirectory, relativePath),
+    constants.O_WRONLY |
+      constants.O_APPEND |
+      (constants.O_NOFOLLOW ?? 0),
+  );
+  const metadata = fstatSync(descriptor);
+  if (!metadata.isFile() || metadata.nlink !== 1) {
+    closeSync(descriptor);
+    fail(
+      "FLEET_EVENT_JOURNAL_UNSAFE",
+      "FleetRunner event journal is not a plain file.",
+    );
+  }
+  let sequence = 0;
+  let sinkAvailable = eventSink !== undefined;
+  let outputEvents = 0;
+  return {
+    emit(type, fields = {}) {
+      if (
+        type === "process.output" &&
+        outputEvents >= 128
+      ) {
+        return;
+      }
+      if (type === "process.output") {
+        outputEvents += 1;
+      }
+      const event = {
+        schemaVersion: "1",
+        sequence: sequence + 1,
+        runIdentity,
+        type,
+        at: new Date().toISOString(),
+        ...fields,
+      };
+      const line = Buffer.from(
+        `${JSON.stringify(event)}\n`,
+        "utf8",
+      );
+      writeSync(descriptor, line);
+      fsyncSync(descriptor);
+      sequence += 1;
+      if (sinkAvailable) {
+        try {
+          eventSink(structuredClone(event));
+        } catch {
+          sinkAvailable = false;
+        }
+      }
+    },
+    close() {
+      closeSync(descriptor);
+    },
+    deliveryStatus() {
+      if (eventSink === undefined) {
+        return "not-requested";
+      }
+      return sinkAvailable ? "delivered" : "degraded";
+    },
+  };
+}
+
 function copyWorkspace(source, destination) {
   const sourceMetadata = lstatSync(source);
   if (
@@ -1029,54 +1160,75 @@ export async function runFleetJob(job, manifest, options = {}) {
     `${JSON.stringify(metadata, null, 2)}\n`,
   );
 
-  const child = await runChild(
-    plan.executor.command,
-    plan.executor.args,
-    {
-      cwd: workingDirectory,
-      env: sanitizedEnvironment(
-        plan.executor.environmentAllowlist,
-      ),
-    },
-    job.timeoutMilliseconds,
-    manifest.limits,
-  );
-  writeEvidence(runDirectory, "stdout.txt", child.stdout);
-  writeEvidence(runDirectory, "stderr.txt", child.stderr);
-  const outputContract = validateOutput(
-    child.stdout.toString("utf8"),
-    plan.outputContract,
-  );
-  let status = "succeeded";
-  if (child.stopReason !== null) {
-    status = child.stopReason;
-  } else if (child.spawnError || child.exitCode !== 0) {
-    status = "process-failed";
-  } else if (!outputContract.valid) {
-    status = "invalid-output";
-  }
-  const receipt = {
-    schemaVersion: "1",
-    runIdentity,
-    status,
-    adapter: job.adapter,
-    exitCode: child.exitCode,
-    signal: child.signal,
-    durationMilliseconds: child.durationMilliseconds,
-    outputContract,
-    evidence: {
-      job: "job.json",
-      metadata: "metadata.json",
-      stdout: "stdout.txt",
-      stderr: "stderr.txt",
-      receipt: "receipt.json",
-    },
-    finishedAt: new Date().toISOString(),
-  };
-  writeEvidence(
+  const journal = createEventJournal(
     runDirectory,
-    "receipt.json",
-    `${JSON.stringify(receipt, null, 2)}\n`,
+    runIdentity,
+    options.eventSink,
   );
-  return receipt;
+  try {
+    journal.emit("run.started", {
+      adapter: job.adapter,
+      activity: job.activity,
+    });
+    const child = await runChild(
+      plan.executor.command,
+      plan.executor.args,
+      {
+        cwd: workingDirectory,
+        env: sanitizedEnvironment(
+          plan.executor.environmentAllowlist,
+        ),
+      },
+      job.timeoutMilliseconds,
+      manifest.limits,
+      (type, fields) => journal.emit(type, fields),
+    );
+    writeEvidence(runDirectory, "stdout.txt", child.stdout);
+    writeEvidence(runDirectory, "stderr.txt", child.stderr);
+    const outputContract = validateOutput(
+      child.stdout.toString("utf8"),
+      plan.outputContract,
+    );
+    let status = "succeeded";
+    if (child.stopReason !== null) {
+      status = child.stopReason;
+    } else if (child.spawnError || child.exitCode !== 0) {
+      status = "process-failed";
+    } else if (!outputContract.valid) {
+      status = "invalid-output";
+    }
+    journal.emit("run.finished", {
+      status,
+      durationMilliseconds: child.durationMilliseconds,
+      outputValid: outputContract.valid,
+    });
+    const receipt = {
+      schemaVersion: "1",
+      runIdentity,
+      status,
+      adapter: job.adapter,
+      exitCode: child.exitCode,
+      signal: child.signal,
+      durationMilliseconds: child.durationMilliseconds,
+      outputContract,
+      eventDelivery: journal.deliveryStatus(),
+      evidence: {
+        job: "job.json",
+        metadata: "metadata.json",
+        events: "events.jsonl",
+        stdout: "stdout.txt",
+        stderr: "stderr.txt",
+        receipt: "receipt.json",
+      },
+      finishedAt: new Date().toISOString(),
+    };
+    writeEvidence(
+      runDirectory,
+      "receipt.json",
+      `${JSON.stringify(receipt, null, 2)}\n`,
+    );
+    return receipt;
+  } finally {
+    journal.close();
+  }
 }

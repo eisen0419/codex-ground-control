@@ -191,6 +191,24 @@ test("package metadata and tarball contents define the public CLI contract", () 
   assert.deepEqual(packageMetadata.bin, {
     "codex-ground-control": "bin/codex-ground-control.js",
   });
+  assert.equal(
+    packageMetadata.homepage,
+    "https://eisen0419.github.io/codex-ground-control/",
+  );
+  assert.deepEqual(packageMetadata.repository, {
+    type: "git",
+    url:
+      "git+https://github.com/eisen0419/codex-ground-control.git",
+  });
+  assert.deepEqual(packageMetadata.bugs, {
+    url:
+      "https://github.com/eisen0419/codex-ground-control/issues",
+  });
+  assert.deepEqual(packageMetadata.bundleDependencies, [
+    "@modelcontextprotocol/ext-apps",
+    "@modelcontextprotocol/sdk",
+    "zod",
+  ]);
   const releaseLock = JSON.parse(
     readFileSync(join(repositoryRoot, "release-lock.json"), "utf8"),
   );
@@ -218,9 +236,12 @@ test("package metadata and tarball contents define the public CLI contract", () 
     const expectedFiles = [
       ...mattSkills.assets.map((asset) => asset.sourcePath),
       "vendor/mattpocock-skills/LICENSE",
+      ".codex-plugin/plugin.json",
+      ".mcp.json",
       "LICENSE",
       "README.md",
       "THIRD_PARTY_NOTICES.md",
+      "assets/apps/ground-control/leaf-run.html",
       "assets/overlays/agents-managed-block.md",
       "assets/overlays/ground-control/SKILL.md",
       "assets/overlays/ground-control/agents/openai.yaml",
@@ -254,19 +275,33 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "src/fleet-runner-worker.js",
       "src/fleet-runner.js",
       "src/global-workflow.js",
+      "src/leaf-run-worker-core.js",
+      "src/leaf-run-worker.js",
+      "src/leaf-run.js",
       "src/managed-workflow.js",
+      "src/mcp-app-server.js",
       "src/project-state.js",
       "src/provider-lifecycle.js",
       "src/qualification-contract.js",
       "src/qualification-lab.js",
+      "src/release-name-checks.js",
       "src/safe-files.js",
       "src/workflow-assets.js",
       "src/workflow-error.js",
     ].sort();
     assert.deepEqual(
-      packed.files.map(({ path }) => path).sort(),
+      packed.files
+        .map(({ path }) => path)
+        .filter((path) => !path.startsWith("node_modules/"))
+        .sort(),
       expectedFiles,
     );
+    for (const dependency of packageMetadata.bundleDependencies) {
+      assert.ok(
+        packed.bundled.includes(dependency),
+        `${dependency} must be bundled for offline App installation`,
+      );
+    }
   } finally {
     rmSync(sandbox, { recursive: true, force: true });
   }

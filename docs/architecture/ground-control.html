@@ -4498,10 +4498,10 @@
         <div class="pulse-dot"></div>
         <h1>Ground Control for Codex</h1>
       </div>
-      <p class="subtitle">App-native control plane · App-owned worktrees · one Codex writer</p>
+      <p class="subtitle">App-native LeafRuns · Codex-native permissions · one Codex writer</p>
     </div>
 
-    <script id="archify-guided-views-data" type="application/json">[{"id":"app-native-path","label":"App-native primary path","focus":["developer","app","task","skill","main","gate","fleet","providers"],"note":"Follow intent from the ChatGPT desktop app to one Codex writer and bounded Provider leaves."},{"id":"app-ownership","label":"App ownership","focus":["app","task","checkout","repository"],"note":"The App owns Local, Worktree, Handoff, branch controls, and task lifecycle."},{"id":"runtime-and-gates","label":"Internal runtime and gates","focus":["skill","runtime","gate","runtime-profile","auth-binding","fleet","blocked"],"note":"The skill calls a deterministic runtime; provider-owned auth and a fingerprinted runtime profile stay behind fail-closed gates."}]</script>
+    <script id="archify-guided-views-data" type="application/json">[{"id":"app-native-path","label":"Visible Pi LeafRun","focus":["developer","app","task","skill","mcp-app","intent","gate","leaf-worker","fleet","providers"],"note":"Follow a visible Pi LeafRun from App intent through Codex-native permission dispatch to bounded candidate evidence."},{"id":"app-ownership","label":"App ownership + one writer","focus":["app","task","skill","mcp-app","main","checkout","repository"],"note":"The App owns task and Worktree lifecycle; codex-main remains the only workspace writer and completion authority."},{"id":"intent-and-authorization","label":"Intent + permissions","focus":["mcp-app","intent","gate","blocked","repository"],"note":"The intent binds repository identity, brief digest, qualification fingerprint, and expiry before Codex evaluates the app-only start."},{"id":"runtime-and-evidence","label":"Runtime + evidence","focus":["runtime","leaf-worker","fleet","runtime-profile","auth-binding","providers","main"],"note":"The CLI stays behind the skill; the worker and FleetRunner emit bounded events, exact-or-unknown usage, and a receipt."}]</script>
 
     <div class="guided-views no-print" id="guided-views" hidden aria-label="Guided diagram views">
       <button id="guided-view-prev" type="button" aria-label="Previous guided view" title="Previous guided view ([)">&#8592;</button>
@@ -4544,9 +4544,9 @@
 
     <!-- Main Diagram -->
     <div class="diagram-container" data-detail-level="map">
-      <svg viewBox="0 0 1600 800" role="img" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="signal-flow" data-quality-profile="showcase">
+      <svg viewBox="0 0 1800 900" role="img" aria-labelledby="archify-diagram-title archify-diagram-description" data-animation="trace" data-preset="signal-flow" data-quality-profile="showcase">
         <title id="archify-diagram-title">Ground Control for Codex</title>
-        <desc id="archify-diagram-description">App-native control plane · App-owned worktrees · one Codex writer</desc>
+        <desc id="archify-diagram-description">App-native LeafRuns · Codex-native permissions · one Codex writer</desc>
         <!-- Definitions -->
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -4570,271 +4570,330 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Boundaries (behind everything) -->
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" x="364" y="312" width="590" height="408" rx="12" class="c-region" stroke-width="1"/>
-        <text x="372" y="330" class="t-cloud" font-size="9" font-weight="600">App-owned Local · Worktree · Handoff context</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" x="302" y="312" width="546" height="528" rx="12" class="c-region" stroke-width="1"/>
+        <text x="310" y="330" class="t-cloud" font-size="9" font-weight="600">App-owned Local · Worktree · Handoff context</text>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="security-group" data-composition-frame-id="1" x="962" y="312" width="602" height="394" rx="8" class="c-security-group" stroke-width="1"/>
-        <text x="970" y="330" class="t-security" font-size="9" font-weight="600">Bounded leaf execution</text>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="security-group" data-composition-frame-id="1" x="862" y="312" width="901" height="404" rx="8" class="c-security-group" stroke-width="1"/>
+        <text x="870" y="330" class="t-security" font-size="9" font-weight="600">Bounded LeafRun execution</text>
 
         <!-- Connection paths (before components for correct z-order) -->
-        <path data-edge-from="developer" data-edge-to="app" data-edge-key="0" data-edge-id="developer-to-app" data-composition-points="142,363;176,363" d="M 142 363 L 176 363" class="a-emphasis" data-animate="edge" style="--step:0" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="app" data-edge-to="task" data-edge-label="Local · Worktree · Handoff" data-edge-key="1" data-edge-id="app-to-task" data-composition-points="346,363;382,363" d="M 346 363 L 382 363" class="a-emphasis" data-animate="edge" style="--step:1" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="task" data-edge-to="skill" data-edge-key="2" data-edge-id="task-to-skill" data-composition-points="536,363;572,363" d="M 536 363 L 572 363" class="a-emphasis" data-animate="edge" style="--step:2" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="skill" data-edge-to="main" data-edge-key="3" data-edge-id="skill-to-main" data-composition-points="738,363;774,363" d="M 738 363 L 774 363" class="a-emphasis" data-animate="edge" style="--step:3" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="main" data-edge-to="gate" data-edge-label="bounded brief" data-edge-key="4" data-edge-id="main-to-gate" data-composition-points="924,363;980,363" d="M 924 363 L 980 363" class="a-emphasis" data-animate="edge" style="--step:4" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="gate" data-edge-to="fleet" data-edge-label="authorized" data-edge-key="5" data-edge-id="gate-to-fleet" data-composition-points="1158,363;1194,363" d="M 1158 363 L 1194 363" class="a-emphasis" data-animate="edge" style="--step:5" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="fleet" data-edge-to="providers" data-edge-key="6" data-edge-id="fleet-to-providers" data-composition-points="1354,363;1390,363" d="M 1354 363 L 1390 363" class="a-emphasis" data-animate="edge" style="--step:6" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="providers" data-edge-to="main" data-edge-label="candidate evidence" data-edge-key="7" data-edge-id="providers-to-main" data-composition-points="1468,330;1448,250;849,250;849,330" d="M 1468 330 L 1449.9402850002907 257.76114000116263 Q 1448 250 1440 250 L 857 250 Q 849 250 849 258 L 849 330" class="a-dashed" data-animate="edge" style="--step:7" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="skill" data-edge-to="runtime" data-edge-label="internal call" data-edge-key="8" data-edge-id="skill-to-runtime" data-composition-points="655,396;655,510" d="M 655 396 L 655 510" class="a-dashed" data-animate="edge" style="--step:8" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="main" data-edge-to="checkout" data-edge-label="sole writer" data-edge-key="9" data-edge-id="main-to-checkout" data-composition-points="849,396;849,510" d="M 849 396 L 849 510" class="a-security" data-animate="edge" style="--step:9" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="checkout" data-edge-to="repository" data-edge-label="stable identity" data-edge-key="10" data-edge-id="checkout-to-repository" data-composition-points="849,576;849,630" d="M 849 576 L 849 630" class="a-dashed" data-animate="edge" style="--step:10" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
-        <path data-edge-from="gate" data-edge-to="blocked" data-edge-label="missing · stale · write" data-edge-key="11" data-edge-id="gate-to-blocked" data-composition-points="1069,396;1069,510" d="M 1069 396 L 1069 510" class="a-security" data-animate="edge" style="--step:11" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="runtime-profile" data-edge-to="fleet" data-edge-label="fixed argv + env" data-edge-key="12" data-edge-id="runtime-profile-to-fleet" data-composition-points="1274,500;1274,396" d="M 1274 500 L 1274 396" class="a-security" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
-        <path data-edge-from="auth-binding" data-edge-to="runtime-profile" data-edge-key="13" data-edge-id="auth-binding-to-runtime-profile" data-composition-points="1274,620;1274,566" d="M 1274 620 L 1274 566" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="developer" data-edge-to="app" data-edge-key="0" data-edge-id="developer-to-app" data-composition-points="120,363;145,363" d="M 120 363 L 145 363" class="a-emphasis" data-animate="edge" style="--step:0" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="app" data-edge-to="task" data-edge-label="Local · Worktree · Handoff" data-edge-key="1" data-edge-id="app-to-task" data-composition-points="295,363;320,363" d="M 295 363 L 320 363" class="a-emphasis" data-animate="edge" style="--step:1" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="task" data-edge-to="skill" data-edge-key="2" data-edge-id="task-to-skill" data-composition-points="455,363;480,363" d="M 455 363 L 480 363" class="a-emphasis" data-animate="edge" style="--step:2" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="skill" data-edge-to="mcp-app" data-edge-key="3" data-edge-id="skill-to-mcp-app" data-composition-points="630,363;660,363" d="M 630 363 L 660 363" class="a-emphasis" data-animate="edge" style="--step:3" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="mcp-app" data-edge-to="intent" data-edge-label="prepare" data-edge-key="4" data-edge-id="mcp-app-to-intent" data-composition-points="820,363;880,363" d="M 820 363 L 880 363" class="a-emphasis" data-animate="edge" style="--step:4" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="intent" data-edge-to="gate" data-edge-label="app-only start" data-edge-key="5" data-edge-id="intent-to-gate" data-composition-points="1025,363;1050,363" d="M 1025 363 L 1050 363" class="a-security" data-animate="edge" style="--step:5" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="gate" data-edge-to="leaf-worker" data-edge-label="host dispatched" data-edge-key="6" data-edge-id="gate-to-leaf-worker" data-composition-points="1205,363;1235,363" d="M 1205 363 L 1235 363" class="a-emphasis" data-animate="edge" style="--step:6" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="leaf-worker" data-edge-to="fleet" data-edge-key="7" data-edge-id="leaf-worker-to-fleet" data-composition-points="1385,363;1415,363" d="M 1385 363 L 1415 363" class="a-emphasis" data-animate="edge" style="--step:7" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="fleet" data-edge-to="providers" data-edge-key="8" data-edge-id="fleet-to-providers" data-composition-points="1560,363;1590,363" d="M 1560 363 L 1590 363" class="a-emphasis" data-animate="edge" style="--step:8" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
+        <path data-edge-from="providers" data-edge-to="main" data-edge-label="candidate evidence + receipt" data-edge-key="9" data-edge-id="providers-to-main" data-composition-points="1667.5,396;1668,845;640,845;640,543;660,543" d="M 1667.5 396 L 1667.991091319555 837.0000049602883 Q 1668 845 1660 845 L 648 845 Q 640 845 640 837 L 640 551 Q 640 543 648 543 L 660 543" class="a-dashed" data-animate="edge" style="--step:9" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="mcp-app" data-edge-to="main" data-edge-label="status + usage" data-edge-key="10" data-edge-id="mcp-app-to-main" data-composition-points="740,396;740,510" d="M 740 396 L 740 510" class="a-dashed" data-animate="edge" style="--step:10" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="skill" data-edge-to="runtime" data-edge-label="internal call" data-edge-key="11" data-edge-id="skill-to-runtime" data-composition-points="555,396;555,510" d="M 555 396 L 555 510" class="a-dashed" data-animate="edge" style="--step:11" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="main" data-edge-to="checkout" data-edge-label="sole writer" data-edge-key="12" data-edge-id="main-to-checkout" data-composition-points="740,576;740,630" d="M 740 576 L 740 630" class="a-security" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="checkout" data-edge-to="repository" data-edge-label="stable identity" data-edge-key="13" data-edge-id="checkout-to-repository" data-composition-points="740,696;740,750" d="M 740 696 L 740 750" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="repository" data-edge-to="intent" data-edge-key="14" data-edge-id="repository-to-intent" data-composition-points="830,785;850,785;850,430;952,430;952.5,396" d="M 830 785 L 842 785 Q 850 785 850 777 L 850 438 Q 850 430 858 430 L 944 430 Q 952 430 952.117634339535 422.0008649116194 L 952.5 396" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+        <path data-edge-from="gate" data-edge-to="blocked" data-edge-label="deny · expiry · drift" data-edge-key="15" data-edge-id="gate-to-blocked" data-composition-points="1127.5,396;1127.5,510" d="M 1127.5 396 L 1127.5 510" class="a-security" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="runtime-profile" data-edge-to="fleet" data-edge-label="fixed argv + env" data-edge-key="16" data-edge-id="runtime-profile-to-fleet" data-composition-points="1315,510;1401.25,510;1401.25,396;1487.5,396" d="M 1315 510 L 1393.25 510 Q 1401.25 510 1401.25 502 L 1401.25 404 Q 1401.25 396 1409.25 396 L 1487.5 396" class="a-security" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="auth-binding" data-edge-to="runtime-profile" data-edge-key="17" data-edge-id="auth-binding-to-runtime-profile" data-composition-points="1315,630;1315,576" d="M 1315 630 L 1315 576" class="a-dashed" data-animate="edge" style="--step:12" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
 
         <!-- Components -->
-        <g id="node-developer" data-node-id="developer" data-node-label="Developer" tabindex="0" role="button" aria-label="Focus Developer, intent + approval, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="intent + approval" data-node-context="Architecture component">
-          <title>Developer · intent + approval · Architecture component</title>
-          <rect x="24" y="330" width="118" height="66" rx="6" class="c-mask"/>
-          <rect x="24" y="330" width="118" height="66" rx="6" class="c-external" data-animate="node" style="--step:0" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(30 336) scale(0.6875)">
+        <g id="node-developer" data-node-id="developer" data-node-label="Developer" tabindex="0" role="button" aria-label="Focus Developer, intent + policy, Architecture component" aria-pressed="false" data-node-kind="external" data-node-sublabel="intent + policy" data-node-context="Architecture component">
+          <title>Developer · intent + policy · Architecture component</title>
+          <rect x="20" y="330" width="100" height="66" rx="6" class="c-mask"/>
+          <rect x="20" y="330" width="100" height="66" rx="6" class="c-external" data-animate="node" style="--step:0" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(26 336) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-detail-anchor x="83" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Developer</text>
-        <text data-detail="context" x="83" y="377" class="t-muted" font-size="9" text-anchor="middle">intent + approval</text>
+          <text data-detail-anchor x="70" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Developer</text>
+        <text data-detail="context" x="70" y="377" class="t-muted" font-size="9" text-anchor="middle">intent + policy</text>
         </g>
 
-        <g id="node-app" data-node-id="app" data-node-label="ChatGPT Desktop App" tabindex="0" role="button" aria-label="Focus ChatGPT Desktop App, task · branch · approval, Architecture component" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="task · branch · approval" data-node-tag="owns lifecycle" data-node-context="Architecture component">
-          <title>ChatGPT Desktop App · task · branch · approval · Architecture component · owns lifecycle</title>
-          <rect x="176" y="330" width="170" height="66" rx="6" class="c-mask"/>
-          <rect x="176" y="330" width="170" height="66" rx="6" class="c-frontend" data-animate="node" style="--step:1" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(182 336) scale(0.6875)">
+        <g id="node-app" data-node-id="app" data-node-label="ChatGPT Desktop App" tabindex="0" role="button" aria-label="Focus ChatGPT Desktop App, task · branch · permissions, Architecture component" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="task · branch · permissions" data-node-tag="owns lifecycle" data-node-context="Architecture component">
+          <title>ChatGPT Desktop App · task · branch · permissions · Architecture component · owns lifecycle</title>
+          <rect x="145" y="330" width="150" height="66" rx="6" class="c-mask"/>
+          <rect x="145" y="330" width="150" height="66" rx="6" class="c-frontend" data-animate="node" style="--step:1" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(151 336) scale(0.6875)">
             <rect x="2" y="3" width="12" height="10" rx="2"/>
             <path d="M2 6.5h12"/>
             <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
             <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-detail-anchor x="261" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">ChatGPT Desktop App</text>
-        <text data-detail="context" x="261" y="377" class="t-muted" font-size="9" text-anchor="middle">task · branch · approval</text>
-        <text data-detail="fine" x="261" y="388" class="t-frontend" font-size="7" text-anchor="middle">owns lifecycle</text>
+          <text data-detail-anchor x="220" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">ChatGPT Desktop App</text>
+        <text data-detail="context" x="220" y="377" class="t-muted" font-size="9" text-anchor="middle">task · branch · permissions</text>
+        <text data-detail="fine" x="220" y="388" class="t-frontend" font-size="7" text-anchor="middle">owns lifecycle</text>
         </g>
 
         <g id="node-task" data-node-id="task" data-node-label="Codex Task" tabindex="0" role="button" aria-label="Focus Codex Task, Local or App Worktree, App-owned Local · Worktree · Handoff context" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="Local or App Worktree" data-node-context="App-owned Local · Worktree · Handoff context">
           <title>Codex Task · Local or App Worktree · App-owned Local · Worktree · Handoff context</title>
-          <rect x="382" y="330" width="154" height="66" rx="6" class="c-mask"/>
-          <rect x="382" y="330" width="154" height="66" rx="6" class="c-cloud" data-animate="node" style="--step:2" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="cloud" class="semantic-sigil s-cloud" transform="translate(388 336) scale(0.6875)">
+          <rect x="320" y="330" width="135" height="66" rx="6" class="c-mask"/>
+          <rect x="320" y="330" width="135" height="66" rx="6" class="c-cloud" data-animate="node" style="--step:2" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="cloud" class="semantic-sigil s-cloud" transform="translate(326 336) scale(0.6875)">
             <path d="M4.3 12.5h7.3a2.4 2.4 0 0 0 .2-4.8 4 4 0 0 0-7.5-1.3A3.1 3.1 0 0 0 4.3 12.5Z"/>
           </g>
-          <text data-detail-anchor x="459" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Codex Task</text>
-        <text data-detail="context" x="459" y="377" class="t-muted" font-size="9" text-anchor="middle">Local or App Worktree</text>
+          <text data-detail-anchor x="387.5" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Codex Task</text>
+        <text data-detail="context" x="387.5" y="377" class="t-muted" font-size="9" text-anchor="middle">Local or App Worktree</text>
         </g>
 
-        <g id="node-skill" data-node-id="skill" data-node-label="Ground Control Skill" tabindex="0" role="button" aria-label="Focus Ground Control Skill, App-facing workflow, App-owned Local · Worktree · Handoff context" aria-pressed="false" data-node-kind="backend" data-node-sublabel="App-facing workflow" data-node-context="App-owned Local · Worktree · Handoff context">
-          <title>Ground Control Skill · App-facing workflow · App-owned Local · Worktree · Handoff context</title>
-          <rect x="572" y="330" width="166" height="66" rx="6" class="c-mask"/>
-          <rect x="572" y="330" width="166" height="66" rx="6" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(578 336) scale(0.6875)">
+        <g id="node-skill" data-node-id="skill" data-node-label="Ground Control Skill" tabindex="0" role="button" aria-label="Focus Ground Control Skill, App-facing router, App-owned Local · Worktree · Handoff context" aria-pressed="false" data-node-kind="backend" data-node-sublabel="App-facing router" data-node-context="App-owned Local · Worktree · Handoff context">
+          <title>Ground Control Skill · App-facing router · App-owned Local · Worktree · Handoff context</title>
+          <rect x="480" y="330" width="150" height="66" rx="6" class="c-mask"/>
+          <rect x="480" y="330" width="150" height="66" rx="6" class="c-backend" data-animate="node" style="--step:3" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(486 336) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-detail-anchor x="655" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Ground Control Skill</text>
-        <text data-detail="context" x="655" y="377" class="t-muted" font-size="9" text-anchor="middle">App-facing workflow</text>
+          <text data-detail-anchor x="555" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Ground Control Skill</text>
+        <text data-detail="context" x="555" y="377" class="t-muted" font-size="9" text-anchor="middle">App-facing router</text>
         </g>
 
-        <g id="node-main" data-node-id="main" data-node-label="codex-main" tabindex="0" role="button" aria-label="Focus codex-main, completion authority, App-owned Local · Worktree · Handoff context" aria-pressed="false" data-node-kind="backend" data-node-sublabel="completion authority" data-node-tag="only writer" data-node-context="App-owned Local · Worktree · Handoff context">
-          <title>codex-main · completion authority · App-owned Local · Worktree · Handoff context · only writer</title>
-          <rect x="774" y="330" width="150" height="66" rx="6" class="c-mask"/>
-          <rect x="774" y="330" width="150" height="66" rx="6" class="c-backend" data-animate="node" style="--step:4" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(780 336) scale(0.6875)">
-            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+        <g id="node-mcp-app" data-node-id="mcp-app" data-node-label="MCP App Status Card" tabindex="0" role="button" aria-label="Focus MCP App Status Card, Ready · Working · Done, App-owned Local · Worktree · Handoff context" aria-pressed="false" data-node-kind="frontend" data-node-sublabel="Ready · Working · Done" data-node-tag="same Codex task" data-node-context="App-owned Local · Worktree · Handoff context">
+          <title>MCP App Status Card · Ready · Working · Done · App-owned Local · Worktree · Handoff context · same Codex task</title>
+          <rect x="660" y="330" width="160" height="66" rx="6" class="c-mask"/>
+          <rect x="660" y="330" width="160" height="66" rx="6" class="c-frontend" data-animate="node" style="--step:4" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="frontend" class="semantic-sigil s-frontend" transform="translate(666 336) scale(0.6875)">
+            <rect x="2" y="3" width="12" height="10" rx="2"/>
+            <path d="M2 6.5h12"/>
+            <circle cx="4.1" cy="4.8" r=".7" class="sigil-fill"/>
+            <circle cx="6.3" cy="4.8" r=".7" class="sigil-fill"/>
           </g>
-          <text data-detail-anchor x="849" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">codex-main</text>
-        <text data-detail="context" x="849" y="377" class="t-muted" font-size="9" text-anchor="middle">completion authority</text>
-        <text data-detail="fine" x="849" y="388" class="t-backend" font-size="7" text-anchor="middle">only writer</text>
+          <text data-detail-anchor x="740" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">MCP App Status Card</text>
+        <text data-detail="context" x="740" y="377" class="t-muted" font-size="9" text-anchor="middle">Ready · Working · Done</text>
+        <text data-detail="fine" x="740" y="388" class="t-frontend" font-size="7" text-anchor="middle">same Codex task</text>
         </g>
 
-        <g id="node-gate" data-node-id="gate" data-node-label="Capability Gate" tabindex="0" role="button" aria-label="Focus Capability Gate, auth · enabled · current, Bounded leaf execution" aria-pressed="false" data-node-kind="security" data-node-sublabel="auth · enabled · current" data-node-tag="+ explicit --allow-live" data-node-context="Bounded leaf execution">
-          <title>Capability Gate · auth · enabled · current · Bounded leaf execution · + explicit --allow-live</title>
-          <rect x="980" y="330" width="178" height="66" rx="6" class="c-mask"/>
-          <rect x="980" y="330" width="178" height="66" rx="6" class="c-security" data-animate="node" style="--step:5" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(986 336) scale(0.6875)">
+        <g id="node-intent" data-node-id="intent" data-node-label="LeafRunIntent v1" tabindex="0" role="button" aria-label="Focus LeafRunIntent v1, repo · digest · fingerprint, Bounded LeafRun execution" aria-pressed="false" data-node-kind="messagebus" data-node-sublabel="repo · digest · fingerprint" data-node-tag="10-minute expiry" data-node-context="Bounded LeafRun execution">
+          <title>LeafRunIntent v1 · repo · digest · fingerprint · Bounded LeafRun execution · 10-minute expiry</title>
+          <rect x="880" y="330" width="145" height="66" rx="6" class="c-mask"/>
+          <rect x="880" y="330" width="145" height="66" rx="6" class="c-messagebus" data-animate="node" style="--step:5" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="messagebus" class="semantic-sigil s-messagebus" transform="translate(886 336) scale(0.6875)">
+            <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>
+            <circle cx="5" cy="4.5" r="1" class="sigil-fill"/>
+            <circle cx="10.5" cy="8" r="1" class="sigil-fill"/>
+            <circle cx="7" cy="11.5" r="1" class="sigil-fill"/>
+          </g>
+          <text data-detail-anchor x="952.5" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LeafRunIntent v1</text>
+        <text data-detail="context" x="952.5" y="377" class="t-muted" font-size="9" text-anchor="middle">repo · digest · fingerprint</text>
+        <text data-detail="fine" x="952.5" y="388" class="t-messagebus" font-size="7" text-anchor="middle">10-minute expiry</text>
+        </g>
+
+        <g id="node-gate" data-node-id="gate" data-node-label="Codex Permission Gate" tabindex="0" role="button" aria-label="Focus Codex Permission Gate, native app policy, Bounded LeafRun execution" aria-pressed="false" data-node-kind="security" data-node-sublabel="native app policy" data-node-tag="host-owned" data-node-context="Bounded LeafRun execution">
+          <title>Codex Permission Gate · native app policy · Bounded LeafRun execution · host-owned</title>
+          <rect x="1050" y="330" width="155" height="66" rx="6" class="c-mask"/>
+          <rect x="1050" y="330" width="155" height="66" rx="6" class="c-security" data-animate="node" style="--step:6" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(1056 336) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-detail-anchor x="1069" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Capability Gate</text>
-        <text data-detail="context" x="1069" y="377" class="t-muted" font-size="9" text-anchor="middle">auth · enabled · current</text>
-        <text data-detail="fine" x="1069" y="388" class="t-security" font-size="7" text-anchor="middle">+ explicit --allow-live</text>
+          <text data-detail-anchor x="1127.5" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Codex Permission Gate</text>
+        <text data-detail="context" x="1127.5" y="377" class="t-muted" font-size="9" text-anchor="middle">native app policy</text>
+        <text data-detail="fine" x="1127.5" y="388" class="t-security" font-size="7" text-anchor="middle">host-owned</text>
         </g>
 
-        <g id="node-fleet" data-node-id="fleet" data-node-label="FleetRunner" tabindex="0" role="button" aria-label="Focus FleetRunner, fixed adapter · bounded I/O, Bounded leaf execution" aria-pressed="false" data-node-kind="backend" data-node-sublabel="fixed adapter · bounded I/O" data-node-context="Bounded leaf execution">
-          <title>FleetRunner · fixed adapter · bounded I/O · Bounded leaf execution</title>
-          <rect x="1194" y="330" width="160" height="66" rx="6" class="c-mask"/>
-          <rect x="1194" y="330" width="160" height="66" rx="6" class="c-backend" data-animate="node" style="--step:6" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1200 336) scale(0.6875)">
+        <g id="node-leaf-worker" data-node-id="leaf-worker" data-node-label="LeafRun Worker" tabindex="0" role="button" aria-label="Focus LeafRun Worker, profile-bound background run, Bounded LeafRun execution" aria-pressed="false" data-node-kind="backend" data-node-sublabel="profile-bound background run" data-node-context="Bounded LeafRun execution">
+          <title>LeafRun Worker · profile-bound background run · Bounded LeafRun execution</title>
+          <rect x="1235" y="330" width="150" height="66" rx="6" class="c-mask"/>
+          <rect x="1235" y="330" width="150" height="66" rx="6" class="c-backend" data-animate="node" style="--step:7" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1241 336) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-detail-anchor x="1274" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">FleetRunner</text>
-        <text data-detail="context" x="1274" y="377" class="t-muted" font-size="9" text-anchor="middle">fixed adapter · bounded I/O</text>
+          <text data-detail-anchor x="1310" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">LeafRun Worker</text>
+        <text data-detail="context" x="1310" y="377" class="t-muted" font-size="9" text-anchor="middle">profile-bound background run</text>
         </g>
 
-        <g id="node-providers" data-node-id="providers" data-node-label="Provider Leaves" tabindex="0" role="button" aria-label="Focus Provider Leaves, Pi · AGY · Grok, Bounded leaf execution" aria-pressed="false" data-node-kind="external" data-node-sublabel="Pi · AGY · Grok" data-node-tag="candidate evidence" data-node-context="Bounded leaf execution">
-          <title>Provider Leaves · Pi · AGY · Grok · Bounded leaf execution · candidate evidence</title>
-          <rect x="1390" y="330" width="156" height="66" rx="6" class="c-mask"/>
-          <rect x="1390" y="330" width="156" height="66" rx="6" class="c-external" data-animate="node" style="--step:7" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(1396 336) scale(0.6875)">
+        <g id="node-fleet" data-node-id="fleet" data-node-label="FleetRunner" tabindex="0" role="button" aria-label="Focus FleetRunner, fixed adapter · events.jsonl, Bounded LeafRun execution" aria-pressed="false" data-node-kind="backend" data-node-sublabel="fixed adapter · events.jsonl" data-node-context="Bounded LeafRun execution">
+          <title>FleetRunner · fixed adapter · events.jsonl · Bounded LeafRun execution</title>
+          <rect x="1415" y="330" width="145" height="66" rx="6" class="c-mask"/>
+          <rect x="1415" y="330" width="145" height="66" rx="6" class="c-backend" data-animate="node" style="--step:8" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1421 336) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-detail-anchor x="1487.5" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">FleetRunner</text>
+        <text data-detail="context" x="1487.5" y="377" class="t-muted" font-size="9" text-anchor="middle">fixed adapter · events.jsonl</text>
+        </g>
+
+        <g id="node-providers" data-node-id="providers" data-node-label="Provider Leaves" tabindex="0" role="button" aria-label="Focus Provider Leaves, Pi · AGY · Grok, Bounded LeafRun execution" aria-pressed="false" data-node-kind="external" data-node-sublabel="Pi · AGY · Grok" data-node-tag="candidate evidence" data-node-context="Bounded LeafRun execution">
+          <title>Provider Leaves · Pi · AGY · Grok · Bounded LeafRun execution · candidate evidence</title>
+          <rect x="1590" y="330" width="155" height="66" rx="6" class="c-mask"/>
+          <rect x="1590" y="330" width="155" height="66" rx="6" class="c-external" data-animate="node" style="--step:9" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="external" class="semantic-sigil s-external" transform="translate(1596 336) scale(0.6875)">
             <rect x="2.5" y="5" width="8.5" height="8" rx="1.5"/>
             <path d="M8 2.5h5.5V8M13.5 2.5 7.5 8.5"/>
           </g>
-          <text data-detail-anchor x="1468" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Provider Leaves</text>
-        <text data-detail="context" x="1468" y="377" class="t-muted" font-size="9" text-anchor="middle">Pi · AGY · Grok</text>
-        <text data-detail="fine" x="1468" y="388" class="t-external" font-size="7" text-anchor="middle">candidate evidence</text>
+          <text data-detail-anchor x="1667.5" y="361" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Provider Leaves</text>
+        <text data-detail="context" x="1667.5" y="377" class="t-muted" font-size="9" text-anchor="middle">Pi · AGY · Grok</text>
+        <text data-detail="fine" x="1667.5" y="388" class="t-external" font-size="7" text-anchor="middle">candidate evidence</text>
         </g>
 
         <g id="node-runtime" data-node-id="runtime" data-node-label="Runtime CLI" tabindex="0" role="button" aria-label="Focus Runtime CLI, init · doctor · qualify, Architecture component" aria-pressed="false" data-node-kind="backend" data-node-sublabel="init · doctor · qualify" data-node-tag="behind the skill" data-node-context="Architecture component">
           <title>Runtime CLI · init · doctor · qualify · Architecture component · behind the skill</title>
-          <rect x="572" y="510" width="166" height="66" rx="6" class="c-mask"/>
-          <rect x="572" y="510" width="166" height="66" rx="6" class="c-backend" data-animate="node" style="--step:9" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(578 516) scale(0.6875)">
+          <rect x="480" y="510" width="150" height="66" rx="6" class="c-mask"/>
+          <rect x="480" y="510" width="150" height="66" rx="6" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(486 516) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-detail-anchor x="655" y="541" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Runtime CLI</text>
-        <text data-detail="context" x="655" y="557" class="t-muted" font-size="9" text-anchor="middle">init · doctor · qualify</text>
-        <text data-detail="fine" x="655" y="568" class="t-backend" font-size="7" text-anchor="middle">behind the skill</text>
+          <text data-detail-anchor x="555" y="541" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Runtime CLI</text>
+        <text data-detail="context" x="555" y="557" class="t-muted" font-size="9" text-anchor="middle">init · doctor · qualify</text>
+        <text data-detail="fine" x="555" y="568" class="t-backend" font-size="7" text-anchor="middle">behind the skill</text>
+        </g>
+
+        <g id="node-main" data-node-id="main" data-node-label="codex-main" tabindex="0" role="button" aria-label="Focus codex-main, completion authority, App-owned Local · Worktree · Handoff context" aria-pressed="false" data-node-kind="backend" data-node-sublabel="completion authority" data-node-tag="only writer" data-node-context="App-owned Local · Worktree · Handoff context">
+          <title>codex-main · completion authority · App-owned Local · Worktree · Handoff context · only writer</title>
+          <rect x="660" y="510" width="160" height="66" rx="6" class="c-mask"/>
+          <rect x="660" y="510" width="160" height="66" rx="6" class="c-backend" data-animate="node" style="--step:10" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(666 516) scale(0.6875)">
+            <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
+          </g>
+          <text data-detail-anchor x="740" y="541" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">codex-main</text>
+        <text data-detail="context" x="740" y="557" class="t-muted" font-size="9" text-anchor="middle">completion authority</text>
+        <text data-detail="fine" x="740" y="568" class="t-backend" font-size="7" text-anchor="middle">only writer</text>
         </g>
 
         <g id="node-checkout" data-node-id="checkout" data-node-label="App-selected Checkout" tabindex="0" role="button" aria-label="Focus App-selected Checkout, current task workspace, App-owned Local · Worktree · Handoff context" aria-pressed="false" data-node-kind="database" data-node-sublabel="current task workspace" data-node-context="App-owned Local · Worktree · Handoff context">
           <title>App-selected Checkout · current task workspace · App-owned Local · Worktree · Handoff context</title>
-          <rect x="767" y="510" width="164" height="66" rx="6" class="c-mask"/>
-          <rect x="767" y="510" width="164" height="66" rx="6" class="c-database" data-animate="node" style="--step:10" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(773 516) scale(0.6875)">
+          <rect x="660" y="630" width="160" height="66" rx="6" class="c-mask"/>
+          <rect x="660" y="630" width="160" height="66" rx="6" class="c-database" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(666 636) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-detail-anchor x="849" y="541" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">App-selected Checkout</text>
-        <text data-detail="context" x="849" y="557" class="t-muted" font-size="9" text-anchor="middle">current task workspace</text>
+          <text data-detail-anchor x="740" y="661" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">App-selected Checkout</text>
+        <text data-detail="context" x="740" y="677" class="t-muted" font-size="9" text-anchor="middle">current task workspace</text>
         </g>
 
         <g id="node-repository" data-node-id="repository" data-node-label="Repository Identity" tabindex="0" role="button" aria-label="Focus Repository Identity, Git common storage key, App-owned Local · Worktree · Handoff context" aria-pressed="false" data-node-kind="database" data-node-sublabel="Git common storage key" data-node-tag="Local · Worktree · Handoff" data-node-context="App-owned Local · Worktree · Handoff context">
           <title>Repository Identity · Git common storage key · App-owned Local · Worktree · Handoff context · Local · Worktree · Handoff</title>
-          <rect x="762" y="630" width="174" height="70" rx="6" class="c-mask"/>
-          <rect x="762" y="630" width="174" height="70" rx="6" class="c-database" data-animate="node" style="--step:11" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(768 636) scale(0.6875)">
+          <rect x="650" y="750" width="180" height="70" rx="6" class="c-mask"/>
+          <rect x="650" y="750" width="180" height="70" rx="6" class="c-database" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="database" class="semantic-sigil s-database" transform="translate(656 756) scale(0.6875)">
             <ellipse cx="8" cy="4" rx="5" ry="2"/>
             <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>
           </g>
-          <text data-detail-anchor x="849" y="663" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Repository Identity</text>
-        <text data-detail="context" x="849" y="679" class="t-muted" font-size="9" text-anchor="middle">Git common storage key</text>
-        <text data-detail="fine" x="849" y="692" class="t-database" font-size="7" text-anchor="middle">Local · Worktree · Handoff</text>
+          <text data-detail-anchor x="740" y="783" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Repository Identity</text>
+        <text data-detail="context" x="740" y="799" class="t-muted" font-size="9" text-anchor="middle">Git common storage key</text>
+        <text data-detail="fine" x="740" y="812" class="t-database" font-size="7" text-anchor="middle">Local · Worktree · Handoff</text>
         </g>
 
-        <g id="node-blocked" data-node-id="blocked" data-node-label="Blocked Boundaries" tabindex="0" role="button" aria-label="Focus Blocked Boundaries, native agents · external writers, Bounded leaf execution" aria-pressed="false" data-node-kind="security" data-node-sublabel="native agents · external writers" data-node-tag="no authority" data-node-context="Bounded leaf execution">
-          <title>Blocked Boundaries · native agents · external writers · Bounded leaf execution · no authority</title>
-          <rect x="980" y="510" width="178" height="66" rx="6" class="c-mask"/>
-          <rect x="980" y="510" width="178" height="66" rx="6" class="c-security" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(986 516) scale(0.6875)">
+        <g id="node-blocked" data-node-id="blocked" data-node-label="Blocked Outcomes" tabindex="0" role="button" aria-label="Focus Blocked Outcomes, deny · expiry · drift, Bounded LeafRun execution" aria-pressed="false" data-node-kind="security" data-node-sublabel="deny · expiry · drift" data-node-tag="zero provider starts" data-node-context="Bounded LeafRun execution">
+          <title>Blocked Outcomes · deny · expiry · drift · Bounded LeafRun execution · zero provider starts</title>
+          <rect x="1050" y="510" width="155" height="66" rx="6" class="c-mask"/>
+          <rect x="1050" y="510" width="155" height="66" rx="6" class="c-security" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(1056 516) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-detail-anchor x="1069" y="541" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Blocked Boundaries</text>
-        <text data-detail="context" x="1069" y="557" class="t-muted" font-size="9" text-anchor="middle">native agents · external writers</text>
-        <text data-detail="fine" x="1069" y="568" class="t-security" font-size="7" text-anchor="middle">no authority</text>
+          <text data-detail-anchor x="1127.5" y="541" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Blocked Outcomes</text>
+        <text data-detail="context" x="1127.5" y="557" class="t-muted" font-size="9" text-anchor="middle">deny · expiry · drift</text>
+        <text data-detail="fine" x="1127.5" y="568" class="t-security" font-size="7" text-anchor="middle">zero provider starts</text>
         </g>
 
-        <g id="node-runtime-profile" data-node-id="runtime-profile" data-node-label="Provider Runtime Profile" tabindex="0" role="button" aria-label="Focus Provider Runtime Profile, fixed argv · env allowlist, Bounded leaf execution" aria-pressed="false" data-node-kind="backend" data-node-sublabel="fixed argv · env allowlist" data-node-tag="fingerprinted" data-node-context="Bounded leaf execution">
-          <title>Provider Runtime Profile · fixed argv · env allowlist · Bounded leaf execution · fingerprinted</title>
-          <rect x="1184" y="500" width="180" height="66" rx="6" class="c-mask"/>
-          <rect x="1184" y="500" width="180" height="66" rx="6" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1190 506) scale(0.6875)">
+        <g id="node-runtime-profile" data-node-id="runtime-profile" data-node-label="Provider Runtime Profile" tabindex="0" role="button" aria-label="Focus Provider Runtime Profile, fixed argv · env allowlist, Bounded LeafRun execution" aria-pressed="false" data-node-kind="backend" data-node-sublabel="fixed argv · env allowlist" data-node-tag="fingerprinted" data-node-context="Bounded LeafRun execution">
+          <title>Provider Runtime Profile · fixed argv · env allowlist · Bounded LeafRun execution · fingerprinted</title>
+          <rect x="1230" y="510" width="170" height="66" rx="6" class="c-mask"/>
+          <rect x="1230" y="510" width="170" height="66" rx="6" class="c-backend" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(1236 516) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-detail-anchor x="1274" y="531" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Provider Runtime Profile</text>
-        <text data-detail="context" x="1274" y="547" class="t-muted" font-size="9" text-anchor="middle">fixed argv · env allowlist</text>
-        <text data-detail="fine" x="1274" y="558" class="t-backend" font-size="7" text-anchor="middle">fingerprinted</text>
+          <text data-detail-anchor x="1315" y="541" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Provider Runtime Profile</text>
+        <text data-detail="context" x="1315" y="557" class="t-muted" font-size="9" text-anchor="middle">fixed argv · env allowlist</text>
+        <text data-detail="fine" x="1315" y="568" class="t-backend" font-size="7" text-anchor="middle">fingerprinted</text>
         </g>
 
-        <g id="node-auth-binding" data-node-id="auth-binding" data-node-label="Provider-owned Auth" tabindex="0" role="button" aria-label="Focus Provider-owned Auth, env · keyring · safe file, Bounded leaf execution" aria-pressed="false" data-node-kind="security" data-node-sublabel="env · keyring · safe file" data-node-tag="no shared vault" data-node-context="Bounded leaf execution">
-          <title>Provider-owned Auth · env · keyring · safe file · Bounded leaf execution · no shared vault</title>
-          <rect x="1184" y="620" width="180" height="66" rx="6" class="c-mask"/>
-          <rect x="1184" y="620" width="180" height="66" rx="6" class="c-security" data-animate="node" style="--step:12" stroke-width="1.5"/>
-          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(1190 626) scale(0.6875)">
+        <g id="node-auth-binding" data-node-id="auth-binding" data-node-label="Provider-owned Auth" tabindex="0" role="button" aria-label="Focus Provider-owned Auth, env · keyring · safe file, Bounded LeafRun execution" aria-pressed="false" data-node-kind="security" data-node-sublabel="env · keyring · safe file" data-node-tag="no shared vault" data-node-context="Bounded LeafRun execution">
+          <title>Provider-owned Auth · env · keyring · safe file · Bounded LeafRun execution · no shared vault</title>
+          <rect x="1230" y="630" width="170" height="66" rx="6" class="c-mask"/>
+          <rect x="1230" y="630" width="170" height="66" rx="6" class="c-security" data-animate="node" style="--step:12" stroke-width="1.5"/>
+          <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(1236 636) scale(0.6875)">
             <path d="M8 2.2 13 4v3.5c0 3.1-1.8 5.4-5 6.5-3.2-1.1-5-3.4-5-6.5V4Z"/>
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
-          <text data-detail-anchor x="1274" y="651" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Provider-owned Auth</text>
-        <text data-detail="context" x="1274" y="667" class="t-muted" font-size="9" text-anchor="middle">env · keyring · safe file</text>
-        <text data-detail="fine" x="1274" y="678" class="t-security" font-size="7" text-anchor="middle">no shared vault</text>
+          <text data-detail-anchor x="1315" y="661" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Provider-owned Auth</text>
+        <text data-detail="context" x="1315" y="677" class="t-muted" font-size="9" text-anchor="middle">env · keyring · safe file</text>
+        <text data-detail="fine" x="1315" y="688" class="t-security" font-size="7" text-anchor="middle">no shared vault</text>
         </g>
 
         <!-- Connection labels -->
 
         <g data-detail="context" data-edge-from="app" data-edge-to="task" data-edge-label="Local · Worktree · Handoff" data-edge-key="1" data-edge-id="app-to-task">
-          <rect x="296.6" y="295" width="134.8" height="14" rx="3" class="c-mask"/>
-          <text x="364" y="305" class="t-backend" font-size="8" text-anchor="middle">Local · Worktree · Handoff</text>
+          <rect x="240.6" y="295" width="134.8" height="14" rx="3" class="c-mask"/>
+          <text x="308" y="305" class="t-backend" font-size="8" text-anchor="middle">Local · Worktree · Handoff</text>
         </g>
 
 
-        <g data-detail="context" data-edge-from="main" data-edge-to="gate" data-edge-label="bounded brief" data-edge-key="4" data-edge-id="main-to-gate">
-          <rect x="915.8" y="295" width="72.4" height="14" rx="3" class="c-mask"/>
-          <text x="952" y="305" class="t-backend" font-size="8" text-anchor="middle">bounded brief</text>
+        <g data-detail="context" data-edge-from="mcp-app" data-edge-to="intent" data-edge-label="prepare" data-edge-key="4" data-edge-id="mcp-app-to-intent">
+          <rect x="828.2" y="295" width="43.6" height="14" rx="3" class="c-mask"/>
+          <text x="850" y="305" class="t-backend" font-size="8" text-anchor="middle">prepare</text>
         </g>
-        <g data-detail="context" data-edge-from="gate" data-edge-to="fleet" data-edge-label="authorized" data-edge-key="5" data-edge-id="gate-to-fleet">
-          <rect x="1147" y="295" width="58" height="14" rx="3" class="c-mask"/>
-          <text x="1176" y="305" class="t-backend" font-size="8" text-anchor="middle">authorized</text>
+        <g data-detail="context" data-edge-from="intent" data-edge-to="gate" data-edge-label="app-only start" data-edge-key="5" data-edge-id="intent-to-gate">
+          <rect x="998.4" y="295" width="77.2" height="14" rx="3" class="c-mask"/>
+          <text x="1037" y="305" class="t-security" font-size="8" text-anchor="middle">app-only start</text>
+        </g>
+        <g data-detail="context" data-edge-from="gate" data-edge-to="leaf-worker" data-edge-label="host dispatched" data-edge-key="6" data-edge-id="gate-to-leaf-worker">
+          <rect x="1179" y="295" width="82" height="14" rx="3" class="c-mask"/>
+          <text x="1220" y="305" class="t-backend" font-size="8" text-anchor="middle">host dispatched</text>
         </g>
 
-        <g data-detail="context" data-edge-from="providers" data-edge-to="main" data-edge-label="candidate evidence" data-edge-key="7" data-edge-id="providers-to-main">
-          <rect x="1089.8" y="240" width="96.39999999999999" height="14" rx="3" class="c-mask"/>
-          <text x="1138" y="250" class="t-messagebus" font-size="8" text-anchor="middle">candidate evidence</text>
+
+        <g data-detail="context" data-edge-from="providers" data-edge-to="main" data-edge-label="candidate evidence + receipt" data-edge-key="9" data-edge-id="providers-to-main">
+          <rect x="1137.8" y="835" width="144.4" height="14" rx="3" class="c-mask"/>
+          <text x="1210" y="845" class="t-messagebus" font-size="8" text-anchor="middle">candidate evidence + receipt</text>
         </g>
-        <g data-detail="context" data-edge-from="skill" data-edge-to="runtime" data-edge-label="internal call" data-edge-key="8" data-edge-id="skill-to-runtime">
-          <rect x="618.8" y="416" width="72.4" height="14" rx="3" class="c-mask"/>
-          <text x="655" y="426" class="t-messagebus" font-size="8" text-anchor="middle">internal call</text>
+        <g data-detail="context" data-edge-from="mcp-app" data-edge-to="main" data-edge-label="status + usage" data-edge-key="10" data-edge-id="mcp-app-to-main">
+          <rect x="701.4" y="416" width="77.2" height="14" rx="3" class="c-mask"/>
+          <text x="740" y="426" class="t-messagebus" font-size="8" text-anchor="middle">status + usage</text>
         </g>
-        <g data-detail="context" data-edge-from="main" data-edge-to="checkout" data-edge-label="sole writer" data-edge-key="9" data-edge-id="main-to-checkout">
-          <rect x="817.6" y="416" width="62.8" height="14" rx="3" class="c-mask"/>
-          <text x="849" y="426" class="t-security" font-size="8" text-anchor="middle">sole writer</text>
+        <g data-detail="context" data-edge-from="skill" data-edge-to="runtime" data-edge-label="internal call" data-edge-key="11" data-edge-id="skill-to-runtime">
+          <rect x="518.8" y="416" width="72.4" height="14" rx="3" class="c-mask"/>
+          <text x="555" y="426" class="t-messagebus" font-size="8" text-anchor="middle">internal call</text>
         </g>
-        <g data-detail="context" data-edge-from="checkout" data-edge-to="repository" data-edge-label="stable identity" data-edge-key="10" data-edge-id="checkout-to-repository">
-          <rect x="808" y="590" width="82" height="14" rx="3" class="c-mask"/>
-          <text x="849" y="600" class="t-messagebus" font-size="8" text-anchor="middle">stable identity</text>
+        <g data-detail="context" data-edge-from="main" data-edge-to="checkout" data-edge-label="sole writer" data-edge-key="12" data-edge-id="main-to-checkout">
+          <rect x="708.6" y="590" width="62.8" height="14" rx="3" class="c-mask"/>
+          <text x="740" y="600" class="t-security" font-size="8" text-anchor="middle">sole writer</text>
         </g>
-        <g data-detail="context" data-edge-from="gate" data-edge-to="blocked" data-edge-label="missing · stale · write" data-edge-key="11" data-edge-id="gate-to-blocked">
-          <rect x="1008.8" y="416" width="120.39999999999999" height="14" rx="3" class="c-mask"/>
-          <text x="1069" y="426" class="t-security" font-size="8" text-anchor="middle">missing · stale · write</text>
+        <g data-detail="context" data-edge-from="checkout" data-edge-to="repository" data-edge-label="stable identity" data-edge-key="13" data-edge-id="checkout-to-repository">
+          <rect x="699" y="710" width="82" height="14" rx="3" class="c-mask"/>
+          <text x="740" y="720" class="t-messagebus" font-size="8" text-anchor="middle">stable identity</text>
         </g>
-        <g data-detail="context" data-edge-from="runtime-profile" data-edge-to="fleet" data-edge-label="fixed argv + env" data-edge-key="12" data-edge-id="runtime-profile-to-fleet">
-          <rect x="1230.6" y="480" width="86.8" height="14" rx="3" class="c-mask"/>
-          <text x="1274" y="490" class="t-security" font-size="8" text-anchor="middle">fixed argv + env</text>
+
+        <g data-detail="context" data-edge-from="gate" data-edge-to="blocked" data-edge-label="deny · expiry · drift" data-edge-key="15" data-edge-id="gate-to-blocked">
+          <rect x="1072.1" y="416" width="110.8" height="14" rx="3" class="c-mask"/>
+          <text x="1127.5" y="426" class="t-security" font-size="8" text-anchor="middle">deny · expiry · drift</text>
+        </g>
+        <g data-detail="context" data-edge-from="runtime-profile" data-edge-to="fleet" data-edge-label="fixed argv + env" data-edge-key="16" data-edge-id="runtime-profile-to-fleet">
+          <rect x="1357.85" y="433" width="86.8" height="14" rx="3" class="c-mask"/>
+          <text x="1401.25" y="443" class="t-security" font-size="8" text-anchor="middle">fixed argv + env</text>
         </g>
 
 
         <!-- Legend -->
         <g data-legend-bridge>
-          <text x="40" y="771" class="t-primary" font-size="9" font-weight="600">Legend</text>
+          <text x="40" y="871" class="t-primary" font-size="9" font-weight="600">Legend</text>
           <g data-legend-kind="external">
-            <rect x="40" y="776" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
-            <text x="60" y="784" class="t-muted" font-size="8">External</text>
+            <rect x="40" y="876" width="14" height="9" rx="2" class="c-external" stroke-width="1"/>
+            <text x="60" y="884" class="t-muted" font-size="8">External</text>
           </g>
           <g data-legend-kind="frontend">
-            <rect x="144" y="776" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
-            <text x="164" y="784" class="t-muted" font-size="8">Frontend</text>
+            <rect x="144" y="876" width="14" height="9" rx="2" class="c-frontend" stroke-width="1"/>
+            <text x="164" y="884" class="t-muted" font-size="8">Frontend</text>
           </g>
           <g data-legend-kind="cloud">
-            <rect x="248" y="776" width="14" height="9" rx="2" class="c-cloud" stroke-width="1"/>
-            <text x="268" y="784" class="t-muted" font-size="8">Cloud</text>
+            <rect x="248" y="876" width="14" height="9" rx="2" class="c-cloud" stroke-width="1"/>
+            <text x="268" y="884" class="t-muted" font-size="8">Cloud</text>
           </g>
           <g data-legend-kind="backend">
-            <rect x="337" y="776" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
-            <text x="357" y="784" class="t-muted" font-size="8">Backend</text>
+            <rect x="337" y="876" width="14" height="9" rx="2" class="c-backend" stroke-width="1"/>
+            <text x="357" y="884" class="t-muted" font-size="8">Backend</text>
+          </g>
+          <g data-legend-kind="messagebus">
+            <rect x="436" y="876" width="14" height="9" rx="2" class="c-messagebus" stroke-width="1"/>
+            <text x="456" y="884" class="t-muted" font-size="8">Message bus</text>
           </g>
           <g data-legend-kind="security">
-            <rect x="436" y="776" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
-            <text x="456" y="784" class="t-muted" font-size="8">Security</text>
+            <rect x="555" y="876" width="14" height="9" rx="2" class="c-security" stroke-width="1"/>
+            <text x="575" y="884" class="t-muted" font-size="8">Security</text>
           </g>
           <g data-legend-kind="database">
-            <rect x="540" y="776" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
-            <text x="560" y="784" class="t-muted" font-size="8">Database</text>
+            <rect x="659" y="876" width="14" height="9" rx="2" class="c-database" stroke-width="1"/>
+            <text x="679" y="884" class="t-muted" font-size="8">Database</text>
           </g>
         </g>
       </svg>
@@ -5023,45 +5082,45 @@
       <div class="card">
         <div class="card-header">
           <div class="card-dot cyan"></div>
-          <h3>App ownership</h3>
+          <h3>Visible App status</h3>
         </div>
         <ul>
-          <li>&bull; ChatGPT desktop app owns tasks, Local, Worktrees, Handoff, branches, and approvals</li>
-          <li>&bull; Ground Control never creates, removes, moves, or hands off an App Worktree</li>
+          <li>&bull; The same Codex task shows Ready, Working, Done, stage, duration, usage, and receipt</li>
+          <li>&bull; The card is an MCP App surface, not a fake native child-agent thread</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot violet"></div>
-          <h3>One writer</h3>
+          <h3>Intent + native permission</h3>
         </div>
         <ul>
-          <li>&bull; codex-main writes only the checkout selected for the current App task</li>
-          <li>&bull; Provider leaves return candidate evidence and cannot declare completion</li>
+          <li>&bull; LeafRunIntent v1 binds repository identity, brief digest, qualification fingerprint, and expiry</li>
+          <li>&bull; Codex governs app-only dispatch; Ground Control adds no second permission prompt</li>
+          <li>&bull; Retry returns one run identity; denial, expiry, mismatch, or drift starts no Provider</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot emerald"></div>
-          <h3>Stable identity + evidence</h3>
+          <h3>Exact evidence</h3>
         </div>
         <ul>
-          <li>&bull; Local, linked Worktrees, and Handoff share the Git common-storage identity</li>
-          <li>&bull; The runtime verifies append-only evidence before any bounded live execution</li>
+          <li>&bull; LeafRunEvent v1 journals are append-only and omit prompt, credentials, raw output, and hidden reasoning</li>
+          <li>&bull; RuntimeUsage v1 is exact from Pi message_end or unknown—never estimated</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot rose"></div>
-          <h3>Fail-closed gates</h3>
+          <h3>Authority stays bounded</h3>
         </div>
         <ul>
-          <li>&bull; Status is detected → authenticated → enabled → qualified → current → run-authorized</li>
-          <li>&bull; AGY keyring stays provider-native; Grok auth is copied only into disposable GROK_HOME</li>
-          <li>&bull; Native agents and external writers remain blocked</li>
+          <li>&bull; codex-main remains the only workspace writer and completion authority</li>
+          <li>&bull; Provider auth stays provider-owned; native agents and external writers remain blocked</li>
         </ul>
       </div>
     </div>

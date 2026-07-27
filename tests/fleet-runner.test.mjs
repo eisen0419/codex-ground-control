@@ -170,3 +170,88 @@ test("FleetRunner rejects manifest limits above product hard ceilings", () => {
     (error) => error.code === "FLEET_MANIFEST_INVALID",
   );
 });
+
+test("FleetRunner durably journals sanitized ordered LeafRun events", async () => {
+  const sandbox = mkdtempSync(join(tmpdir(), "fleet-runner-events-"));
+  const runsRoot = join(sandbox, "runs");
+  const runIdentity = "event-journal-fixture";
+  const collected = [];
+  mkdirSync(runsRoot);
+  try {
+    const receipt = await runFleetJob(validJob, manifest, {
+      runsRoot,
+      manifestDirectory: dirname(manifestPath),
+      runIdentityFactory: () => runIdentity,
+      eventSink(event) {
+        const journal = readFileSync(
+          join(runsRoot, runIdentity, "events.jsonl"),
+          "utf8",
+        )
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line));
+        assert.deepEqual(journal.at(-1), event);
+        collected.push(event);
+      },
+    });
+
+    const journal = readFileSync(
+      join(runsRoot, runIdentity, "events.jsonl"),
+      "utf8",
+    )
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(journal, collected);
+    assert.deepEqual(
+      journal.map((event) => event.type),
+      [
+        "run.started",
+        "process.started",
+        "process.output",
+        "process.exited",
+        "run.finished",
+      ],
+    );
+    assert.deepEqual(
+      journal.map((event) => event.sequence),
+      [1, 2, 3, 4, 5],
+    );
+    for (const event of journal) {
+      assert.equal(event.schemaVersion, "1");
+      assert.equal(event.runIdentity, runIdentity);
+      assert.equal(
+        new Date(event.at).toISOString(),
+        event.at,
+      );
+      assert.equal(Object.hasOwn(event, "prompt"), false);
+      assert.equal(Object.hasOwn(event, "text"), false);
+      assert.equal(Object.hasOwn(event, "data"), false);
+    }
+    assert.deepEqual(
+      journal[2],
+      {
+        schemaVersion: "1",
+        sequence: 3,
+        runIdentity,
+        type: "process.output",
+        at: journal[2].at,
+        stream: "stdout",
+        chunkBytes: journal[2].chunkBytes,
+        totalBytes: journal[2].totalBytes,
+      },
+    );
+    assert.equal(journal[2].chunkBytes > 0, true);
+    assert.equal(
+      journal[2].chunkBytes,
+      journal[2].totalBytes,
+    );
+    assert.equal(
+      JSON.stringify(journal).includes(validJob.prompt),
+      false,
+    );
+    assert.equal(receipt.evidence.events, "events.jsonl");
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});

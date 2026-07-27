@@ -44,10 +44,12 @@ release-blocking checks passed. If the failed provider is not safely disabled
 or the offline evidence no longer verifies afterward, failure isolation itself
 becomes a release blocker.
 
-The command also performs read-only npm registry and GitHub public-name checks.
-GitHub repository names are owner-scoped, so its result is an observation, not
-a reservation; the intended owner must still be checked immediately before
-creating a remote.
+The command also performs read-only npm registry and GitHub identity checks.
+For a new npm package, it records that the package name is unclaimed. For an
+existing package, it records the published versions and requires the exact
+candidate version to remain unpublished. GitHub repository names are
+owner-scoped, so its result is an observation, not a reservation; the target
+repository and owner must still be checked immediately before publication.
 
 For a deterministic offline rehearsal, use:
 

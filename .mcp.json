@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "codex-ground-control": {
+      "command": "node",
+      "args": [
+        "src/mcp-app-server.js"
+      ],
+      "cwd": "."
+    }
+  }
+}
