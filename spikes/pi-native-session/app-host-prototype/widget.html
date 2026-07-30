@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>Ground Control v0.3 叶任务状态卡</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "PingFang SC", "Noto Sans SC", sans-serif;
+        background: transparent;
+        --surface: rgba(255, 255, 255, 0.92);
+        --surface-solid: #ffffff;
+        --text: #1d1d1f;
+        --secondary: #6e6e73;
+        --tertiary: #8e8e93;
+        --line: rgba(60, 60, 67, 0.16);
+        --line-strong: rgba(60, 60, 67, 0.28);
+        --fill: rgba(118, 118, 128, 0.1);
+        --success: #248a3d;
+        --cancelled: #a05a00;
+        --shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --surface: rgba(37, 37, 39, 0.94);
+          --surface-solid: #252527;
+          --text: #f5f5f7;
+          --secondary: #a1a1a6;
+          --tertiary: #8e8e93;
+          --line: rgba(235, 235, 245, 0.13);
+          --line-strong: rgba(235, 235, 245, 0.24);
+          --fill: rgba(118, 118, 128, 0.18);
+          --success: #30d158;
+          --cancelled: #ff9f0a;
+          --shadow: 0 14px 42px rgba(0, 0, 0, 0.28);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 280px;
+        margin: 0;
+        color: var(--text);
+        background: transparent;
+      }
+
+      .card {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 19px 21px 17px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .identity {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .status-dot {
+        flex: 0 0 auto;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--cancelled);
+        box-shadow:
+          0 0 0 4px
+          color-mix(in srgb, var(--cancelled) 14%, transparent);
+      }
+
+      .identity-copy {
+        min-width: 0;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+
+      .subtitle {
+        margin: 3px 0 0;
+        overflow: hidden;
+        color: var(--secondary);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .status {
+        flex: 0 0 auto;
+        color: var(--cancelled);
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      .progress {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        padding: 15px 21px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .step {
+        position: relative;
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        gap: 8px;
+        align-items: center;
+        color: var(--secondary);
+        font-size: 12px;
+      }
+
+      .step:not(:last-child)::after {
+        position: absolute;
+        top: 9px;
+        left: 9px;
+        width: calc(100% - 2px);
+        height: 1px;
+        background: var(--line-strong);
+        content: "";
+      }
+
+      .step-mark {
+        z-index: 1;
+        display: grid;
+        width: 18px;
+        height: 18px;
+        place-items: center;
+        border: 1px solid var(--success);
+        border-radius: 50%;
+        color: #ffffff;
+        background: var(--success);
+        font-size: 10px;
+      }
+
+      .step.is-terminal {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .step.is-terminal .step-mark {
+        border-color: var(--cancelled);
+        background: var(--cancelled);
+      }
+
+      .body {
+        display: grid;
+        gap: 16px;
+        padding: 17px 21px 19px;
+      }
+
+      .summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 18px;
+      }
+
+      .fact {
+        min-width: 112px;
+      }
+
+      .fact.is-wide {
+        flex: 1 1 180px;
+      }
+
+      .label {
+        margin-bottom: 4px;
+        color: var(--tertiary);
+        font-size: 10px;
+        font-weight: 650;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .value {
+        overflow: hidden;
+        color: var(--text);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .mono {
+        font-family: "SF Mono", SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+      }
+
+      .proof {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+        padding-top: 15px;
+        border-top: 1px solid var(--line);
+      }
+
+      .proof-item {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 7px;
+        color: var(--secondary);
+        font-size: 11px;
+      }
+
+      .proof-mark {
+        display: grid;
+        flex: 0 0 auto;
+        width: 16px;
+        height: 16px;
+        place-items: center;
+        border-radius: 50%;
+        color: #ffffff;
+        background: var(--success);
+        font-size: 9px;
+        font-weight: 700;
+      }
+
+      footer {
+        display: flex;
+        align-items: flex-start;
+        gap: 7px;
+        padding: 0 21px 18px;
+        color: var(--secondary);
+        font-size: 11px;
+        line-height: 1.55;
+      }
+
+      footer::before {
+        flex: 0 0 auto;
+        width: 6px;
+        height: 6px;
+        margin-top: 5px;
+        border-radius: 50%;
+        background: var(--secondary);
+        content: "";
+      }
+
+      footer strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      @media (max-width: 520px) {
+        header {
+          gap: 12px;
+          padding-inline: 17px;
+        }
+
+        .progress {
+          grid-template-columns: 1fr;
+          gap: 10px;
+          padding-inline: 17px;
+        }
+
+        .step:not(:last-child)::after {
+          display: none;
+        }
+
+        .body,
+        footer {
+          padding-inline: 17px;
+        }
+
+        .proof {
+          grid-template-columns: 1fr;
+        }
+
+        .fact {
+          min-width: min(112px, 45%);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main
+      class="card"
+      data-screen-label="Ground Control read-only leaf card"
+      aria-live="polite"
+    >
+      <header>
+        <div class="identity">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div class="identity-copy">
+            <h1 id="title">Pi · GLM 5.2</h1>
+            <p class="subtitle">只读终态 · Provider-native session</p>
+          </div>
+        </div>
+        <div class="status" id="state">等待状态</div>
+      </header>
+
+      <section class="progress" aria-label="任务终态">
+        <div class="step">
+          <span class="step-mark">✓</span>
+          <span>会话已创建</span>
+        </div>
+        <div class="step">
+          <span class="step-mark">✓</span>
+          <span>Provider 已启动</span>
+        </div>
+        <div class="step is-terminal">
+          <span class="step-mark">✓</span>
+          <span>精确取消</span>
+        </div>
+      </section>
+
+      <section class="body">
+        <div class="summary">
+          <div class="fact">
+            <div class="label">最近事件</div>
+            <div class="value mono" id="event">—</div>
+          </div>
+          <div class="fact">
+            <div class="label">任务</div>
+            <div class="value mono" id="task">—</div>
+          </div>
+          <div class="fact">
+            <div class="label">原生会话</div>
+            <div class="value mono" id="session">—</div>
+          </div>
+          <div class="fact">
+            <div class="label">阶段</div>
+            <div class="value mono" id="stage">—</div>
+          </div>
+          <div class="fact is-wide">
+            <div class="label">证据 SHA-256</div>
+            <div class="value mono" id="evidence">—</div>
+          </div>
+        </div>
+
+        <section class="proof" aria-label="验收证据">
+          <div class="proof-item">
+            <span class="proof-mark">✓</span>
+            <span id="native-start">native start 已观察</span>
+          </div>
+          <div class="proof-item">
+            <span class="proof-mark">✓</span>
+            <span id="exact-cancel">精确取消已落定</span>
+          </div>
+          <div class="proof-item">
+            <span class="proof-mark">✓</span>
+            <span id="sibling">兄弟会话隔离通过</span>
+          </div>
+        </section>
+      </section>
+
+      <footer>
+        <span>
+          <strong>隔离只读投影。</strong>
+          不是 Codex 原生子 Agent；卡片与 inspect 工具消费同一份脱敏状态。
+        </span>
+      </footer>
+    </main>
+
+    <script>
+      (() => {
+        const elements = {
+          title: document.getElementById("title"),
+          state: document.getElementById("state"),
+          stage: document.getElementById("stage"),
+          task: document.getElementById("task"),
+          session: document.getElementById("session"),
+          event: document.getElementById("event"),
+          evidence: document.getElementById("evidence"),
+          nativeStart: document.getElementById("native-start"),
+          exactCancel: document.getElementById("exact-cancel"),
+          sibling: document.getElementById("sibling"),
+        };
+        let bridgeReady = false;
+        let requestId = 0;
+        let lastWidth = 0;
+        let lastHeight = 0;
+        let resizeScheduled = false;
+        const pending = new Map();
+
+        function post(message) {
+          window.parent.postMessage(message, "*");
+        }
+
+        function stateLabel(state) {
+          return (
+            {
+              cancelled: "已精确取消",
+              running: "运行中",
+              completed: "已完成",
+              failed: "失败",
+              starting: "启动中",
+            }[state] || state || "状态未知"
+          );
+        }
+
+        function compactId(value) {
+          if (!value || value.length < 15) {
+            return value || "—";
+          }
+          return `${value.slice(0, 8)}…${value.slice(-4)}`;
+        }
+
+        function compactHash(value) {
+          if (!value || value.length < 20) {
+            return value || "—";
+          }
+          return `${value.slice(0, 12)}…${value.slice(-8)}`;
+        }
+
+        function render(result) {
+          const payload =
+            result && (result.structuredContent || result);
+          if (!payload || payload.kind !== "provider-native-leaf-card") {
+            return;
+          }
+          const card = payload.card;
+          const proof = payload.proof;
+          elements.state.textContent = stateLabel(card.state);
+          elements.title.textContent =
+            `${card.provider === "pi" ? "Pi" : card.provider} · ` +
+            `${card.model === "glm-5.2" ? "GLM 5.2" : card.model}`;
+          elements.stage.textContent = card.stage;
+          elements.task.textContent = compactId(card.taskId);
+          elements.task.title = card.taskId;
+          elements.session.textContent = compactId(
+            card.nativeSession.id,
+          );
+          elements.session.title = card.nativeSession.id;
+          elements.event.textContent =
+            `${card.latestEvent.type} · #${card.latestEvent.sequence}`;
+          elements.event.title = card.latestEvent.observedAt;
+          elements.evidence.textContent = compactHash(
+            proof.sourceEvidenceSha256,
+          );
+          elements.evidence.title = proof.sourceEvidenceSha256;
+          elements.nativeStart.textContent =
+            proof.nativeStartObserved
+              ? "native start 已观察"
+              : "native start 未观察";
+          elements.exactCancel.textContent =
+            proof.exactCancellationSettled
+              ? "精确取消已落定"
+              : "精确取消未落定";
+          elements.sibling.textContent =
+            proof.siblingStillResponsive
+              ? "兄弟会话隔离通过"
+              : "兄弟会话隔离未通过";
+          scheduleSizeChanged();
+        }
+
+        function request(method, params) {
+          const id = ++requestId;
+          post({ jsonrpc: "2.0", id, method, params });
+          return new Promise((resolve, reject) => {
+            pending.set(id, { resolve, reject });
+            window.setTimeout(() => {
+              if (pending.delete(id)) {
+                reject(new Error("MCP App request timed out."));
+              }
+            }, 30000);
+          });
+        }
+
+        function scheduleSizeChanged() {
+          if (!bridgeReady || resizeScheduled) {
+            return;
+          }
+          resizeScheduled = true;
+          window.requestAnimationFrame(() => {
+            resizeScheduled = false;
+            const width = Math.ceil(window.innerWidth);
+            const height = Math.ceil(
+              document.documentElement.getBoundingClientRect().height,
+            );
+            if (width === lastWidth && height === lastHeight) {
+              return;
+            }
+            lastWidth = width;
+            lastHeight = height;
+            post({
+              jsonrpc: "2.0",
+              method: "ui/notifications/size-changed",
+              params: { width, height },
+            });
+          });
+        }
+
+        window.addEventListener("message", (event) => {
+          if (event.source !== window.parent) {
+            return;
+          }
+          const message = event.data;
+          if (!message || message.jsonrpc !== "2.0") {
+            return;
+          }
+          if (message.id && pending.has(message.id)) {
+            const entry = pending.get(message.id);
+            pending.delete(message.id);
+            if (message.error) {
+              entry.reject(new Error(message.error.message));
+            } else {
+              entry.resolve(message.result);
+            }
+            return;
+          }
+          if (message.method === "ui/notifications/tool-result") {
+            render(message.params);
+          }
+        });
+
+        if (typeof ResizeObserver === "function") {
+          new ResizeObserver(scheduleSizeChanged).observe(
+            document.documentElement,
+          );
+        }
+        window.addEventListener("resize", scheduleSizeChanged);
+
+        if (window.openai && window.openai.toolOutput) {
+          render(window.openai.toolOutput);
+        }
+
+        request("ui/initialize", {
+          appInfo: {
+            name: "codex-ground-control-v0-3-host-spike",
+            version: "0.3.0-alpha.1",
+          },
+          appCapabilities: {},
+          protocolVersion: "2026-01-26",
+        })
+          .then(() => {
+            bridgeReady = true;
+            post({
+              jsonrpc: "2.0",
+              method: "ui/notifications/initialized",
+              params: {},
+            });
+            scheduleSizeChanged();
+          })
+          .catch(() => {});
+      })();
+    </script>
+  </body>
+</html>

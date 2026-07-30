@@ -1,0 +1,33 @@
+{
+  "name": "app-host-prototype",
+  "version": "0.3.0-alpha.1",
+  "description": "Throwaway Codex App host card for the v0.3 Pi native-session spike.",
+  "author": {
+    "name": "Ground Control community project",
+    "url": "https://github.com/eisen0419/codex-ground-control"
+  },
+  "homepage": "https://github.com/eisen0419/codex-ground-control",
+  "repository": "https://github.com/eisen0419/codex-ground-control",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "mcp-app",
+    "pi",
+    "prototype"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Ground Control v0.3 Host Spike",
+    "shortDescription": "Render one sanitized Pi native-session result",
+    "longDescription": "Throwaway read-only Codex App card that renders the sanitized terminal state from the hardened Ground Control v0.3 Pi native-session spike.",
+    "developerName": "Ground Control community project",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive"
+    ],
+    "websiteURL": "https://github.com/eisen0419/codex-ground-control",
+    "defaultPrompt": [
+      "Render the sanitized Ground Control v0.3 Pi native-session spike card."
+    ]
+  }
+}

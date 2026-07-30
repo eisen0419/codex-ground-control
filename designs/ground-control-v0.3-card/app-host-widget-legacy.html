@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>Ground Control v0.3 叶任务状态卡</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family:
+          Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background: transparent;
+        --surface: #07172c;
+        --surface-2: #0b213e;
+        --line: rgba(103, 211, 255, 0.25);
+        --muted: #91a7c4;
+        --text: #f2f7ff;
+        --cyan: #67d3ff;
+        --green: #5ce0b5;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 280px;
+        color: var(--text);
+      }
+
+      .card {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background:
+          radial-gradient(
+            circle at 90% 0%,
+            rgba(103, 211, 255, 0.12),
+            transparent 34%
+          ),
+          linear-gradient(145deg, var(--surface-2), var(--surface));
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.04),
+          0 16px 48px rgba(0, 0, 0, 0.24);
+      }
+
+      header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 24px 28px 22px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        color: var(--cyan);
+        font: 700 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(20px, 4vw, 28px);
+        line-height: 1.2;
+      }
+
+      .status {
+        flex: 0 0 auto;
+        padding: 9px 15px;
+        border: 1px solid rgba(92, 224, 181, 0.55);
+        border-radius: 999px;
+        color: var(--green);
+        background: rgba(92, 224, 181, 0.08);
+        font-size: 14px;
+        font-weight: 700;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .field {
+        min-height: 104px;
+        padding: 20px 28px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .field:nth-child(odd) {
+        border-right: 1px solid var(--line);
+      }
+
+      .label {
+        margin-bottom: 9px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .value {
+        overflow-wrap: anywhere;
+        font-size: 16px;
+        font-weight: 650;
+        line-height: 1.45;
+      }
+
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 14px;
+      }
+
+      .proof {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 18px 28px 8px;
+      }
+
+      .proof span {
+        padding: 7px 10px;
+        border: 1px solid rgba(103, 211, 255, 0.22);
+        border-radius: 9px;
+        color: #c9ecff;
+        background: rgba(103, 211, 255, 0.06);
+        font-size: 12px;
+      }
+
+      footer {
+        padding: 14px 28px 24px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      footer strong {
+        color: var(--text);
+      }
+
+      @media (max-width: 560px) {
+        header {
+          padding: 20px;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .field {
+          min-height: auto;
+          padding: 17px 20px;
+        }
+
+        .field:nth-child(odd) {
+          border-right: 0;
+        }
+
+        .proof,
+        footer {
+          padding-left: 20px;
+          padding-right: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card" aria-live="polite">
+      <header>
+        <div>
+          <p class="eyebrow">Ground Control · v0.3 spike</p>
+          <h1>Pi 外部叶任务</h1>
+        </div>
+        <div class="status" id="state">等待状态</div>
+      </header>
+
+      <section class="grid">
+        <div class="field">
+          <div class="label">Provider / 模型</div>
+          <div class="value" id="provider">—</div>
+        </div>
+        <div class="field">
+          <div class="label">阶段</div>
+          <div class="value" id="stage">—</div>
+        </div>
+        <div class="field">
+          <div class="label">Ground Control task</div>
+          <div class="value mono" id="task">—</div>
+        </div>
+        <div class="field">
+          <div class="label">Provider native session</div>
+          <div class="value mono" id="session">—</div>
+        </div>
+        <div class="field">
+          <div class="label">最新结构化事件</div>
+          <div class="value mono" id="event">—</div>
+        </div>
+        <div class="field">
+          <div class="label">证据 SHA-256</div>
+          <div class="value mono" id="evidence">—</div>
+        </div>
+      </section>
+
+      <section class="proof" aria-label="验收证据">
+        <span id="native-start">native start：待确认</span>
+        <span id="exact-cancel">精确取消：待确认</span>
+        <span id="sibling">兄弟会话隔离：待确认</span>
+      </section>
+
+      <footer>
+        <strong>边界：</strong>
+        这是 Provider-native session 的只读投影，不是 Codex 原生子 Agent
+        任务。卡片与 inspect 工具消费同一份结构化状态。
+      </footer>
+    </main>
+
+    <script>
+      (() => {
+        const elements = {
+          state: document.getElementById("state"),
+          provider: document.getElementById("provider"),
+          stage: document.getElementById("stage"),
+          task: document.getElementById("task"),
+          session: document.getElementById("session"),
+          event: document.getElementById("event"),
+          evidence: document.getElementById("evidence"),
+          nativeStart: document.getElementById("native-start"),
+          exactCancel: document.getElementById("exact-cancel"),
+          sibling: document.getElementById("sibling"),
+        };
+        let bridgeReady = false;
+        let requestId = 0;
+        let lastWidth = 0;
+        let lastHeight = 0;
+        let resizeScheduled = false;
+        const pending = new Map();
+
+        function post(message) {
+          window.parent.postMessage(message, "*");
+        }
+
+        function stateLabel(state) {
+          return (
+            {
+              cancelled: "已精确取消",
+              running: "运行中",
+              completed: "已完成",
+              failed: "失败",
+              starting: "启动中",
+            }[state] || state || "状态未知"
+          );
+        }
+
+        function render(result) {
+          const payload =
+            result && (result.structuredContent || result);
+          if (!payload || payload.kind !== "provider-native-leaf-card") {
+            return;
+          }
+          const card = payload.card;
+          const proof = payload.proof;
+          elements.state.textContent = stateLabel(card.state);
+          elements.provider.textContent =
+            `${card.provider} · ${card.modelProvider}/${card.model}`;
+          elements.stage.textContent = card.stage;
+          elements.task.textContent = card.taskId;
+          elements.session.textContent = card.nativeSession.id;
+          elements.event.textContent =
+            `${card.latestEvent.sequence} · ${card.latestEvent.type} · ` +
+            `${card.latestEvent.observedAt}`;
+          elements.evidence.textContent =
+            proof.sourceEvidenceSha256;
+          elements.nativeStart.textContent =
+            proof.nativeStartObserved
+              ? "native start：已观察"
+              : "native start：未观察";
+          elements.exactCancel.textContent =
+            proof.exactCancellationSettled
+              ? "精确取消：已落定"
+              : "精确取消：未落定";
+          elements.sibling.textContent =
+            proof.siblingStillResponsive
+              ? "兄弟会话隔离：通过"
+              : "兄弟会话隔离：未通过";
+          scheduleSizeChanged();
+        }
+
+        function request(method, params) {
+          const id = ++requestId;
+          post({ jsonrpc: "2.0", id, method, params });
+          return new Promise((resolve, reject) => {
+            pending.set(id, { resolve, reject });
+            window.setTimeout(() => {
+              if (pending.delete(id)) {
+                reject(new Error("MCP App request timed out."));
+              }
+            }, 30000);
+          });
+        }
+
+        function scheduleSizeChanged() {
+          if (!bridgeReady || resizeScheduled) {
+            return;
+          }
+          resizeScheduled = true;
+          window.requestAnimationFrame(() => {
+            resizeScheduled = false;
+            const width = Math.ceil(window.innerWidth);
+            const height = Math.ceil(
+              document.documentElement.getBoundingClientRect().height,
+            );
+            if (width === lastWidth && height === lastHeight) {
+              return;
+            }
+            lastWidth = width;
+            lastHeight = height;
+            post({
+              jsonrpc: "2.0",
+              method: "ui/notifications/size-changed",
+              params: { width, height },
+            });
+          });
+        }
+
+        window.addEventListener("message", (event) => {
+          if (event.source !== window.parent) {
+            return;
+          }
+          const message = event.data;
+          if (!message || message.jsonrpc !== "2.0") {
+            return;
+          }
+          if (message.id && pending.has(message.id)) {
+            const entry = pending.get(message.id);
+            pending.delete(message.id);
+            if (message.error) {
+              entry.reject(new Error(message.error.message));
+            } else {
+              entry.resolve(message.result);
+            }
+            return;
+          }
+          if (message.method === "ui/notifications/tool-result") {
+            render(message.params);
+          }
+        });
+
+        if (typeof ResizeObserver === "function") {
+          new ResizeObserver(scheduleSizeChanged).observe(
+            document.documentElement,
+          );
+        }
+        window.addEventListener("resize", scheduleSizeChanged);
+
+        if (window.openai && window.openai.toolOutput) {
+          render(window.openai.toolOutput);
+        }
+
+        request("ui/initialize", {
+          appInfo: {
+            name: "codex-ground-control-v0-3-host-spike",
+            version: "0.3.0-alpha.0",
+          },
+          appCapabilities: {},
+          protocolVersion: "2026-01-26",
+        })
+          .then(() => {
+            bridgeReady = true;
+            post({
+              jsonrpc: "2.0",
+              method: "ui/notifications/initialized",
+              params: {},
+            });
+            scheduleSizeChanged();
+          })
+          .catch(() => {});
+      })();
+    </script>
+  </body>
+</html>

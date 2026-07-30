@@ -1,0 +1,10 @@
+{
+  "name": "codex-ground-control-v0.3-app-host-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "host:call": "node host-probe.mjs",
+    "host:turn": "node host-turn.mjs",
+    "validate": "node validate.mjs"
+  }
+}

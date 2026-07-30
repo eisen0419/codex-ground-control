@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>Ground Control v0.3 状态卡</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "PingFang SC", "Noto Sans SC", sans-serif;
+        --surface: rgba(255, 255, 255, 0.92);
+        --surface-solid: #ffffff;
+        --text: #1d1d1f;
+        --secondary: #6e6e73;
+        --tertiary: #8e8e93;
+        --line: rgba(60, 60, 67, 0.16);
+        --line-strong: rgba(60, 60, 67, 0.28);
+        --fill: rgba(118, 118, 128, 0.1);
+        --accent: #007aff;
+        --success: #248a3d;
+        --danger: #d70015;
+        --warning: #a05a00;
+        --shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --surface: rgba(37, 37, 39, 0.94);
+          --surface-solid: #252527;
+          --text: #f5f5f7;
+          --secondary: #a1a1a6;
+          --tertiary: #8e8e93;
+          --line: rgba(235, 235, 245, 0.13);
+          --line-strong: rgba(235, 235, 245, 0.24);
+          --fill: rgba(118, 118, 128, 0.18);
+          --accent: #0a84ff;
+          --success: #30d158;
+          --danger: #ff453a;
+          --warning: #ff9f0a;
+          --shadow: 0 14px 42px rgba(0, 0, 0, 0.28);
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-width: 280px;
+        color: var(--text);
+        background: transparent;
+      }
+
+      main {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        background: var(--surface);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding: 19px 21px 17px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .identity {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .status-dot {
+        flex: 0 0 auto;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--success);
+        box-shadow:
+          0 0 0 4px color-mix(in srgb, var(--success) 14%, transparent);
+      }
+
+      main[data-state="failed"] .status-dot,
+      main[data-state="cancelled"] .status-dot {
+        background: var(--danger);
+        box-shadow:
+          0 0 0 4px color-mix(in srgb, var(--danger) 14%, transparent);
+      }
+
+      main[data-state="cancelling"] .status-dot {
+        background: var(--warning);
+        box-shadow:
+          0 0 0 4px color-mix(in srgb, var(--warning) 14%, transparent);
+      }
+
+      .identity-copy {
+        min-width: 0;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+
+      .subtitle {
+        margin: 3px 0 0;
+        overflow: hidden;
+        color: var(--secondary);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .state {
+        flex: 0 0 auto;
+        color: var(--success);
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      main[data-state="failed"] .state,
+      main[data-state="cancelled"] .state {
+        color: var(--danger);
+      }
+
+      main[data-state="cancelling"] .state {
+        color: var(--warning);
+      }
+
+      .progress {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        padding: 15px 21px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .step {
+        position: relative;
+        display: grid;
+        grid-template-columns: 18px 1fr;
+        gap: 8px;
+        align-items: center;
+        color: var(--secondary);
+        font-size: 12px;
+      }
+
+      .step:not(:last-child)::after {
+        position: absolute;
+        top: 9px;
+        left: 9px;
+        width: calc(100% - 2px);
+        height: 1px;
+        background: var(--line-strong);
+        content: "";
+      }
+
+      .step-mark {
+        z-index: 1;
+        display: grid;
+        width: 18px;
+        height: 18px;
+        place-items: center;
+        border: 1px solid var(--line-strong);
+        border-radius: 50%;
+        color: var(--surface-solid);
+        background: var(--surface-solid);
+        font-size: 10px;
+      }
+
+      .step.is-done .step-mark {
+        border-color: var(--success);
+        color: #ffffff;
+        background: var(--success);
+      }
+
+      .step.is-current {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .step.is-current .step-mark {
+        border: 5px solid var(--surface-solid);
+        background: var(--success);
+        box-shadow: 0 0 0 1px var(--success);
+      }
+
+      main[data-state="failed"] .step.is-current .step-mark,
+      main[data-state="cancelled"] .step.is-current .step-mark {
+        background: var(--danger);
+        box-shadow: 0 0 0 1px var(--danger);
+      }
+
+      .body {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 24px;
+        align-items: end;
+        padding: 17px 21px 19px;
+      }
+
+      .summary {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+      }
+
+      .fact {
+        min-width: 112px;
+      }
+
+      .label {
+        margin-bottom: 4px;
+        color: var(--tertiary);
+        font-size: 10px;
+        font-weight: 650;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .value {
+        overflow: hidden;
+        color: var(--text);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .mono {
+        font-family: "SF Mono", SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+      }
+
+      .boundary {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 13px;
+        color: var(--secondary);
+        font-size: 11px;
+      }
+
+      .boundary::before {
+        flex: 0 0 auto;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--secondary);
+        content: "";
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      button {
+        min-height: 36px;
+        padding: 0 14px;
+        border: 1px solid var(--line-strong);
+        border-radius: 9px;
+        color: var(--text);
+        background: transparent;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition:
+          background 140ms ease,
+          border-color 140ms ease,
+          transform 140ms ease;
+      }
+
+      button:hover {
+        background: var(--fill);
+      }
+
+      button:active {
+        transform: scale(0.98);
+      }
+
+      #cancel {
+        color: var(--danger);
+      }
+
+      button:disabled {
+        cursor: default;
+        opacity: 0.46;
+        transform: none;
+      }
+
+      @media (max-width: 520px) {
+        header {
+          gap: 12px;
+          padding-inline: 17px;
+        }
+
+        .progress {
+          grid-template-columns: 1fr;
+          gap: 10px;
+          padding-inline: 17px;
+        }
+
+        .step:not(:last-child)::after {
+          display: none;
+        }
+
+        .body {
+          grid-template-columns: 1fr;
+          gap: 17px;
+          padding-inline: 17px;
+        }
+
+        .actions {
+          width: 100%;
+        }
+
+        button {
+          flex: 1;
+        }
+
+        .fact {
+          min-width: min(112px, 45%);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main id="card" aria-live="polite" data-state="starting">
+      <header>
+        <div class="identity">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div class="identity-copy">
+            <h1 id="title">Pi · GLM 5.2</h1>
+            <p class="subtitle" id="subtitle">本地合成运行时</p>
+          </div>
+        </div>
+        <div class="state" id="state">等待状态</div>
+      </header>
+
+      <section class="progress" aria-label="任务进度">
+        <div class="step is-done" id="step-session">
+          <span class="step-mark">✓</span>
+          <span>会话已创建</span>
+        </div>
+        <div class="step is-current" id="step-provider">
+          <span class="step-mark"></span>
+          <span>Provider 运行</span>
+        </div>
+        <div class="step" id="step-result">
+          <span class="step-mark"></span>
+          <span>返回结果</span>
+        </div>
+      </section>
+
+      <section class="body">
+        <div>
+          <div class="summary">
+            <div class="fact">
+              <div class="label">最近事件</div>
+              <div class="value mono" id="event">—</div>
+            </div>
+            <div class="fact">
+              <div class="label">任务</div>
+              <div class="value mono" id="task">—</div>
+            </div>
+            <div class="fact">
+              <div class="label">原生会话</div>
+              <div class="value mono" id="session">—</div>
+            </div>
+            <div class="fact">
+              <div class="label">阶段</div>
+              <div class="value mono" id="stage">—</div>
+            </div>
+          </div>
+          <div class="boundary" id="isolation">
+            隔离原型 · Pi 0 · 网络 0 · 写入 0
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="inspect" type="button">刷新</button>
+          <button id="cancel" type="button">取消任务</button>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      (() => {
+        const elements = {
+          card: document.getElementById("card"),
+          state: document.getElementById("state"),
+          title: document.getElementById("title"),
+          subtitle: document.getElementById("subtitle"),
+          stage: document.getElementById("stage"),
+          task: document.getElementById("task"),
+          session: document.getElementById("session"),
+          event: document.getElementById("event"),
+          isolation: document.getElementById("isolation"),
+          stepProvider: document.getElementById("step-provider"),
+          stepResult: document.getElementById("step-result"),
+          inspect: document.getElementById("inspect"),
+          cancel: document.getElementById("cancel"),
+        };
+        const pending = new Map();
+        let requestId = 0;
+        let bridgeReady = false;
+        let bridgeServerToolsAvailable = false;
+        let current = null;
+        let resizeScheduled = false;
+        let lastWidth = 0;
+        let lastHeight = 0;
+
+        function post(message) {
+          window.parent.postMessage(message, "*");
+        }
+
+        function request(method, params) {
+          const id = ++requestId;
+          post({ jsonrpc: "2.0", id, method, params });
+          return new Promise((resolve, reject) => {
+            pending.set(id, { resolve, reject });
+            window.setTimeout(() => {
+              if (pending.delete(id)) {
+                reject(new Error("MCP App request timed out."));
+              }
+            }, 30000);
+          });
+        }
+
+        async function callTool(name, args) {
+          if (bridgeReady && bridgeServerToolsAvailable) {
+            return request("tools/call", {
+              name,
+              arguments: args,
+            });
+          }
+          if (
+            window.openai &&
+            typeof window.openai.callTool === "function"
+          ) {
+            return window.openai.callTool(name, args);
+          }
+          return request("tools/call", {
+            name,
+            arguments: args,
+          });
+        }
+
+        function stateLabel(state) {
+          return (
+            {
+              running: "运行中",
+              cancelling: "取消中",
+              cancelled: "已取消",
+              completed: "已完成",
+              failed: "失败",
+              starting: "启动中",
+            }[state] || state || "状态未知"
+          );
+        }
+
+        function activityLabel(activity) {
+          return (
+            {
+              analysis: "分析任务",
+              exploration: "探索任务",
+              testing: "测试任务",
+              review: "评审任务",
+            }[activity] || activity || "叶任务"
+          );
+        }
+
+        function compactId(value) {
+          if (!value || value.length < 15) {
+            return value || "—";
+          }
+          return `${value.slice(0, 8)}…${value.slice(-4)}`;
+        }
+
+        function renderProgress(state) {
+          const terminal = [
+            "completed",
+            "failed",
+            "cancelled",
+          ].includes(state);
+          elements.stepProvider.className =
+            `step ${terminal ? "is-done" : "is-current"}`;
+          elements.stepResult.className =
+            `step ${terminal ? "is-current" : ""}`;
+          elements.stepProvider.querySelector(
+            ".step-mark",
+          ).textContent = terminal ? "✓" : "";
+          elements.stepResult.querySelector(
+            ".step-mark",
+          ).textContent = state === "completed" ? "✓" : "";
+        }
+
+        function render(result) {
+          const payload =
+            result && (result.structuredContent || result);
+          if (
+            !payload ||
+            payload.kind !== "synthetic-leaf-task-state"
+          ) {
+            return;
+          }
+          current = payload;
+          const card = payload.card;
+          elements.card.dataset.state = card.state;
+          elements.state.textContent = stateLabel(card.state);
+          elements.title.textContent =
+            `${card.provider === "pi" ? "Pi" : card.provider} · ` +
+            `${card.model === "glm-5.2" ? "GLM 5.2" : card.model}`;
+          elements.subtitle.textContent =
+            `${activityLabel(card.activity)} · 本地合成运行时`;
+          elements.stage.textContent = card.stage;
+          elements.task.textContent = compactId(card.taskId);
+          elements.task.title = card.taskId;
+          elements.session.textContent = compactId(
+            card.nativeSession.id,
+          );
+          elements.session.title = card.nativeSession.id;
+          elements.event.textContent = card.latestEvent
+            ? `${card.latestEvent.type} · #${card.latestEvent.sequence}`
+            : "—";
+          elements.isolation.textContent =
+            `隔离原型 · Pi ${payload.isolation.piStarts} · ` +
+            `Provider ${payload.isolation.providerCalls} · ` +
+            `网络 ${payload.isolation.networkRequests} · ` +
+            `写入 ${payload.isolation.repositoryWrites}`;
+          renderProgress(card.state);
+          elements.cancel.disabled = !card.canCancel;
+          elements.inspect.disabled = false;
+          scheduleSizeChanged();
+        }
+
+        function scheduleSizeChanged() {
+          if (!bridgeReady || resizeScheduled) {
+            return;
+          }
+          resizeScheduled = true;
+          window.requestAnimationFrame(() => {
+            resizeScheduled = false;
+            const width = Math.ceil(window.innerWidth);
+            const height = Math.ceil(
+              document.documentElement.getBoundingClientRect().height,
+            );
+            if (width === lastWidth && height === lastHeight) {
+              return;
+            }
+            lastWidth = width;
+            lastHeight = height;
+            post({
+              jsonrpc: "2.0",
+              method: "ui/notifications/size-changed",
+              params: { width, height },
+            });
+          });
+        }
+
+        async function runCardTool(name) {
+          if (!current) {
+            return;
+          }
+          elements.inspect.disabled = true;
+          elements.cancel.disabled = true;
+          try {
+            render(
+              await callTool(name, {
+                taskId: current.card.taskId,
+              }),
+            );
+          } finally {
+            if (current) {
+              elements.inspect.disabled = false;
+              elements.cancel.disabled =
+                !current.card.canCancel;
+            }
+          }
+        }
+
+        elements.inspect.addEventListener("click", () => {
+          runCardTool("inspect_leaf").catch(() => {});
+        });
+        elements.cancel.addEventListener("click", () => {
+          runCardTool("cancel_leaf").catch(() => {});
+        });
+
+        window.addEventListener("message", (event) => {
+          if (event.source !== window.parent) {
+            return;
+          }
+          const message = event.data;
+          if (!message || message.jsonrpc !== "2.0") {
+            return;
+          }
+          if (message.id && pending.has(message.id)) {
+            const entry = pending.get(message.id);
+            pending.delete(message.id);
+            if (message.error) {
+              entry.reject(new Error(message.error.message));
+            } else {
+              entry.resolve(message.result);
+            }
+            return;
+          }
+          if (message.method === "ui/notifications/tool-result") {
+            render(message.params);
+          }
+        });
+
+        if (typeof ResizeObserver === "function") {
+          new ResizeObserver(scheduleSizeChanged).observe(
+            document.documentElement,
+          );
+        }
+        window.addEventListener("resize", scheduleSizeChanged);
+
+        if (window.openai && window.openai.toolOutput) {
+          render(window.openai.toolOutput);
+        }
+        request("ui/initialize", {
+          appInfo: {
+            name: "codex-ground-control-mcp-server",
+            version: "0.3.0-alpha.0",
+          },
+          appCapabilities: {},
+          protocolVersion: "2026-01-26",
+        })
+          .then((result) => {
+            bridgeServerToolsAvailable = Boolean(
+              result?.hostCapabilities?.serverTools,
+            );
+            bridgeReady = true;
+            post({
+              jsonrpc: "2.0",
+              method: "ui/notifications/initialized",
+              params: {},
+            });
+            scheduleSizeChanged();
+          })
+          .catch(() => {});
+      })();
+    </script>
+  </body>
+</html>

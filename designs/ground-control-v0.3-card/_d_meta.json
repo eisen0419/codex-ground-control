@@ -1,0 +1,45 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "Ground Control v0.3 card directions": {
+      "versions": [
+        {
+          "path": "variants.html",
+          "createdAt": "2026-07-30T21:18:00.552Z",
+          "status": "needs-review"
+        }
+      ]
+    },
+    "Ground Control v0.3 status card final": {
+      "versions": [
+        {
+          "path": "host-preview.html",
+          "createdAt": "2026-07-30T21:26:39.526Z",
+          "status": "needs-review"
+        }
+      ]
+    },
+    "Ground Control v0.3 host card legacy": {
+      "versions": [
+        {
+          "path": "app-host-widget-legacy.html",
+          "createdAt": "2026-07-30T21:38:32.485Z",
+          "status": "changes-requested"
+        }
+      ]
+    },
+    "Ground Control v0.3 host card redesigned": {
+      "versions": [
+        {
+          "path": "readonly-host-preview.html",
+          "createdAt": "2026-07-30T21:38:32.514Z",
+          "status": "needs-review"
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-07-30T21:18:00.553Z",
+  "updatedAt": "2026-07-30T21:38:32.515Z"
+}
