@@ -1,6 +1,6 @@
 # App-native v0.3 product contract
 
-Status: proposed, implementation frozen
+Status: migration gate passed, redesign authorized, production unchanged
 Date: 2026-07-28
 Last verified: 2026-07-31
 Supersedes: no released contract; v0.2 remains the production implementation
@@ -333,15 +333,38 @@ fixture; it does not mean this acceptance call started a Provider. The
 prototype call itself started no Pi, Provider, or worker, made no plugin
 network request, and did not use `--allow-live`.
 
-Migration gate items 3, 4, and 5 now have fresh evidence for this source
-revision. The earlier one-shot live evidence still supports the observed Pi
-behavior, but item 2 is not considered fresh for the hardened revision without
-another explicitly authorized live run. The overall migration gate therefore
-remains closed on item 2 only.
+Immediately before the final live gate on 2026-07-31, the offline probe was
+rerun against Pi `0.81.1`. Both RPC session identities matched, two offline Pi
+processes started, and Provider-native turn starts and model requests remained
+zero.
+
+The user then explicitly authorized one hardened
+`pi-glm / glm-5.2 / no-tools / --allow-live` probe, with cancellation required
+immediately after `agent_start`. The first workspace-sandboxed invocation
+failed closed before `agent_start` and wrote no evidence file. A subsequent
+read-only Pi diagnostic observed `EPERM` while Pi attempted to create its
+provider-owned settings lock, so that failed attempt is retained as Host
+sandbox evidence rather than Provider behavior.
+
+After Host approval to execute the same scoped probe with Pi's native
+configuration permissions, native session
+`5f32057b-7290-43d6-8ab6-8dd59001ba50` emitted `turn.started`, projected a
+cancellable `running` card, accepted exact abort, and emitted the matching
+`turn.cancelled` 56 ms later. Offline sibling
+`3d3aac70-5ad9-44b4-a69d-92c0b79b1ca8` remained responsive. All six executable
+checks passed. The sanitized evidence file had mode `0600`, contained none of
+the forbidden credential, path, prompt, transcript, process, or Provider-error
+markers, and had SHA-256
+`e8f2fd7947df423f9b2bb1631d2eada56e8cdf8a9ab40e9b66690c2cf58f39f1`.
+
+All five migration gate items now have fresh evidence for this source revision.
+The migration gate passed on 2026-07-31. This verdict authorizes a separate
+production redesign task; it does not itself modify or supersede v0.2.
 
 ## Migration gate
 
-Existing v0.2 implementation remains frozen until all of these are true:
+Gate verdict: passed on 2026-07-31. Existing v0.2 remains the production
+implementation while the separately authorized redesign is planned.
 
 1. Offline protocol probe proves Pi RPC session identity without a model call.
 2. A one-shot live spike proves native start event, running card projection,
