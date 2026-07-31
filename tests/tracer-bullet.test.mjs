@@ -286,6 +286,8 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "src/qualification-lab.js",
       "src/release-name-checks.js",
       "src/safe-files.js",
+      "src/v0.3/leaf-domain.js",
+      "src/v0.3/leaf-state-store.js",
       "src/workflow-assets.js",
       "src/workflow-error.js",
     ].sort();
