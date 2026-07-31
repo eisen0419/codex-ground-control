@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { isAbsolute } from "node:path";
 import { TextDecoder } from "node:util";
 
 const BINDING_KEYS = Object.freeze([
@@ -65,6 +66,18 @@ function requiredString(value, label) {
   return value;
 }
 
+function requiredAbsolutePath(value, label) {
+  const path = requiredString(value, label);
+  if (path.length > 4_096 || !isAbsolute(path)) {
+    throw adapterError(
+      PI_RPC_ADAPTER_ERROR_CODES.unexpected,
+      `${label} must be a bounded absolute path.`,
+      "unexpected",
+    );
+  }
+  return path;
+}
+
 function sameBinding(left, right) {
   return (
     validBinding(left) &&
@@ -114,142 +127,238 @@ function timestampFrom(clock) {
   return timestamp;
 }
 
-function createNodeProcessBoundary() {
+function bindingKey(taskId, binding) {
+  requiredString(taskId, "taskId");
+  if (!validBinding(binding)) {
+    throw adapterError(
+      PI_RPC_ADAPTER_ERROR_CODES.identity,
+      "Pi RPC process binding is invalid.",
+      "identity",
+    );
+  }
+  return JSON.stringify([
+    taskId,
+    ...BINDING_KEYS.map((key) => binding[key]),
+  ]);
+}
+
+export function createNodePiRpcProcessBoundary() {
+  const records = new Map();
+  const stopping = new Set();
+
+  function stopRecord(record) {
+    if (record.stopPromise) {
+      return record.stopPromise;
+    }
+    record.stopping = true;
+    records.delete(record.key);
+    record.stopPromise = (async () => {
+      if (record.child.exitCode !== null) {
+        return;
+      }
+      record.child.kill("SIGTERM");
+      await new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          if (record.child.exitCode === null) {
+            record.child.kill("SIGKILL");
+          }
+          resolve();
+        }, 1_000);
+        timeout.unref();
+        record.child.once("exit", () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+    })().finally(() => {
+      stopping.delete(record.stopPromise);
+    });
+    stopping.add(record.stopPromise);
+    return record.stopPromise;
+  }
+
+  function failOutput(record) {
+    if (record.outputFailed) {
+      return;
+    }
+    record.outputFailed = true;
+    record.callbacks.onFailure();
+    void stopRecord(record);
+  }
+
+  function emitLine(record) {
+    let line = record.buffered;
+    record.buffered = Buffer.alloc(0);
+    if (line.at(-1) === 0x0d) {
+      line = line.subarray(0, -1);
+    }
+    let decoded;
+    try {
+      decoded = record.decoder.decode(line);
+    } catch {
+      failOutput(record);
+      return;
+    }
+    record.callbacks.onLine(decoded);
+  }
+
+  function onStdoutData(record, chunk) {
+    if (record.outputFailed || record.stopping) {
+      return;
+    }
+    let offset = 0;
+    while (offset < chunk.length) {
+      const newline = chunk.indexOf(0x0a, offset);
+      const end = newline === -1 ? chunk.length : newline;
+      const segment = chunk.subarray(offset, end);
+      if (
+        record.buffered.length + segment.length >
+        record.maxLineBytes
+      ) {
+        failOutput(record);
+        return;
+      }
+      if (segment.length > 0) {
+        record.buffered =
+          record.buffered.length === 0
+            ? Buffer.from(segment)
+            : Buffer.concat([record.buffered, segment]);
+      }
+      if (newline === -1) {
+        return;
+      }
+      emitLine(record);
+      if (record.outputFailed) {
+        return;
+      }
+      offset = newline + 1;
+    }
+  }
+
+  function transportFor(record) {
+    const generation = record.generation;
+    return Object.freeze({
+      write(line) {
+        if (
+          generation !== record.generation ||
+          record.stopping ||
+          record.child.exitCode !== null ||
+          !record.child.stdin.writable
+        ) {
+          throw adapterError(
+            PI_RPC_ADAPTER_ERROR_CODES.unavailable,
+            "Pi RPC transport is unavailable.",
+            "adapter-unavailable",
+          );
+        }
+        record.child.stdin.write(line);
+      },
+      async stop() {
+        if (generation !== record.generation) {
+          return;
+        }
+        await stopRecord(record);
+      },
+    });
+  }
+
   return Object.freeze({
     async start(options) {
+      const key = bindingKey(
+        options.taskId,
+        options.nativeSessionBinding,
+      );
+      if (records.has(key)) {
+        throw adapterError(
+          PI_RPC_ADAPTER_ERROR_CODES.identity,
+          "Pi RPC process incarnation is already active.",
+          "identity",
+        );
+      }
       const child = spawn(options.command, options.args, {
         cwd: options.cwd,
         env: options.env,
         shell: false,
         stdio: ["pipe", "pipe", "pipe"],
       });
-      let stopping = false;
-      let outputFailed = false;
-      let buffered = Buffer.alloc(0);
-      let forceKillTimer = null;
-      const decoder = new TextDecoder("utf-8", { fatal: true });
-      const failOutput = () => {
-        if (outputFailed) {
-          return;
-        }
-        outputFailed = true;
-        options.onFailure();
-        if (child.exitCode === null) {
-          child.kill("SIGTERM");
-          forceKillTimer = setTimeout(() => {
-            if (child.exitCode === null) {
-              child.kill("SIGKILL");
-            }
-          }, 1_000);
-          forceKillTimer.unref();
-        }
+      const record = {
+        key,
+        binding: Object.freeze({ ...options.nativeSessionBinding }),
+        child,
+        callbacks: {
+          onLine: options.onLine,
+          onStderr: options.onStderr,
+          onFailure: options.onFailure,
+        },
+        maxLineBytes: options.maxLineBytes,
+        generation: 1,
+        stopping: false,
+        stopPromise: null,
+        outputFailed: false,
+        buffered: Buffer.alloc(0),
+        decoder: new TextDecoder("utf-8", { fatal: true }),
       };
-      const emitLine = () => {
-        let line = buffered;
-        buffered = Buffer.alloc(0);
-        if (line.at(-1) === 0x0d) {
-          line = line.subarray(0, -1);
+      records.set(key, record);
+      child.stdout.on("data", (chunk) => onStdoutData(record, chunk));
+      child.stderr.on("data", () => record.callbacks.onStderr());
+      child.stdin.on("error", () => {
+        if (!record.stopping) {
+          record.callbacks.onFailure();
         }
-        let decoded;
-        try {
-          decoded = decoder.decode(line);
-        } catch {
-          failOutput();
-          return;
-        }
-        options.onLine(decoded);
-      };
-      const onStdoutData = (chunk) => {
-        if (outputFailed) {
-          return;
-        }
-        let offset = 0;
-        while (offset < chunk.length) {
-          const newline = chunk.indexOf(0x0a, offset);
-          const end = newline === -1 ? chunk.length : newline;
-          const segment = chunk.subarray(offset, end);
-          if (
-            buffered.length + segment.length >
-            options.maxLineBytes
-          ) {
-            failOutput();
-            return;
-          }
-          if (segment.length > 0) {
-            buffered =
-              buffered.length === 0
-                ? Buffer.from(segment)
-                : Buffer.concat([buffered, segment]);
-          }
-          if (newline === -1) {
-            return;
-          }
-          emitLine();
-          if (outputFailed) {
-            return;
-          }
-          offset = newline + 1;
-        }
-      };
-      child.stderr.on("data", () => {
-        options.onStderr();
       });
       child.once("error", () => {
-        options.onFailure();
+        records.delete(key);
+        if (!record.stopping) {
+          record.callbacks.onFailure();
+        }
       });
       child.once("exit", () => {
-        if (forceKillTimer) {
-          clearTimeout(forceKillTimer);
-          forceKillTimer = null;
-        }
-        if (!stopping) {
-          options.onFailure();
+        records.delete(key);
+        if (!record.stopping) {
+          record.callbacks.onFailure();
         }
       });
-      child.stdout.on("data", onStdoutData);
-      await new Promise((resolve, reject) => {
-        child.once("spawn", resolve);
-        child.once("error", reject);
-      });
-      return Object.freeze({
-        write(line) {
-          if (!child.stdin.writable) {
-            throw adapterError(
-              PI_RPC_ADAPTER_ERROR_CODES.unavailable,
-              "Pi RPC transport is unavailable.",
-              "adapter-unavailable",
-            );
-          }
-          child.stdin.write(line);
-        },
-        async stop() {
-          stopping = true;
-          if (forceKillTimer) {
-            clearTimeout(forceKillTimer);
-            forceKillTimer = null;
-          }
-          child.stdout.removeListener("data", onStdoutData);
-          if (child.exitCode !== null) {
-            return;
-          }
-          child.kill("SIGTERM");
-          await new Promise((resolve) => {
-            const timeout = setTimeout(() => {
-              if (child.exitCode === null) {
-                child.kill("SIGKILL");
-              }
-              resolve();
-            }, 1_000);
-            child.once("exit", () => {
-              clearTimeout(timeout);
-              resolve();
-            });
-          });
-        },
-      });
+      try {
+        await new Promise((resolve, reject) => {
+          child.once("spawn", resolve);
+          child.once("error", reject);
+        });
+      } catch (error) {
+        records.delete(key);
+        throw error;
+      }
+      return transportFor(record);
     },
-    async recover() {
-      return null;
+    async recover(options) {
+      const key = bindingKey(
+        options.taskId,
+        options.nativeSessionBinding,
+      );
+      const record = records.get(key);
+      if (
+        !record ||
+        record.stopping ||
+        record.outputFailed ||
+        record.child.exitCode !== null
+      ) {
+        return null;
+      }
+      const previousCallbacks = record.callbacks;
+      record.generation += 1;
+      record.callbacks = {
+        onLine: options.onLine,
+        onStderr: options.onStderr,
+        onFailure: options.onFailure,
+      };
+      record.maxLineBytes = options.maxLineBytes;
+      previousCallbacks.onFailure();
+      return transportFor(record);
+    },
+    async close() {
+      await Promise.all([
+        ...[...records.values()].map(stopRecord),
+        ...stopping,
+      ]);
     },
   });
 }
@@ -275,11 +384,12 @@ function normalizedSignal(value) {
 }
 
 export function createPiRpcAdapter({
-  processBoundary = createNodeProcessBoundary(),
+  processBoundary = createNodePiRpcProcessBoundary(),
   idFactory = randomUUID,
   clock = () => new Date().toISOString(),
   command = "pi",
   commandArgs = [],
+  sessionDirectory = null,
   environment = {},
   environmentAllowlist = [],
   requestTimeoutMs = 5_000,
@@ -291,6 +401,9 @@ export function createPiRpcAdapter({
     typeof processBoundary.start !== "function" ||
     typeof idFactory !== "function" ||
     !Array.isArray(commandArgs) ||
+    ![null, "function"].includes(
+      sessionDirectory === null ? null : typeof sessionDirectory,
+    ) ||
     !Array.isArray(environmentAllowlist) ||
     environmentAllowlist.length > 64 ||
     new Set(environmentAllowlist).size !==
@@ -346,6 +459,7 @@ export function createPiRpcAdapter({
   function assertRuntime(binding, runtime) {
     if (
       runtime?.[RUNTIME_BRAND] !== true ||
+      runtime.retired === true ||
       !sameBinding(binding, runtime.binding)
     ) {
       throw adapterError(
@@ -531,6 +645,7 @@ export function createPiRpcAdapter({
   }
 
   async function openRuntime(
+    taskId,
     binding,
     options,
     recover = false,
@@ -557,6 +672,7 @@ export function createPiRpcAdapter({
     try {
       transport = recover
         ? await processBoundary.recover({
+            taskId,
             nativeSessionBinding: binding,
             maxLineBytes,
             ...callbacks,
@@ -586,6 +702,7 @@ export function createPiRpcAdapter({
       requestSequence: 0,
       failure: null,
       cleanupStarted: false,
+      retired: false,
     };
     for (const line of bufferedLines) {
       handleLine(runtime, line);
@@ -636,6 +753,24 @@ export function createPiRpcAdapter({
         sessionId: requiredString(spec?.sessionId, "sessionId"),
         processIncarnation: nextProcessIncarnation(),
       });
+      let selectedSessionDirectory = null;
+      if (sessionDirectory !== null) {
+        try {
+          selectedSessionDirectory = requiredAbsolutePath(
+            sessionDirectory(spec),
+            "sessionDirectory",
+          );
+        } catch (error) {
+          if (error instanceof PiRpcAdapterError) {
+            throw error;
+          }
+          throw adapterError(
+            PI_RPC_ADAPTER_ERROR_CODES.unexpected,
+            "Pi RPC session directory construction failed.",
+            "unexpected",
+          );
+        }
+      }
       const args = [
         ...commandArgs,
         "--mode",
@@ -646,6 +781,9 @@ export function createPiRpcAdapter({
         binding.model,
         "--session-id",
         binding.sessionId,
+        ...(selectedSessionDirectory === null
+          ? []
+          : ["--session-dir", selectedSessionDirectory]),
         "--thinking",
         "off",
         "--no-tools",
@@ -691,12 +829,23 @@ export function createPiRpcAdapter({
           selectedEnvironment[name] = descriptor.value;
         }
       }
-      const runtime = await openRuntime(binding, {
-        command: requiredString(command, "command"),
-        args,
-        cwd: requiredString(spec?.cwd, "cwd"),
-        env: selectedEnvironment,
-      });
+      if (selectedSessionDirectory !== null) {
+        selectedEnvironment.PI_CODING_AGENT_SESSION_DIR =
+          selectedSessionDirectory;
+        selectedEnvironment.PI_TELEMETRY = "0";
+      }
+      const runtime = await openRuntime(
+        requiredString(spec?.taskId, "taskId"),
+        binding,
+        {
+          taskId: spec.taskId,
+          nativeSessionBinding: binding,
+          command: requiredString(command, "command"),
+          args,
+          cwd: requiredString(spec?.cwd, "cwd"),
+          env: selectedEnvironment,
+        },
+      );
       if (!runtime) {
         throw adapterError(
           PI_RPC_ADAPTER_ERROR_CODES.unavailable,
@@ -746,11 +895,54 @@ export function createPiRpcAdapter({
       return runtime.events
         .map((event) => structuredClone(event));
     },
-    async cancel({ nativeSessionBinding, runtime }) {
+    async cancel({
+      nativeSessionBinding,
+      runtime,
+      afterSequence,
+    }) {
       assertRuntime(nativeSessionBinding, runtime);
+      if (afterSequence !== undefined) {
+        if (
+          !Number.isSafeInteger(afterSequence) ||
+          afterSequence < 0 ||
+          runtime.events.some(
+            (event) => event.sequence > afterSequence,
+          )
+        ) {
+          throw adapterError(
+            PI_RPC_ADAPTER_ERROR_CODES.sequence,
+            "Pi RPC cancellation cursor is invalid.",
+            "sequence",
+          );
+        }
+        runtime.nextSequence = Math.max(
+          runtime.nextSequence,
+          afterSequence + 1,
+        );
+      }
       await request(runtime, { type: "abort" });
     },
-    async recover({ nativeSessionBinding, afterSequence = 0 }) {
+    async retire({ nativeSessionBinding, runtime }) {
+      assertRuntime(nativeSessionBinding, runtime);
+      runtime.retired = true;
+      const retired = adapterError(
+        PI_RPC_ADAPTER_ERROR_CODES.unavailable,
+        "Pi RPC runtime is retired.",
+        "adapter-unavailable",
+      );
+      for (const pending of runtime.pending.values()) {
+        clearTimeout(pending.timeout);
+        pending.reject(retired);
+      }
+      runtime.pending.clear();
+      await stopTransport(runtime.transport);
+    },
+    async recover({
+      taskId,
+      nativeSessionBinding,
+      afterSequence = 0,
+    }) {
+      requiredString(taskId, "taskId");
       if (!validBinding(nativeSessionBinding)) {
         throw adapterError(
           PI_RPC_ADAPTER_ERROR_CODES.identity,
@@ -769,6 +961,7 @@ export function createPiRpcAdapter({
         );
       }
       const runtime = await openRuntime(
+        taskId,
         Object.freeze({ ...nativeSessionBinding }),
         null,
         true,

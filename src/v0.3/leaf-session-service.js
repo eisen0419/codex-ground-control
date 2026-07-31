@@ -274,12 +274,31 @@ export function createLeafSessionService({
     }
   }
 
-  function retireTerminalRuntime(task) {
+  async function retireTerminalRuntime(task) {
     if (!["completed", "failed", "cancelled"].includes(task.state)) {
       return;
     }
     cancelDispatched.delete(task.taskId);
-    retireExactRuntime(task);
+    let runtime;
+    try {
+      runtime = registry.retire({
+        taskId: task.taskId,
+        nativeSessionBinding: task.nativeSessionBinding,
+      });
+    } catch {
+      return;
+    }
+    const adapter = findAdapter(adapters, task.adapterId);
+    if (typeof adapter?.retire === "function") {
+      try {
+        await adapter.retire({
+          nativeSessionBinding: task.nativeSessionBinding,
+          runtime,
+        });
+      } catch {
+        // Terminal state is durable; exact cleanup cannot rewrite it.
+      }
+    }
   }
 
   async function withTaskLock(taskId, operation) {
@@ -424,6 +443,7 @@ export function createLeafSessionService({
     let recovered;
     try {
       recovered = await adapter.recover({
+        taskId: task.taskId,
         nativeSessionBinding: task.nativeSessionBinding,
         afterSequence: task.latestEvent?.sequence ?? 0,
       });
@@ -597,7 +617,7 @@ export function createLeafSessionService({
           );
         }
         if (["completed", "failed", "cancelled"].includes(durable.state)) {
-          retireTerminalRuntime(durable);
+          await retireTerminalRuntime(durable);
           return toPublicLeafProjection(durable);
         }
         const adapter = findAdapter(adapters, durable.adapterId);
@@ -637,7 +657,7 @@ export function createLeafSessionService({
           adapter,
           runtime,
         );
-        retireTerminalRuntime(durable);
+        await retireTerminalRuntime(durable);
         return toPublicLeafProjection(durable);
       });
     },
@@ -654,7 +674,7 @@ export function createLeafSessionService({
           );
         }
         if (["completed", "failed", "cancelled"].includes(durable.state)) {
-          retireTerminalRuntime(durable);
+          await retireTerminalRuntime(durable);
           return toPublicLeafProjection(durable);
         }
         const shouldSendCancel = !cancelDispatched.has(taskId);
@@ -745,6 +765,7 @@ export function createLeafSessionService({
               nativeSessionBinding:
                 durable.nativeSessionBinding,
               runtime,
+              afterSequence: durable.latestEvent?.sequence ?? 0,
             });
             cancelDispatched.add(taskId);
           } catch (error) {
@@ -763,7 +784,7 @@ export function createLeafSessionService({
           runtime,
         );
         if (durable.state === "cancelled") {
-          retireTerminalRuntime(durable);
+          await retireTerminalRuntime(durable);
         }
         return toPublicLeafProjection(durable);
       });
@@ -781,7 +802,7 @@ export function createLeafSessionService({
           );
         }
         if (["completed", "failed", "cancelled"].includes(durable.state)) {
-          retireTerminalRuntime(durable);
+          await retireTerminalRuntime(durable);
           return toPublicLeafProjection(durable);
         }
         const adapter = findAdapter(adapters, durable.adapterId);
@@ -847,7 +868,7 @@ export function createLeafSessionService({
                 durable.state,
               )
             ) {
-              retireTerminalRuntime(durable);
+              await retireTerminalRuntime(durable);
               return toPublicLeafProjection(durable);
             }
           }

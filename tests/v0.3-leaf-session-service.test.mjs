@@ -258,6 +258,7 @@ test("cancel commits the request before one exact abort and settles only the tar
     assert.deepEqual(cancelCalls[0], {
       nativeSessionBinding: binding,
       runtime,
+      afterSequence: 3,
     });
     assert.equal(observeCount, 2);
     assert.throws(
@@ -343,6 +344,7 @@ test("a restarted service recovers only the persisted binding and reports unavai
     assert.equal(recoveredCard.canCancel, true);
     assert.deepEqual(recoverCalls, [
       {
+        taskId: "leaf-501",
         nativeSessionBinding: binding,
         afterSequence: 2,
       },

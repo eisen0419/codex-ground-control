@@ -77,12 +77,14 @@ test("Pi RPC adapter validates get_state and exposes only normalized ordered sig
   });
 
   const first = await adapter.start({
+    taskId: "leaf-adapter-test",
     cwd: "/controlled/checkout",
     modelProvider: "zai-coding-cn",
     model: "glm-5.2",
     sessionId: "00000000-0000-4000-8000-000000000601",
   });
   const second = await adapter.start({
+    taskId: "leaf-adapter-test",
     cwd: "/controlled/checkout",
     modelProvider: "zai-coding-cn",
     model: "glm-5.2",
@@ -176,6 +178,7 @@ test("Pi RPC adapter rejects mismatched response and session identities with san
   });
   await assert.rejects(
     wrongResponseAdapter.start({
+      taskId: "leaf-adapter-test",
       cwd: "/controlled/checkout",
       modelProvider: "zai-coding-cn",
       model: "glm-5.2",
@@ -196,6 +199,7 @@ test("Pi RPC adapter rejects mismatched response and session identities with san
   });
   await assert.rejects(
     wrongSessionAdapter.start({
+      taskId: "leaf-adapter-test",
       cwd: "/controlled/checkout",
       modelProvider: "zai-coding-cn",
       model: "glm-5.2",
@@ -214,12 +218,14 @@ test("Pi RPC adapter compares the full binding before aborting and preserves a s
     command: "/controlled/pi",
   });
   const active = await adapter.start({
+    taskId: "leaf-adapter-test",
     cwd: "/controlled/checkout",
     modelProvider: "zai-coding-cn",
     model: "glm-5.2",
     sessionId: "00000000-0000-4000-8000-000000000605",
   });
   const sibling = await adapter.start({
+    taskId: "leaf-adapter-test",
     cwd: "/controlled/checkout",
     modelProvider: "zai-coding-cn",
     model: "glm-5.2",
@@ -310,6 +316,7 @@ test("Pi RPC recovery continues normalized sequencing from the durable cursor", 
   });
 
   const recovered = await adapter.recover({
+    taskId: "leaf-adapter-recovery",
     nativeSessionBinding: binding,
     afterSequence: 7,
   });
@@ -343,6 +350,7 @@ test("Pi RPC adapter sanitizes injected boundary failures before process or publ
   });
   await assert.rejects(
     environmentFailure.start({
+      taskId: "leaf-adapter-test",
       cwd: "/controlled/checkout",
       modelProvider: "zai-coding-cn",
       model: "glm-5.2",
@@ -362,6 +370,7 @@ test("Pi RPC adapter sanitizes injected boundary failures before process or publ
   });
   await assert.rejects(
     idFailure.start({
+      taskId: "leaf-adapter-test",
       cwd: "/controlled/checkout",
       modelProvider: "zai-coding-cn",
       model: "glm-5.2",
@@ -386,6 +395,7 @@ test("Pi RPC adapter sanitizes injected boundary failures before process or publ
   });
   await assert.rejects(
     missingRuntime.start({
+      taskId: "leaf-adapter-test",
       cwd: "/controlled/checkout",
       modelProvider: "zai-coding-cn",
       model: "glm-5.2",
@@ -410,6 +420,7 @@ test("Pi RPC adapter rejects non-canonical recovery bindings before touching the
 
   await assert.rejects(
     adapter.recover({
+      taskId: "leaf-adapter-recovery",
       nativeSessionBinding: {
         adapterId: "pi-rpc",
         provider: "pi",
@@ -436,6 +447,7 @@ test("Pi RPC event clock failures become sanitized adapter errors", async () => 
     },
   });
   const started = await adapter.start({
+    taskId: "leaf-adapter-test",
     cwd: "/controlled/checkout",
     modelProvider: "zai-coding-cn",
     model: "glm-5.2",
@@ -488,6 +500,7 @@ test("Pi RPC requests have an enforced hard cap and bounded timeout cleanup", as
   });
   await assert.rejects(
     adapter.start({
+      taskId: "leaf-adapter-test",
       cwd: "/controlled/checkout",
       modelProvider: "zai-coding-cn",
       model: "glm-5.2",
@@ -554,6 +567,7 @@ test("Pi RPC bounds structured lines and uncommitted event buffering", async () 
     maxLineBytes: 256,
   });
   const lineRuntime = await lineAdapter.start({
+    taskId: "leaf-adapter-test",
     cwd: "/controlled/checkout",
     modelProvider: "zai-coding-cn",
     model: "glm-5.2",
@@ -578,6 +592,7 @@ test("Pi RPC bounds structured lines and uncommitted event buffering", async () 
     maxBufferedEvents: 2,
   });
   const eventRuntime = await eventAdapter.start({
+    taskId: "leaf-adapter-test",
     cwd: "/controlled/checkout",
     modelProvider: "zai-coding-cn",
     model: "glm-5.2",
