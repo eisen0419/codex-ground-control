@@ -464,6 +464,15 @@ The remaining production live gaps are a fresh running-card pixel observation,
 exact Host-card cancellation and matching cancelled settle, and dynamic
 checkout proof beyond this configured canary.
 
+The terminal run also showed that a 1500 ms first widget poll left almost no
+human cancellation window when the Provider settled in about two seconds. The
+production widget now requests one immediate `inspect_leaf` after accepting a
+nonterminal projection, then polls every 500 ms while coalescing overlapping
+refreshes into one in-flight call. A terminal projection still stops polling
+and rejects a late lower-sequence or nonterminal result. This is offline-tested
+behavior only until a restarted Host supplies fresh running-card and exact
+cancellation evidence.
+
 ## Migration gate
 
 Gate verdict: passed on 2026-07-31. Existing v0.2 remains the production

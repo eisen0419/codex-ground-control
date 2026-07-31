@@ -461,6 +461,7 @@
         let bridgeServerToolsAvailable = false;
         let current = null;
         let pollTimer = null;
+        let refreshInFlight = null;
         let resizeScheduled = false;
         let lastWidth = 0;
         let lastHeight = 0;
@@ -630,7 +631,8 @@
           }
           pollTimer = window.setInterval(() => {
             refresh().catch(() => {});
-          }, 1500);
+          }, 500);
+          refresh().catch(() => {});
         }
 
         function acceptToolResult(result) {
@@ -665,12 +667,21 @@
           }
         }
 
-        async function refresh() {
-          if (!current || terminalStates.has(current.state)) return;
-          const result = await callTool("inspect_leaf", {
-            taskId: current.taskId,
-          });
-          acceptToolResult(result);
+        function refresh() {
+          if (!current || terminalStates.has(current.state)) {
+            return Promise.resolve();
+          }
+          if (refreshInFlight) {
+            return refreshInFlight;
+          }
+          const taskId = current.taskId;
+          refreshInFlight = Promise.resolve()
+            .then(() => callTool("inspect_leaf", { taskId }))
+            .then(acceptToolResult)
+            .finally(() => {
+              refreshInFlight = null;
+            });
+          return refreshInFlight;
         }
 
         elements.inspect.addEventListener("click", async () => {

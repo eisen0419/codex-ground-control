@@ -500,15 +500,27 @@ test("v0.3 widget polls inspect_leaf and can cancel only the exact displayed tas
     canCancel: true,
     result: null,
   };
+  const starting = {
+    ...running,
+    state: "starting",
+    stage: "session-created",
+    latestEvent: {
+      ...running.latestEvent,
+      sequence: 1,
+      type: "session.created",
+    },
+    canCancel: false,
+  };
   const calls = [];
   let resolveInspect = null;
   let poll = null;
+  let pollInterval = null;
   let clearCount = 0;
   const windowListeners = new Map();
   const hostParent = { postMessage() {} };
   const window = {
     openai: {
-      toolOutput: running,
+      toolOutput: starting,
       async callTool(name, args) {
         calls.push({ name, args });
         if (name === "inspect_leaf") {
@@ -541,8 +553,9 @@ test("v0.3 widget polls inspect_leaf and can cancel only the exact displayed tas
       windowListeners.set(type, listeners);
     },
     removeEventListener() {},
-    setInterval(callback) {
+    setInterval(callback, interval) {
       poll = callback;
+      pollInterval = interval;
       return 1;
     },
     clearInterval() {
@@ -573,21 +586,46 @@ test("v0.3 widget polls inspect_leaf and can cancel only the exact displayed tas
     elements.session.title,
     "00000000-0000-4000-8000-000000000301",
   );
-  assert.equal(elements.card.dataset.state, "running");
+  assert.equal(elements.card.dataset.state, "starting");
   assert.equal(elements["step-session"].className, "step is-done");
+  assert.equal(elements["step-provider"].className, "step");
+  assert.equal(elements.cancel.disabled, true);
+
+  assert.equal(typeof poll, "function");
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    {
+      name: "inspect_leaf",
+      args: { taskId: "leaf-widget-301" },
+    },
+  ]);
+  assert.equal(pollInterval, 500);
+  poll();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.length, 1);
+  resolveInspect({ structuredContent: running });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(elements.card.dataset.state, "running");
   assert.equal(elements["step-provider"].className, "step is-current");
   assert.equal(elements.cancel.disabled, false);
 
-  assert.equal(typeof poll, "function");
-  const pendingInspect = poll();
+  poll();
   await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.length, 2);
+  const resolveStaleInspect = resolveInspect;
+  poll();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.length, 2);
   await elements.cancel.dispatch("click");
   await new Promise((resolve) => setImmediate(resolve));
-  resolveInspect({ structuredContent: running });
-  await pendingInspect;
+  resolveStaleInspect({ structuredContent: running });
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [
+    {
+      name: "inspect_leaf",
+      args: { taskId: "leaf-widget-301" },
+    },
     {
       name: "inspect_leaf",
       args: { taskId: "leaf-widget-301" },
