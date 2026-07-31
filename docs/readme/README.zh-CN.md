@@ -195,6 +195,17 @@ server 提供带签名的 host 授权凭证，因此其他本地 MCP client 的�
 > **发布状态：** `0.2.0` 是 npm 与 GitHub 上当前的 App-native 正式版。
 > 安装和恢复时请固定版本号。
 
+### 尚未发布的候选版：v0.3.0-rc.0
+
+当前 checkout 正在准备一个本地预发布候选版，它尚未发布到 npm 或 GitHub。
+预发布插件清单默认使用 `.mcp.v0.3.json`；软件包仍保留 `.mcp.json`，作为
+v0.2.0 回滚配置。npm `latest` 仍为 v0.2.0，因此不要通过 `latest` 安装
+这个候选版，只能使用经过审计的本地 tarball。
+
+当前 Codex Desktop canary 只能提供静态 STDIO 工作目录，因此只证明当前选中
+的 checkout；动态 linked Worktree 选择仍需 roots-capable Host 证据。这个候选版
+不会扩大此前任何门禁所记录的 live Provider 授权。
+
 如果仓库已经安装 v0.1 托管工作流，请先让 App task 运行
 `npx --yes codex-ground-control@0.1.0 uninstall`，复核精确恢复结果后，再安装
 v0.2。v0.2 会拒绝把 v0.1 所有权清单套用到新的资产清单，而不是

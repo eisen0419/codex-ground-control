@@ -24,6 +24,8 @@ import {
   resolve,
 } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import {
   evaluateNpmRegistryPackage,
 } from "../src/release-name-checks.js";
@@ -340,6 +342,161 @@ function installTarball(tarball, installDirectory, environment) {
     "node_modules",
     packageMetadata.name,
   );
+}
+
+async function checkPackedHostSurface(
+  packageRoot,
+  homeDirectory,
+  networkTrap,
+) {
+  const defaultMcpConfig = ".mcp.v0.3.json";
+  const rollbackMcpConfig = ".mcp.json";
+  const serverId = "codex-ground-control-v0.3";
+  const resourceUri =
+    "ui://codex-ground-control/v0.3/leaf-session.html";
+  const secret = "packed-host-surface-secret-must-not-persist";
+  const providerTrapDirectory = join(homeDirectory, "provider-trap");
+  const providerTrapBin = join(homeDirectory, "provider-trap-bin");
+  const providerInvocation = join(providerTrapDirectory, "invoked");
+  let client = null;
+  try {
+    mkdirSync(providerTrapDirectory, { mode: 0o700 });
+    mkdirSync(providerTrapBin, { mode: 0o700 });
+    const providerTrap = join(providerTrapBin, "pi");
+    writeFileSync(
+      providerTrap,
+      [
+        "#!/bin/sh",
+        'printf "invoked\\n" > "$PI_CODING_AGENT_DIR/invoked"',
+        "exit 97",
+        "",
+      ].join("\n"),
+      { mode: 0o700 },
+    );
+    chmodSync(providerTrap, 0o700);
+    const plugin = JSON.parse(
+      readFileSync(
+        join(packageRoot, ".codex-plugin", "plugin.json"),
+        "utf8",
+      ),
+    );
+    const prereleaseConfig = JSON.parse(
+      readFileSync(join(packageRoot, defaultMcpConfig), "utf8"),
+    );
+    const rollbackConfig = JSON.parse(
+      readFileSync(join(packageRoot, rollbackMcpConfig), "utf8"),
+    );
+    const server = prereleaseConfig.mcpServers?.[serverId];
+    const rollback =
+      rollbackConfig.mcpServers?.["codex-ground-control"];
+    if (
+      plugin.version !== packageMetadata.version ||
+      plugin.mcpServers !== `./${defaultMcpConfig}` ||
+      Object.keys(prereleaseConfig.mcpServers ?? {}).length !== 1 ||
+      server?.command !== "node" ||
+      server?.cwd !== "." ||
+      JSON.stringify(server?.args) !==
+        JSON.stringify(["src/v0.3/mcp-app-entry.js"]) ||
+      rollback?.command !== "node" ||
+      rollback?.cwd !== "." ||
+      JSON.stringify(rollback?.args) !==
+        JSON.stringify(["src/mcp-app-server.js"])
+    ) {
+      throw new Error("Packed plugin configuration mismatch.");
+    }
+
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: server.args,
+      cwd: packageRoot,
+      env: {
+        PATH: providerTrapBin,
+        HOME: homeDirectory,
+        TMPDIR: tmpdir(),
+        LANG: "C",
+        LC_ALL: "C",
+        NODE_OPTIONS: `--import=${pathToFileURL(networkTrap).href}`,
+        PI_CODING_AGENT_DIR: providerTrapDirectory,
+        ZAI_CODING_CN_API_KEY: secret,
+      },
+      stderr: "pipe",
+    });
+    client = new Client({
+      name: "ground-control-release-host-check",
+      version: packageMetadata.version,
+    });
+    await client.connect(transport);
+    const tools = (
+      await client.listTools(undefined, { timeout: 15_000 })
+    ).tools.map(
+      ({ name }) => name,
+    );
+    const resource = await client.readResource(
+      { uri: resourceUri },
+      { timeout: 15_000 },
+    );
+    const widgetText = resource.contents[0]?.text ?? "";
+    await client.close();
+    client = null;
+
+    const stateRoot = join(
+      homeDirectory,
+      ".codex-ground-control",
+      "v0.3",
+    );
+    const homeFiles = snapshotFiles(homeDirectory);
+    const persistedSecretMatches = Object.values(homeFiles).filter(
+      (contents) =>
+        Buffer.from(contents, "base64").includes(Buffer.from(secret)),
+    ).length;
+    const report = {
+      status: "passed",
+      pluginVersion: plugin.version,
+      defaultMcpConfig,
+      rollbackMcpConfig,
+      serverId,
+      tools,
+      resourceUri,
+      widgetMarker: widgetText.includes(
+        'data-ground-control-layout="compact-progress"',
+      )
+        ? "compact-progress"
+        : null,
+      stateRootMode: (statSync(stateRoot).mode & 0o777)
+        .toString(8)
+        .padStart(4, "0"),
+      providerProcessStarted: existsSync(providerInvocation),
+      providerSessionDirectoryCreated: existsSync(
+        join(stateRoot, "pi-sessions"),
+      ),
+      persistedSecretMatches,
+    };
+    if (
+      JSON.stringify(report.tools) !==
+        JSON.stringify([
+          "delegate_leaf",
+          "inspect_leaf",
+          "cancel_leaf",
+          "render_leaf_card",
+        ]) ||
+      report.widgetMarker !== "compact-progress" ||
+      report.stateRootMode !== "0700" ||
+      report.providerProcessStarted ||
+      report.providerSessionDirectoryCreated ||
+      report.persistedSecretMatches !== 0
+    ) {
+      report.status = "failed";
+    }
+    return report;
+  } catch {
+    if (client) {
+      await client.close().catch(() => {});
+    }
+    return {
+      status: "failed",
+      errorCode: "PACKED_HOST_SURFACE_CHECK_FAILED",
+    };
+  }
 }
 
 function countPatternMatches(contents, patterns) {
@@ -1142,6 +1299,7 @@ function markdownReport(report) {
     `- Package SHA-256: \`${report.package.sha256}\``,
     `- Reproducible pack: **${report.package.reproducible ? "YES" : "NO"}**`,
     `- Package scan: **${report.package.scan.status.toUpperCase()}**`,
+    `- Packed v0.3 Host surface: **${report.hostSurface.status.toUpperCase()}**`,
     `- Offline evidence: **${report.lifecycle.status === "passed" ? `PASSED (${offlineCounts.passed}/${offlineCounts.total})` : "FAILED"}**`,
     `- Live provider evidence: **${liveLabel}**`,
     `- Name checks: **${report.nameChecks.status.toUpperCase()}**`,
@@ -1179,6 +1337,7 @@ function reportLimitations(
   options,
   repositoryChecks,
   packageReport,
+  hostSurface,
   lifecycle,
   liveEvidence,
   nameChecks,
@@ -1205,6 +1364,9 @@ function reportLimitations(
     packageReport.licenses.status !== "passed"
   ) {
     limitations.push("package-audit-failed");
+  }
+  if (hostSurface.status !== "passed") {
+    limitations.push("packed-v0.3-host-surface-failed");
   }
   if (lifecycle.status !== "passed") {
     limitations.push("packed-cli-lifecycle-failed");
@@ -1354,6 +1516,13 @@ async function main() {
         "",
       ].join("\n"),
     );
+    const hostSurfaceHome = join(sandbox, "host-surface-home");
+    mkdirSync(hostSurfaceHome);
+    const hostSurface = await checkPackedHostSurface(
+      packageRoot,
+      hostSurfaceHome,
+      networkTrap,
+    );
     const lifecycleHome = join(sandbox, "lifecycle-home");
     mkdirSync(lifecycleHome);
     const cli = join(
@@ -1376,6 +1545,7 @@ async function main() {
       options,
       repositoryChecks,
       packageReport,
+      hostSurface,
       lifecycle,
       liveEvidence,
       nameChecks,
@@ -1405,6 +1575,7 @@ async function main() {
       },
       repositoryChecks,
       package: packageReport,
+      hostSurface,
       lifecycle,
       liveEvidence,
       nameChecks,

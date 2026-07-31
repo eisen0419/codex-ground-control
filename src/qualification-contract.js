@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 
+import { PACKAGE_VERSION } from "./package-metadata.js";
+
 const SCHEMA_URLS = {
   campaign: new URL(
     "../schemas/qualification/campaign.schema.json",
@@ -418,7 +420,7 @@ export function validateQualificationReceiptBehavior(receipt) {
   if (
     receipt?.schemaVersion !== "1" ||
     receipt?.product !== "codex-ground-control" ||
-    receipt?.version !== "0.2.0" ||
+    receipt?.version !== PACKAGE_VERSION ||
     receipt?.command !== "qualify" ||
     typeof receipt?.projectRoot !== "string" ||
     receipt.projectRoot.length === 0

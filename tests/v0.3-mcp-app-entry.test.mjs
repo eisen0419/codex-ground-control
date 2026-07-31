@@ -121,7 +121,7 @@ test("v0.3 production entry derives only the bounded Pi profile and private stat
   );
 });
 
-test("opt-in v0.3 stdio entry lists tools and reads the production widget without starting Pi", async (t) => {
+test("prerelease default v0.3 stdio entry lists tools and reads the production widget without starting Pi", async (t) => {
   const sandbox = await mkdtemp(
     join(tmpdir(), "ground-control-v03-stdio-"),
   );
@@ -132,21 +132,29 @@ test("opt-in v0.3 stdio entry lists tools and reads the production widget withou
   );
   await mkdir(legacyStateParent, { mode: 0o755 });
   await chmod(legacyStateParent, 0o755);
-  const defaultConfig = JSON.parse(
-    await readFile(new URL("../.mcp.json", import.meta.url), "utf8"),
+  const plugin = JSON.parse(
+    await readFile(
+      new URL("../.codex-plugin/plugin.json", import.meta.url),
+      "utf8",
+    ),
   );
-  const optInConfig = JSON.parse(
+  const prereleaseConfig = JSON.parse(
     await readFile(
       new URL("../.mcp.v0.3.json", import.meta.url),
       "utf8",
     ),
   );
+  const rollbackConfig = JSON.parse(
+    await readFile(new URL("../.mcp.json", import.meta.url), "utf8"),
+  );
+  assert.equal(plugin.version, "0.3.0-rc.0");
+  assert.equal(plugin.mcpServers, "./.mcp.v0.3.json");
   assert.deepEqual(
-    defaultConfig.mcpServers["codex-ground-control"].args,
+    rollbackConfig.mcpServers["codex-ground-control"].args,
     ["src/mcp-app-server.js"],
   );
   assert.deepEqual(
-    optInConfig.mcpServers["codex-ground-control-v0.3"].args,
+    prereleaseConfig.mcpServers["codex-ground-control-v0.3"].args,
     ["src/v0.3/mcp-app-entry.js"],
   );
 
@@ -154,7 +162,10 @@ test("opt-in v0.3 stdio entry lists tools and reads the production widget withou
   assert.ok(inheritedPath);
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: ["src/v0.3/mcp-app-entry.js"],
+    args:
+      prereleaseConfig.mcpServers[
+        "codex-ground-control-v0.3"
+      ].args,
     cwd: fileURLToPath(new URL("..", import.meta.url)),
     env: {
       HOME: sandbox,

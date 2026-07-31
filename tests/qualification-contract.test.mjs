@@ -50,7 +50,7 @@ test("qualification schemas reject unknown fields and illegal states", () => {
     const receipt = {
       schemaVersion: "1",
       product: "codex-ground-control",
-      version: "0.2.0",
+      version: "0.3.0-rc.0",
       command: "qualify",
       status: "ok",
       exitCode: 0,

@@ -185,7 +185,7 @@ test("package metadata and tarball contents define the public CLI contract", () 
     readFileSync(join(repositoryRoot, "package.json"), "utf8"),
   );
   assert.equal(packageMetadata.name, "codex-ground-control");
-  assert.equal(packageMetadata.version, "0.2.0");
+  assert.equal(packageMetadata.version, "0.3.0-rc.0");
   assert.equal(packageMetadata.type, "module");
   assert.deepEqual(packageMetadata.engines, { node: ">=22" });
   assert.deepEqual(packageMetadata.bin, {
@@ -232,7 +232,10 @@ test("package metadata and tarball contents define the public CLI contract", () 
         },
       ),
     );
-    assert.equal(packed.filename, "codex-ground-control-0.2.0.tgz");
+    assert.equal(
+      packed.filename,
+      "codex-ground-control-0.3.0-rc.0.tgz",
+    );
     const expectedFiles = [
       ...mattSkills.assets.map((asset) => asset.sourcePath),
       "vendor/mattpocock-skills/LICENSE",
@@ -282,6 +285,7 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "src/leaf-run.js",
       "src/managed-workflow.js",
       "src/mcp-app-server.js",
+      "src/package-metadata.js",
       "src/project-state.js",
       "src/provider-lifecycle.js",
       "src/qualification-contract.js",
@@ -370,7 +374,7 @@ test("packed CLI exposes stable help and version output", () => {
     );
     assert.equal(help.stderr, "");
     assert.equal(version.status, 0);
-    assert.equal(version.stdout, "0.2.0\n");
+    assert.equal(version.stdout, "0.3.0-rc.0\n");
     assert.equal(version.stderr, "");
   });
 });
@@ -429,7 +433,7 @@ test("packed CLI completes an offline reversible lifecycle", () => {
       assert.deepEqual(initialized.receipt, {
         schemaVersion: "1",
         product: "codex-ground-control",
-        version: "0.2.0",
+        version: "0.3.0-rc.0",
         command: "init",
         status: "ok",
         exitCode: 0,
@@ -1629,7 +1633,7 @@ test("packed CLI distinguishes invalid usage in human and JSON modes", () => {
     assert.deepEqual(JSON.parse(machine.stdout), {
       schemaVersion: "1",
       product: "codex-ground-control",
-      version: "0.2.0",
+      version: "0.3.0-rc.0",
       command: null,
       status: "invalid-usage",
       exitCode: 64,

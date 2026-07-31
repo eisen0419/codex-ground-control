@@ -1,9 +1,9 @@
 # App-native v0.3 product contract
 
-Status: migration gate passed, redesign authorized, production unchanged
+Status: local v0.3.0-rc.0 candidate assembled; published production remains v0.2.0
 Date: 2026-07-28
 Last verified: 2026-08-01
-Supersedes: no released contract; v0.2 remains the production implementation
+Supersedes: no released contract; v0.2.0 remains the published stable implementation
 
 ## Decision
 
@@ -17,9 +17,11 @@ The user-visible job is:
 > external Agent, observe its provider-native session and structured progress,
 > inspect the result, and cancel that exact session.
 
-The existing v0.2 implementation is frozen while this contract and its spike
-are evaluated. No v0.2 runtime module may be deleted, merged, or redirected
-until every gate in [Migration gate](#migration-gate) has fresh evidence.
+The v0.2 implementation remains intact as the stable rollback path. The local
+prerelease plugin manifest defaults to `.mcp.v0.3.json`, while the packed root
+retains `.mcp.json` as the stable v0.2.0 rollback configuration. npm `latest`
+continues to resolve to v0.2.0; the candidate is neither published nor tagged.
+No v0.2 runtime module is deleted or merged into the redesign.
 
 ## Non-negotiable ownership
 
@@ -417,11 +419,13 @@ after the call.
 
 The production entry then passed its explicit Host-configured STDIO working
 directory into the server. A roots-capable Host still takes precedence and must
-return exactly one local selected checkout; a Host without roots may use only
-the canonical, existing, bounded STDIO directory. Missing, relative,
-nonexistent, or filesystem-root directories fail closed before process startup.
-Contract tests cover all three cases, including roots precedence over the
-configured fallback.
+return exactly one local selected checkout. Both that dynamic file root and a
+Host-without-roots STDIO fallback now pass one centralized validator: the path
+is canonicalized and must be absolute, existing, a directory, and bounded.
+Missing, relative, nonexistent, or filesystem-root directories fail closed
+before process startup. Contract tests cover ambiguous roots, invalid root
+boundaries, canonical path selection, and roots precedence over the configured
+fallback.
 
 After a Host restart, a second separately authorized and unique production
 delegation, `p06-live-gate-20260801-02`, started the bounded
@@ -501,16 +505,20 @@ This fresh run supplies production evidence for the immediate/500 ms polling
 behavior, the exact Host-card cancellation path, and the matching Provider
 cancelled settle. The STDIO fallback still supports only the controlled canary
 whose MCP server `cwd` is this checkout; it does not prove dynamic App-selected
-checkout resolution across arbitrary tasks or linked worktrees. The remaining
-live evidence gaps are a retained clean running-card pixel artifact and dynamic
-checkout proof beyond this configured canary. A cropped card-only image is
-still required if the cancelled terminal observation must also be retained as
-a repository audit artifact.
+checkout resolution across arbitrary tasks or linked worktrees. The production
+MCP seam has fresh offline evidence that an exact Host root takes precedence,
+is canonicalized, and fails closed before adapter start when it is ambiguous,
+missing, or the filesystem root. That offline evidence does not replace a
+roots-capable real Host. The remaining live evidence gaps are a retained clean
+running-card pixel artifact and dynamic checkout proof beyond this configured
+canary. A cropped card-only image is still required if the cancelled terminal
+observation must also be retained as a repository audit artifact.
 
 ## Migration gate
 
-Gate verdict: passed on 2026-07-31. Existing v0.2 remains the production
-implementation while the separately authorized redesign is planned.
+Gate verdict: passed on 2026-07-31. The local v0.3.0-rc.0 candidate packages the
+separately authorized redesign, while v0.2.0 remains the published production
+implementation and stable rollback target.
 
 1. Offline protocol probe proves Pi RPC session identity without a model call.
 2. A one-shot live spike proves native start event, running card projection,

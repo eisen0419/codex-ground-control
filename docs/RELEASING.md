@@ -1,4 +1,8 @@
-# Ground Control v0.2 release-candidate procedure
+# Ground Control v0.3.0-rc.0 release-candidate procedure
+
+This procedure prepares an unpublished local prerelease. npm `latest` remains
+v0.2.0. It does not authorize publication, change the stable rollback target,
+or reuse an earlier live Provider authorization.
 
 Run the release-candidate command only from a clean checkout on macOS with
 Node.js 22 or newer, Git, and any Provider credentials required for the live
@@ -12,16 +16,19 @@ npm run release-candidate -- --allow-live
 The command runs `release-lock:verify`, type checking, and the complete test
 suite before packing. It packs the npm artifact twice in isolated npm
 environments and requires identical SHA-256 hashes. It then installs the real
-tarball under a temporary `HOME`, creates fresh Git repositories, and exercises
-the public CLI for initialization, idempotent re-initialization, diagnosis,
-offline qualification, evidence verification, all five independent live
-provider campaigns, safe uninstall, exact project restoration, and a
+tarball under a temporary `HOME`. From the packed plugin manifest it resolves
+the default `.mcp.v0.3.json`, starts that installed stdio entry with network
+access denied, lists the four MCP tools, and reads the production widget without
+calling a tool or starting Pi. It then creates fresh Git repositories and
+exercises the public CLI for initialization, idempotent re-initialization,
+diagnosis, offline qualification, evidence verification, all five independent
+live provider campaigns, safe uninstall, exact project restoration, and a
 user-modification conflict.
 
 Each run uses a new non-overwriting directory under `release-candidate/`. Its
 main artifacts are:
 
-- `codex-ground-control-0.2.0.tgz`
+- `codex-ground-control-0.3.0-rc.0.tgz`
 - `release-report.json`
 - `RELEASE_CANDIDATE.md`
 - `receipts/` with one public CLI receipt per operation
@@ -69,6 +76,10 @@ does not authorize publication.
 
 The command does not create a GitHub remote, push, publish to npm, or create a
 release. Those remote actions remain outside Ticket 11.
+
+If publication is separately authorized later, this prerelease must use a
+non-`latest` dist-tag. The stable `latest` tag must continue to resolve to
+v0.2.0 until a separately audited stable release is approved.
 
 Recovery uses the packed public CLI. Project-local `uninstall` restores exact
 pre-install instructions and preserves modified managed files as conflicts.

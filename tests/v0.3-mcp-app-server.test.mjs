@@ -721,7 +721,119 @@ test("production MCP App resolves one Host root as the selected checkout and fai
   assert.equal(delegated.isError, undefined);
   assert.equal(delegated.structuredContent.taskId, "leaf-roots-exact");
   assert.equal(starts.length, 1);
-  assert.equal(starts[0].cwd, rootDirectory);
+  assert.equal(starts[0].cwd, await realpath(rootDirectory));
+});
+
+test("production MCP App rejects a filesystem-root Host checkout before adapter start", async (t) => {
+  const rootDirectory = await mkdtemp(
+    join(tmpdir(), "ground-control-v03-mcp-root-boundary-"),
+  );
+  t.after(() => rm(rootDirectory, { recursive: true, force: true }));
+  const starts = [];
+  const server = createLeafProductionMcpAppServer({
+    rootDirectory,
+    ...productionFixtureOptions({
+      starts,
+      sessionRoot: rootDirectory,
+      sessionId: "00000000-0000-4000-8000-000000000307",
+      processIncarnation: "incarnation-307",
+      timestamp: "2026-08-01T04:30:00.000Z",
+    }),
+  });
+  const client = new Client(
+    {
+      name: "ground-control-v0.3-root-boundary-test",
+      version: "0.3.0",
+    },
+    {
+      capabilities: { roots: {} },
+    },
+  );
+  client.setRequestHandler(ListRootsRequestSchema, async () => ({
+    roots: [{ uri: pathToFileURL("/").href }],
+  }));
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  t.after(() => client.close());
+  t.after(() => server.close());
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport),
+  ]);
+
+  const blocked = await client.callTool({
+    name: "delegate_leaf",
+    arguments: {
+      taskId: "leaf-roots-filesystem-root",
+      adapterId: "pi-rpc",
+      profile: "offline-fixture",
+      activity: "offline Host root boundary",
+    },
+  });
+
+  assert.equal(blocked.isError, true);
+  assert.equal(
+    blocked.content[0].text,
+    "LEAF_PRODUCTION_HOST_DISPATCH_REQUIRED",
+  );
+  assert.equal(starts.length, 0);
+});
+
+test("production MCP App rejects a nonexistent Host checkout before adapter start", async (t) => {
+  const rootDirectory = await mkdtemp(
+    join(tmpdir(), "ground-control-v03-mcp-missing-root-"),
+  );
+  t.after(() => rm(rootDirectory, { recursive: true, force: true }));
+  const starts = [];
+  const server = createLeafProductionMcpAppServer({
+    rootDirectory,
+    ...productionFixtureOptions({
+      starts,
+      sessionRoot: rootDirectory,
+      sessionId: "00000000-0000-4000-8000-000000000308",
+      processIncarnation: "incarnation-308",
+      timestamp: "2026-08-01T04:31:00.000Z",
+    }),
+  });
+  const client = new Client(
+    {
+      name: "ground-control-v0.3-missing-root-test",
+      version: "0.3.0",
+    },
+    {
+      capabilities: { roots: {} },
+    },
+  );
+  client.setRequestHandler(ListRootsRequestSchema, async () => ({
+    roots: [
+      { uri: pathToFileURL(join(rootDirectory, "missing")).href },
+    ],
+  }));
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  t.after(() => client.close());
+  t.after(() => server.close());
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport),
+  ]);
+
+  const blocked = await client.callTool({
+    name: "delegate_leaf",
+    arguments: {
+      taskId: "leaf-roots-missing",
+      adapterId: "pi-rpc",
+      profile: "offline-fixture",
+      activity: "offline missing Host root",
+    },
+  });
+
+  assert.equal(blocked.isError, true);
+  assert.equal(
+    blocked.content[0].text,
+    "LEAF_PRODUCTION_HOST_DISPATCH_REQUIRED",
+  );
+  assert.equal(starts.length, 0);
 });
 
 test("production MCP App uses an explicit Host stdio working directory when the client has no roots capability", async (t) => {

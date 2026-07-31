@@ -55,6 +55,37 @@ function toolMetadata() {
   );
 }
 
+function selectedCheckoutFromPath(value, label) {
+  if (
+    typeof value !== "string" ||
+    value.trim() === "" ||
+    !isAbsolute(value)
+  ) {
+    throw new TypeError(
+      `${label} must be an absolute path.`,
+    );
+  }
+  let selectedCheckout;
+  let metadata;
+  try {
+    selectedCheckout = realpathSync(value);
+    metadata = lstatSync(selectedCheckout);
+  } catch {
+    throw new TypeError(
+      `${label} must exist.`,
+    );
+  }
+  if (
+    !metadata.isDirectory() ||
+    dirname(selectedCheckout) === selectedCheckout
+  ) {
+    throw new TypeError(
+      `${label} must be a bounded directory.`,
+    );
+  }
+  return Object.freeze({ selectedCheckout });
+}
+
 function selectedCheckoutFromRoots(result) {
   if (
     !result ||
@@ -76,43 +107,20 @@ function selectedCheckoutFromRoots(result) {
       "The Codex Host selected checkout must be a local file root.",
     );
   }
-  return Object.freeze({
-    selectedCheckout: fileURLToPath(root),
-  });
+  return selectedCheckoutFromPath(
+    fileURLToPath(root),
+    "The Codex Host selected checkout",
+  );
 }
 
 function selectedCheckoutFromWorkingDirectory(workingDirectory) {
   if (workingDirectory === undefined) {
     return null;
   }
-  if (
-    typeof workingDirectory !== "string" ||
-    workingDirectory.trim() === "" ||
-    !isAbsolute(workingDirectory)
-  ) {
-    throw new TypeError(
-      "The Host stdio working directory must be an absolute path.",
-    );
-  }
-  let selectedCheckout;
-  let metadata;
-  try {
-    selectedCheckout = realpathSync(workingDirectory);
-    metadata = lstatSync(selectedCheckout);
-  } catch {
-    throw new TypeError(
-      "The Host stdio working directory must exist.",
-    );
-  }
-  if (
-    !metadata.isDirectory() ||
-    dirname(selectedCheckout) === selectedCheckout
-  ) {
-    throw new TypeError(
-      "The Host stdio working directory must be a bounded directory.",
-    );
-  }
-  return Object.freeze({ selectedCheckout });
+  return selectedCheckoutFromPath(
+    workingDirectory,
+    "The Host stdio working directory",
+  );
 }
 
 export function createLeafMcpAppServer({

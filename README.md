@@ -205,6 +205,19 @@ Global installation remains a separate, previewed, explicitly confirmed flow.
 > **Release status:** `0.2.0` is the current App-native release on npm and
 > GitHub. Pin the version in installation and recovery commands.
 
+### Unpublished candidate: v0.3.0-rc.0
+
+This checkout prepares a local prerelease candidate; it is not an npm or
+GitHub release. The prerelease plugin manifest defaults to
+`.mcp.v0.3.json`. The package still includes `.mcp.json` as the v0.2.0
+rollback configuration. npm `latest` remains v0.2.0, so do not install this
+candidate through `latest`; use only an audited local tarball.
+
+The current Codex Desktop canary supplies a static STDIO working directory and
+therefore proves only the selected checkout. Dynamic linked-Worktree selection
+remains pending a roots-capable Host proof. This candidate does not broaden the
+live Provider authorization recorded by any earlier gate.
+
 If this repository already has a v0.1 managed workflow, ask the App task to run
 `npx --yes codex-ground-control@0.1.0 uninstall` first, review that exact
 restoration, and then install v0.2. v0.2 deliberately refuses to
