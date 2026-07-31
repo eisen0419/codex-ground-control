@@ -2,7 +2,7 @@
 
 Status: migration gate passed, redesign authorized, production unchanged
 Date: 2026-07-28
-Last verified: 2026-07-31
+Last verified: 2026-08-01
 Supersedes: no released contract; v0.2 remains the production implementation
 
 ## Decision
@@ -55,6 +55,20 @@ MCP App transport may split preparation and start internally when required by
 the host transaction, but that split is not part of the product vocabulary.
 There is no user-facing qualification or custom authorization operation in
 this surface.
+
+### Host rendering adapter
+
+`render_leaf_card` is a transport-only Host adapter, not a fourth semantic
+product operation. It accepts only a Ground Control `taskId`, invokes the same
+`inspect_leaf` handler, returns the exact same sanitized projection, and binds
+that result to the production MCP App resource. It is model-visible so a Codex
+turn can attach the card without first delegating a task, but it is strictly
+read-only, closed-world, and idempotent.
+
+The adapter cannot create a task, resolve Host roots, start or recover a
+runtime, send Provider input, cancel a session, or synthesize a fallback
+projection. A missing or invalid task fails with the same sanitized Host
+operation error as `inspect_leaf`.
 
 ## LeafRuntime seam
 
@@ -361,6 +375,36 @@ All five migration gate items now have fresh evidence for this source revision.
 The migration gate passed on 2026-07-31. This verdict authorizes a separate
 production redesign task; it does not itself modify or supersede v0.2.
 
+On 2026-08-01, the production v0.3 Host rendering adapter received its first
+foreground acceptance. After Codex Desktop restarted and renegotiated the MCP
+tool list, the foreground task completed exactly one Ground Control business
+tool call: model-visible `render_leaf_card` for
+`host-render-acceptance-20260801-9e2b`. The call returned the durable sanitized
+projection `cancelled / provider-cancelled / turn.cancelled #4`, with
+`canCancel: false`, and attached
+`ui://codex-ground-control/v0.3/leaf-session.html`. The projection contained no
+process incarnation, PID, state path, credential, prompt, transcript, or hidden
+reasoning.
+
+The fresh foreground frame is retained as
+[app-native-v0.3-production-foreground-host-card.jpg](../assets/evidence/app-native-v0.3-production-foreground-host-card.jpg)
+(2496 x 1404, SHA-256
+`de7ce0c88f2ff27bad5fd1001ae3adbbd8fa3a9b7a37d77f66cc06e7a9959d1a`).
+The complete production `Leaf card` is visible: title and terminal status,
+three lifecycle stages, latest event and stage, task and native-session
+suffixes, and the action row all remain inside the Host container without
+clipping, overlap, or horizontal overflow. The displayed identifiers and state
+match the structured result returned by the same render call, so V3-14 passes
+for the production v0.3 resource rather than the earlier prototype.
+
+This rendering acceptance used a unique terminal fixture produced offline by
+the production domain reducer and append-only state store. Its historical
+`Provider 运行` step exercises the terminal card projection; the acceptance
+call itself did not invoke `delegate_leaf`, start Pi, Provider, or worker, make
+a network request, or use `--allow-live`. It proves the read-only Host rendering
+seam and production card pixels only; it does not add live runtime evidence for
+the remaining v0.3 product operations.
+
 ## Migration gate
 
 Gate verdict: passed on 2026-07-31. Existing v0.2 remains the production
@@ -370,8 +414,8 @@ implementation while the separately authorized redesign is planned.
 2. A one-shot live spike proves native start event, running card projection,
    exact abort, matching cancellation settle, and sibling survival.
 3. Contract tests pass using the same event and card semantics.
-4. A fresh render call in a foreground Codex App task displays the prototype
-   card and the observed state matches `inspect_leaf`.
+4. A fresh read-only render call in a foreground Codex App task displays the
+   production v0.3 card and the observed state matches `inspect_leaf`.
 5. Existing `npm test`, typecheck, and release-lock verification remain green.
 
 Passing the gate authorizes a separate redesign task. It does not itself

@@ -143,6 +143,21 @@ const DEFINITIONS = Object.freeze([
   }),
 ]);
 
+const HOST_RENDER_DEFINITION = Object.freeze({
+  name: "render_leaf_card",
+  title: "Render external leaf session card",
+  description:
+    "Return the same durable sanitized projection as inspect_leaf and " +
+    "attach the production Host card without starting or cancelling a leaf session.",
+  inputSchema: TASK_INPUT_SCHEMA,
+  annotations: Object.freeze({
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: false,
+    idempotentHint: true,
+  }),
+});
+
 export function createLeafMcpComposition({ service } = {}) {
   if (
     !service ||
@@ -607,5 +622,50 @@ export function registerLeafMcpTools({
 
   return Object.freeze({
     toolNames: Object.freeze([...names]),
+  });
+}
+
+export function registerLeafMcpHostRenderTool({
+  server,
+  composition,
+  toolMetadata,
+} = {}) {
+  if (
+    !server ||
+    typeof server.registerTool !== "function" ||
+    !composition?.handlers ||
+    typeof composition.handlers.inspect_leaf !== "function" ||
+    !isRecord(toolMetadata)
+  ) {
+    throw new TypeError(
+      "Leaf Host render registration dependencies are invalid.",
+    );
+  }
+
+  server.registerTool(
+    HOST_RENDER_DEFINITION.name,
+    Object.freeze({
+      title: HOST_RENDER_DEFINITION.title,
+      description: HOST_RENDER_DEFINITION.description,
+      inputSchema: TASK_HOST_INPUT_SCHEMA,
+      annotations: HOST_RENDER_DEFINITION.annotations,
+      _meta: Object.freeze({ ...toolMetadata }),
+    }),
+    async (input) => {
+      try {
+        const projection =
+          await composition.handlers.inspect_leaf(input);
+        return toolResult(projection);
+      } catch (error) {
+        return sanitizedToolError(
+          error,
+          "LEAF_HOST_OPERATION_FAILED",
+        );
+      }
+    },
+  );
+
+  return Object.freeze({
+    toolName: HOST_RENDER_DEFINITION.name,
   });
 }

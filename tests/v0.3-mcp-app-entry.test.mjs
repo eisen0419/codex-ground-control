@@ -172,7 +172,12 @@ test("opt-in v0.3 stdio entry lists tools and reads the production widget withou
   const tools = await client.listTools();
   assert.deepEqual(
     tools.tools.map(({ name }) => name),
-    ["delegate_leaf", "inspect_leaf", "cancel_leaf"],
+    [
+      "delegate_leaf",
+      "inspect_leaf",
+      "cancel_leaf",
+      "render_leaf_card",
+    ],
   );
   const resource = await client.readResource({
     uri: GROUND_CONTROL_V03_WIDGET_URI,

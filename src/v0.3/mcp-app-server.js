@@ -9,6 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
 import {
   createLeafProductionComposition,
+  registerLeafMcpHostRenderTool,
   registerLeafMcpTools,
 } from "./leaf-mcp-composition.js";
 
@@ -24,6 +25,7 @@ const TOOL_VISIBILITY = Object.freeze({
   delegate_leaf: Object.freeze(["model"]),
   inspect_leaf: Object.freeze(["app"]),
   cancel_leaf: Object.freeze(["app"]),
+  render_leaf_card: Object.freeze(["model"]),
 });
 
 export function readLeafSessionWidget() {
@@ -135,10 +137,16 @@ export function createLeafMcpAppServer({
     }),
   );
 
+  const metadata = toolMetadata();
   registerLeafMcpTools({
     server,
     composition,
-    toolMetadata: toolMetadata(),
+    toolMetadata: metadata,
+  });
+  registerLeafMcpHostRenderTool({
+    server,
+    composition,
+    toolMetadata: metadata.render_leaf_card,
   });
 
   const closeServer = server.close.bind(server);

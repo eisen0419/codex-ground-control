@@ -75,7 +75,7 @@ function widgetElement() {
   };
 }
 
-test("v0.3 MCP App publishes the three-operation contract and an isolated widget without replacing the v0.2 default", async (t) => {
+test("v0.3 MCP App publishes three semantic operations plus one read-only Host renderer", async (t) => {
   const server = createLeafMcpAppServer({
     composition: fixtureComposition(),
   });
@@ -95,7 +95,12 @@ test("v0.3 MCP App publishes the three-operation contract and an isolated widget
   const tools = await client.listTools();
   assert.deepEqual(
     tools.tools.map(({ name }) => name),
-    ["delegate_leaf", "inspect_leaf", "cancel_leaf"],
+    [
+      "delegate_leaf",
+      "inspect_leaf",
+      "cancel_leaf",
+      "render_leaf_card",
+    ],
   );
   for (const tool of tools.tools) {
     assert.equal(
@@ -105,14 +110,23 @@ test("v0.3 MCP App publishes the three-operation contract and an isolated widget
   }
   assert.deepEqual(
     tools.tools.map(({ _meta }) => _meta.ui.visibility),
-    [["model"], ["app"], ["app"]],
+    [["model"], ["app"], ["app"], ["model"]],
   );
   assert.deepEqual(
     tools.tools.map(
       ({ _meta }) => _meta["openai/widgetAccessible"],
     ),
-    [false, true, true],
+    [false, true, true, false],
   );
+  const renderer = tools.tools.find(
+    ({ name }) => name === "render_leaf_card",
+  );
+  assert.deepEqual(renderer.annotations, {
+    readOnlyHint: true,
+    destructiveHint: false,
+    openWorldHint: false,
+    idempotentHint: true,
+  });
 
   const resources = await client.listResources();
   assert.deepEqual(
@@ -162,6 +176,88 @@ test("v0.3 MCP App publishes the three-operation contract and an isolated widget
   assert.deepEqual(
     defaultConfig.mcpServers["codex-ground-control"].args,
     ["src/mcp-app-server.js"],
+  );
+});
+
+test("read-only Host renderer returns the exact inspect projection without delegating or cancelling", async (t) => {
+  const projection = {
+    schemaVersion: "0.3",
+    taskId: "leaf-render-card",
+    adapterId: "pi-rpc",
+    profile: "pi-glm",
+    activity: "bounded review",
+    provider: "pi",
+    modelProvider: "zai-coding-cn",
+    model: "glm-5.2",
+    nativeSession: {
+      id: "00000000-0000-4000-8000-000000000309",
+      inspectable: true,
+    },
+    state: "cancelled",
+    stage: "provider-cancelled",
+    latestEvent: {
+      sequence: 4,
+      type: "turn.cancelled",
+      source: "provider-native",
+      observedAt: "2026-08-01T02:30:00.000Z",
+    },
+    canCancel: false,
+    result: null,
+  };
+  let inspectCalls = 0;
+  let delegateCalls = 0;
+  let cancelCalls = 0;
+  const compositionContract = createLeafMcpComposition({
+    service: {
+      async delegateLeaf() {
+        delegateCalls += 1;
+      },
+      async inspectLeaf(taskId) {
+        inspectCalls += 1;
+        assert.equal(taskId, projection.taskId);
+        return projection;
+      },
+      async cancelLeaf() {
+        cancelCalls += 1;
+      },
+    },
+  });
+  const server = createLeafMcpAppServer({
+    composition: Object.freeze({
+      ...compositionContract,
+      async close() {},
+    }),
+  });
+  const client = new Client({
+    name: "ground-control-v0.3-read-only-render-test",
+    version: "0.3.0",
+  });
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair();
+  t.after(() => client.close());
+  t.after(() => server.close());
+  await Promise.all([
+    server.connect(serverTransport),
+    client.connect(clientTransport),
+  ]);
+
+  const rendered = await client.callTool({
+    name: "render_leaf_card",
+    arguments: { taskId: projection.taskId },
+  });
+  const inspected = await client.callTool({
+    name: "inspect_leaf",
+    arguments: { taskId: projection.taskId },
+  });
+
+  assert.deepEqual(rendered.structuredContent, projection);
+  assert.deepEqual(rendered.structuredContent, inspected.structuredContent);
+  assert.equal(inspectCalls, 2);
+  assert.equal(delegateCalls, 0);
+  assert.equal(cancelCalls, 0);
+  assert.equal(
+    JSON.stringify(rendered).includes("processIncarnation"),
+    false,
   );
 });
 
