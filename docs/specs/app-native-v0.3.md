@@ -453,25 +453,59 @@ or horizontal overflow.
 This run proves the repaired no-roots Host dispatch, real Pi/Provider start,
 native session creation, Provider-native running/progress/normal-settle events,
 durable completion, final sanitized production projection, and a matching real
-Host terminal-card pixel observation. It does not add exact-cancellation
+Host terminal-card pixel observation. That run did not add exact-cancellation
 evidence: the Provider completed in about two seconds before the foreground
-cancel button could be used. No second delegation was attempted.
-
-The STDIO fallback supports the controlled canary only when the MCP server's
-configured `cwd` is the current checkout; it does not prove dynamic
-App-selected checkout resolution across arbitrary tasks or linked worktrees.
-The remaining production live gaps are a fresh running-card pixel observation,
-exact Host-card cancellation and matching cancelled settle, and dynamic
-checkout proof beyond this configured canary.
+cancel button could be used. No second delegation was attempted under that
+authorization.
 
 The terminal run also showed that a 1500 ms first widget poll left almost no
 human cancellation window when the Provider settled in about two seconds. The
 production widget now requests one immediate `inspect_leaf` after accepting a
 nonterminal projection, then polls every 500 ms while coalescing overlapping
 refreshes into one in-flight call. A terminal projection still stops polling
-and rejects a late lower-sequence or nonterminal result. This is offline-tested
-behavior only until a restarted Host supplies fresh running-card and exact
-cancellation evidence.
+and rejects a late lower-sequence or nonterminal result.
+
+After commit `8f23cd9` and another Host restart, a third separately authorized
+and unique production delegation, `p06-live-cancel-20260801-03`, started the
+same bounded `pi-glm / glm-5.2` profile. Pi returned native session
+`df52f5ee-d5e4-4c31-8248-c97477b69e47`. The initial production Host card
+received a nonterminal projection, and the user pressed its `取消任务` action
+exactly once. The private append-only journal recorded this exact chain:
+
+1. `session.created #1` at `2026-07-31T20:24:10.301Z`;
+2. `turn.started #2` at `2026-07-31T20:24:10.318Z`;
+3. `turn.cancel.requested #3` at `2026-07-31T20:24:20.763Z`;
+4. `turn.cancelled #4` at `2026-07-31T20:24:20.783Z`.
+
+The exact request-to-cancelled settle was 20 ms. All five task commit files had
+mode `0600`; hashing the sorted per-file SHA-256 manifest produced aggregate
+SHA-256
+`0f77b54ffc4db54bc31d0510bcedc33b995fb814e5a4be99861e2762bb4b0bf6`.
+The same read-only production `render_leaf_card` adapter returned
+`cancelled / provider-cancelled / turn.cancelled #4`, `canCancel: false`, and
+`result: null` for the same native session. The sanitized public projection
+again exposed no process incarnation, PID, state path, credential, prompt,
+transcript, reasoning, or raw Provider output. Exactly one delegation was
+attempted under this authorization; there was no retry.
+
+A fresh foreground Codex frame showed the real production card with
+`Pi · GLM 5.2`, the exact activity/profile, red `已取消` status, all three
+lifecycle stages, `turn.cancelled #4`, matching task and native-session
+suffixes, `provider-cancelled`, and its action row. The complete card remained
+inside the Host container without clipping, overlap, or horizontal overflow.
+Because the full frame also contained unrelated desktop information, it was
+not copied into this repository. This is a contemporaneous foreground pixel
+observation, not a retained card-only audit artifact.
+
+This fresh run supplies production evidence for the immediate/500 ms polling
+behavior, the exact Host-card cancellation path, and the matching Provider
+cancelled settle. The STDIO fallback still supports only the controlled canary
+whose MCP server `cwd` is this checkout; it does not prove dynamic App-selected
+checkout resolution across arbitrary tasks or linked worktrees. The remaining
+live evidence gaps are a retained clean running-card pixel artifact and dynamic
+checkout proof beyond this configured canary. A cropped card-only image is
+still required if the cancelled terminal observation must also be retained as
+a repository audit artifact.
 
 ## Migration gate
 
