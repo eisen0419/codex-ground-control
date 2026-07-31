@@ -112,7 +112,7 @@
       <iframe
         id="widget"
         title="Ground Control 状态卡"
-        src="http://localhost:4312/spikes/pi-native-session/product-surface-mcp-prototype/widget.html"
+        src="http://localhost:4312/assets/apps/ground-control/v0.3-leaf-session.html"
       ></iframe>
     </main>
 
@@ -127,50 +127,38 @@
         let state =
           requestedState === "cancelled" ? "cancelled" : "running";
 
-        function payload(operation) {
+        function payload() {
           const terminal = state === "cancelled";
           return {
             structuredContent: {
-              schemaVersion: "0.3-mcp-prototype",
-              kind: "synthetic-leaf-task-state",
-              operation,
-              synthetic: true,
-              card: {
-                schemaVersion: "0.3",
-                taskId,
-                adapterId: "pi-rpc",
-                profile: "pi-glm",
-                activity: "testing",
-                provider: "pi",
-                modelProvider: "zai-coding-cn",
-                model: "glm-5.2",
-                nativeSession: {
-                  id: sessionId,
-                  inspectable: true,
-                },
-                state,
-                stage: terminal
-                  ? "provider-cancelled"
-                  : "provider-running",
-                latestEvent: {
-                  sequence: terminal ? 2 : 1,
-                  type: terminal
-                    ? "turn.cancelled"
-                    : "turn.started",
-                  source: "provider-native",
-                  observedAt: new Date().toISOString(),
-                },
-                canCancel: !terminal,
-                result: terminal
-                  ? { disposition: "candidate-evidence" }
-                  : null,
+              schemaVersion: "0.3",
+              taskId,
+              adapterId: "pi-rpc",
+              profile: "pi-glm",
+              activity: "testing",
+              provider: "pi",
+              modelProvider: "zai-coding-cn",
+              model: "glm-5.2",
+              nativeSession: {
+                id: sessionId,
+                inspectable: true,
               },
-              isolation: {
-                piStarts: 0,
-                providerCalls: 0,
-                networkRequests: 0,
-                repositoryWrites: 0,
+              state,
+              stage: terminal
+                ? "provider-cancelled"
+                : "provider-running",
+              latestEvent: {
+                sequence: terminal ? 4 : 2,
+                type: terminal
+                  ? "turn.cancelled"
+                  : "turn.started",
+                source: "provider-native",
+                observedAt: new Date().toISOString(),
               },
+              canCancel: !terminal,
+              result: terminal
+                ? { disposition: "candidate-evidence" }
+                : null,
             },
           };
         }
@@ -179,16 +167,16 @@
           frame.contentWindow.postMessage(message, "*");
         }
 
-        function publish(operation) {
+        function publish() {
           send({
             jsonrpc: "2.0",
             method: "ui/notifications/tool-result",
-            params: payload(operation),
+            params: payload(),
           });
         }
 
         frame.addEventListener("load", () => {
-          publish("delegate_leaf");
+          publish();
         });
 
         window.addEventListener("message", (event) => {
@@ -214,14 +202,13 @@
             return;
           }
           if (message.method === "tools/call") {
-            const operation = message.params.name;
-            if (operation === "cancel_leaf") {
+            if (message.params.name === "cancel_leaf") {
               state = "cancelled";
             }
             send({
               jsonrpc: "2.0",
               id: message.id,
-              result: payload(operation),
+              result: payload(),
             });
           }
         });

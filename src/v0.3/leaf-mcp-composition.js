@@ -536,13 +536,15 @@ function toolResult(projection) {
 export function registerLeafMcpTools({
   server,
   composition,
+  toolMetadata = {},
 } = {}) {
   if (
     !server ||
     typeof server.registerTool !== "function" ||
     !composition ||
     !Array.isArray(composition.definitions) ||
-    !composition.handlers
+    !composition.handlers ||
+    !isRecord(toolMetadata)
   ) {
     throw new TypeError(
       "Leaf Host registration dependencies are invalid.",
@@ -561,6 +563,15 @@ export function registerLeafMcpTools({
   }
 
   for (const definition of composition.definitions) {
+    const metadata = toolMetadata[definition.name];
+    if (
+      metadata !== undefined &&
+      !isRecord(metadata)
+    ) {
+      throw new TypeError(
+        "Leaf Host tool metadata is invalid.",
+      );
+    }
     server.registerTool(
       definition.name,
       Object.freeze({
@@ -568,6 +579,9 @@ export function registerLeafMcpTools({
         description: definition.description,
         inputSchema: HOST_INPUT_SCHEMAS[definition.name],
         annotations: definition.annotations,
+        ...(metadata === undefined
+          ? {}
+          : { _meta: Object.freeze({ ...metadata }) }),
       }),
       async (input, callContext) => {
         try {
