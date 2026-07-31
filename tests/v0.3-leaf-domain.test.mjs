@@ -7,6 +7,7 @@ import {
   createLeafTaskRecord,
   requestExactCancellation,
   toPublicLeafProjection,
+  validateLeafDelegationSpec,
   validateLeafTaskRecord,
   validateNormalizedLeafEvent,
   validatePublicLeafProjection,
@@ -43,6 +44,48 @@ function applySignal(task, sequence, signal, overrides = {}) {
     signal,
   });
 }
+
+test("leaf delegation spec validates required public identity before runtime start", () => {
+  assert.equal(
+    validateLeafDelegationSpec({
+      taskId: "leaf-301",
+      adapterId: "pi-rpc",
+      profile: "pi-glm",
+      activity: "testing",
+      cwd: "/controlled/checkout",
+    }).valid,
+    true,
+  );
+  assert.equal(
+    validateLeafDelegationSpec({
+      taskId: "",
+      adapterId: "pi-rpc",
+      profile: "pi-glm",
+      activity: "testing",
+    }).valid,
+    false,
+  );
+  assert.equal(
+    validateLeafDelegationSpec({
+      taskId: "leaf-301",
+      adapterId: "pi-rpc",
+      profile: "pi-glm",
+      activity: "testing",
+      credential: "must-not-cross",
+    }).valid,
+    false,
+  );
+  assert.equal(
+    validateLeafDelegationSpec({
+      taskId: "leaf-301",
+      adapterId: "pi-rpc",
+      profile: "pi-glm",
+      activity: "testing",
+      input: 42,
+    }).valid,
+    false,
+  );
+});
 
 function createRunningTask(overrides = {}) {
   const binding = overrides.nativeSessionBinding ?? nativeSessionBinding;

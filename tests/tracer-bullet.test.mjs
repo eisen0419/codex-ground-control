@@ -287,7 +287,11 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "src/release-name-checks.js",
       "src/safe-files.js",
       "src/v0.3/leaf-domain.js",
+      "src/v0.3/leaf-mcp-composition.js",
+      "src/v0.3/leaf-runtime-registry.js",
+      "src/v0.3/leaf-session-service.js",
       "src/v0.3/leaf-state-store.js",
+      "src/v0.3/pi-rpc-adapter.js",
       "src/workflow-assets.js",
       "src/workflow-error.js",
     ].sort();

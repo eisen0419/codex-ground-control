@@ -74,6 +74,23 @@ const PUBLIC_IDENTITY_KEYS = Object.freeze([
   "modelProvider",
   "model",
 ]);
+const DELEGATION_REQUIRED_KEYS = Object.freeze([
+  "taskId",
+  "adapterId",
+  "profile",
+  "activity",
+]);
+const DELEGATION_OPTIONAL_KEYS = Object.freeze([
+  "cwd",
+  "modelProvider",
+  "model",
+  "sessionId",
+  "input",
+]);
+const DELEGATION_KEYS = new Set([
+  ...DELEGATION_REQUIRED_KEYS,
+  ...DELEGATION_OPTIONAL_KEYS,
+]);
 
 const PROVIDER_SIGNAL_TYPES = new Set([
   "session.created",
@@ -169,6 +186,20 @@ function validation(valid, message) {
     valid,
     errors: Object.freeze(valid ? [] : [message]),
   });
+}
+
+export function validateLeafDelegationSpec(value) {
+  const valid =
+    isRecord(value) &&
+    Object.keys(value).every((key) => DELEGATION_KEYS.has(key)) &&
+    DELEGATION_REQUIRED_KEYS.every((key) =>
+      isNonEmptyString(value[key]),
+    ) &&
+    DELEGATION_OPTIONAL_KEYS.every(
+      (key) =>
+        !Object.hasOwn(value, key) || isNonEmptyString(value[key]),
+    );
+  return validation(valid, "Leaf delegation spec is invalid.");
 }
 
 function isNativeSessionBinding(value) {
@@ -309,7 +340,8 @@ export function validatePublicLeafProjection(value) {
     validNativeSession &&
     PUBLIC_STAGES.get(value.state)?.has(value.stage) === true &&
     (value.latestEvent === null || isPublicLeafEvent(value.latestEvent)) &&
-    value.canCancel === (value.state === "running") &&
+    typeof value.canCancel === "boolean" &&
+    (!value.canCancel || value.state === "running") &&
     isResult(value.result) &&
     stateIsConsistent(value, value.nativeSession !== null);
   return validation(valid, "PublicLeafProjection does not match schema 0.3.");
@@ -638,8 +670,12 @@ export function requestExactCancellation(task, input) {
   });
 }
 
-export function toPublicLeafProjection(task) {
+export function toPublicLeafProjection(task, options = {}) {
   assertLeafTaskRecord(task);
+  const canCancel =
+    options.canCancel === undefined
+      ? task.state === "running"
+      : options.canCancel === true && task.state === "running";
   const projection = {
     schemaVersion: "0.3",
     taskId: task.taskId,
@@ -666,7 +702,7 @@ export function toPublicLeafProjection(task) {
             source: task.latestEvent.source,
             observedAt: task.latestEvent.observedAt,
           }),
-    canCancel: task.state === "running",
+    canCancel,
     result:
       task.result === null ? null : Object.freeze({ ...task.result }),
   };
