@@ -521,9 +521,53 @@ profile, red cancelled status, all three lifecycle stages, `turn.cancelled #4`,
 matching task and native-session suffixes, `provider-cancelled`, and the action
 row. No unrelated desktop content is retained in the artifact.
 
-The remaining pixel gap is a retained clean running-card artifact. The
-remaining checkout gap is dynamic root selection beyond this configured
-canary.
+After commit `edb2cc7`, exactly one additional bounded production delegation,
+`p06-live-running-pixel-20260801-04`, used the same `pi-glm / glm-5.2`
+profile specifically to retain the nonterminal Host card. Pi returned native
+session `3883abe8-010e-4bbd-a166-74e2f901e00a`, and the private append-only
+journal recorded the matching Provider-native chain:
+
+1. `session.created #1` at `2026-07-31T21:38:20.008Z`;
+2. `turn.started #2` at `2026-07-31T21:38:20.023Z`;
+3. `turn.progress #3` at `2026-07-31T21:38:29.409Z`;
+4. `turn.completed #4` at `2026-07-31T21:38:29.410Z`.
+
+The durable record therefore proves a real `running / provider-running`
+interval of about 9.4 seconds. The first admissible direct capture of the
+Codex window was obtained only after that interval and visibly showed
+`completed / provider-completed / turn.completed #4`. That terminal frame is
+not retained or relabelled as running evidence. No second delegation was
+attempted in this gate, and no clean running-card artifact is claimed from it.
+
+The next explicitly authorized, single production delegation,
+`p06-live-running-pixel-20260801-05`, used the same bounded
+`pi-rpc / pi-glm / zai-coding-cn / glm-5.2` profile. Pi returned native session
+`5de0083e-635d-466f-a53a-5cdcce8921ce`, and the private append-only journal
+recorded:
+
+1. `session.created #1` at `2026-07-31T21:52:17.682Z`;
+2. `turn.started #2` at `2026-07-31T21:52:17.696Z`;
+3. `turn.progress #3` at `2026-07-31T21:54:10.255Z`;
+4. `turn.completed #4` at `2026-07-31T21:54:10.256Z`.
+
+During the approximately 112.6-second Provider-running interval, the same
+read-only production `render_leaf_card` entry returned
+`running / provider-running / turn.started #2`, `canCancel: true`, and
+`result: null`. A direct ScreenCaptureKit capture of the real Codex Host window
+retained that exact nonterminal card as
+[app-native-v0.3-production-live-running-host-card.png](../assets/evidence/app-native-v0.3-production-live-running-host-card.png)
+(1490 x 535, SHA-256
+`93db5578470f1ac2f5e12378b9c6c34249c82a75739323dbb0922c260fe37913`).
+The crop visibly shows `Pi · GLM 5.2`, the exact activity/profile, green
+`运行中`, the active `Provider 运行` lifecycle step, `turn.started #2`, the
+matching task and native-session suffixes, `provider-running`, and enabled
+refresh and cancellation actions. The full card is visible without clipping,
+overlap, or horizontal overflow, and no unrelated desktop or sidebar content
+is retained. Exactly one delegation was executed for this gate; it later
+settled normally as `completed / provider-completed / turn.completed #4`.
+
+This closes the retained clean running-card pixel gap. The remaining checkout
+gap is dynamic root selection beyond this configured canary.
 
 ### Current Host roots gate
 
