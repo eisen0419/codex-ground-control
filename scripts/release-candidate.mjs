@@ -56,6 +56,7 @@ const repositoryCommands = [
 const expectedPackageFileRoots = new Set([
   ".codex-plugin",
   ".mcp.json",
+  ".mcp.v0.3.json",
   "LICENSE",
   "README.md",
   "THIRD_PARTY_NOTICES.md",
