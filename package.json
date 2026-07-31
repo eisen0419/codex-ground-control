@@ -1,6 +1,6 @@
 {
   "name": "codex-ground-control",
-  "version": "0.2.0",
+  "version": "0.3.0-rc.0",
   "description": "An App-native, local-first, fail-closed workflow control plane for Codex.",
   "homepage": "https://eisen0419.github.io/codex-ground-control/",
   "repository": {
@@ -27,6 +27,7 @@
   "files": [
     ".codex-plugin",
     ".mcp.json",
+    ".mcp.v0.3.json",
     "assets",
     "bin",
     "fixtures",
@@ -44,7 +45,7 @@
     "release-lock:verify": "node scripts/release-lock.mjs",
     "test": "node --test --test-reporter=spec tests/*.test.mjs",
     "test:tracer": "node --test --test-reporter=spec tests/tracer-bullet.test.mjs",
-    "typecheck": "node --check bin/codex-ground-control.js && node --check fixtures/providers/agy-research-adapter.mjs && node --check fixtures/providers/agy-source-verifier.mjs && node --check fixtures/providers/grok-research-adapter.mjs && node --check fixtures/providers/pi-leaf-adapter.mjs && node --check fixtures/providers/probe-adapter.mjs && node --check scripts/release-candidate.mjs && node --check src/cli.js && node --check src/doctor.js && node --check src/fleet-runner.js && node --check src/fleet-runner-worker.js && node --check src/global-workflow.js && node --check src/leaf-run.js && node --check src/leaf-run-worker-core.js && node --check src/leaf-run-worker.js && node --check src/managed-workflow.js && node --check src/mcp-app-server.js && node --check src/project-state.js && node --check src/provider-lifecycle.js && node --check src/qualification-contract.js && node --check src/qualification-lab.js && node --check src/release-name-checks.js && node --check src/safe-files.js && node --check src/workflow-assets.js && node --check src/workflow-error.js"
+    "typecheck": "node --check bin/codex-ground-control.js && node --check fixtures/providers/agy-research-adapter.mjs && node --check fixtures/providers/agy-source-verifier.mjs && node --check fixtures/providers/grok-research-adapter.mjs && node --check fixtures/providers/pi-leaf-adapter.mjs && node --check fixtures/providers/probe-adapter.mjs && node --check scripts/release-candidate.mjs && node --check src/cli.js && node --check src/doctor.js && node --check src/fleet-runner.js && node --check src/fleet-runner-worker.js && node --check src/global-workflow.js && node --check src/leaf-run.js && node --check src/leaf-run-worker-core.js && node --check src/leaf-run-worker.js && node --check src/managed-workflow.js && node --check src/mcp-app-server.js && node --check src/package-metadata.js && node --check src/project-state.js && node --check src/provider-lifecycle.js && node --check src/qualification-contract.js && node --check src/qualification-lab.js && node --check src/release-name-checks.js && node --check src/safe-files.js && node --check src/v0.3/leaf-domain.js && node --check src/v0.3/leaf-mcp-composition.js && node --check src/v0.3/leaf-runtime-registry.js && node --check src/v0.3/leaf-session-service.js && node --check src/v0.3/leaf-state-store.js && node --check src/v0.3/mcp-app-entry.js && node --check src/v0.3/mcp-app-server.js && node --check src/v0.3/pi-rpc-adapter.js && node --check src/workflow-assets.js && node --check src/workflow-error.js"
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "1.7.5",

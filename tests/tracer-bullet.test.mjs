@@ -185,7 +185,7 @@ test("package metadata and tarball contents define the public CLI contract", () 
     readFileSync(join(repositoryRoot, "package.json"), "utf8"),
   );
   assert.equal(packageMetadata.name, "codex-ground-control");
-  assert.equal(packageMetadata.version, "0.2.0");
+  assert.equal(packageMetadata.version, "0.3.0-rc.0");
   assert.equal(packageMetadata.type, "module");
   assert.deepEqual(packageMetadata.engines, { node: ">=22" });
   assert.deepEqual(packageMetadata.bin, {
@@ -232,16 +232,21 @@ test("package metadata and tarball contents define the public CLI contract", () 
         },
       ),
     );
-    assert.equal(packed.filename, "codex-ground-control-0.2.0.tgz");
+    assert.equal(
+      packed.filename,
+      "codex-ground-control-0.3.0-rc.0.tgz",
+    );
     const expectedFiles = [
       ...mattSkills.assets.map((asset) => asset.sourcePath),
       "vendor/mattpocock-skills/LICENSE",
       ".codex-plugin/plugin.json",
       ".mcp.json",
+      ".mcp.v0.3.json",
       "LICENSE",
       "README.md",
       "THIRD_PARTY_NOTICES.md",
       "assets/apps/ground-control/leaf-run.html",
+      "assets/apps/ground-control/v0.3-leaf-session.html",
       "assets/overlays/agents-managed-block.md",
       "assets/overlays/ground-control/SKILL.md",
       "assets/overlays/ground-control/agents/openai.yaml",
@@ -280,12 +285,21 @@ test("package metadata and tarball contents define the public CLI contract", () 
       "src/leaf-run.js",
       "src/managed-workflow.js",
       "src/mcp-app-server.js",
+      "src/package-metadata.js",
       "src/project-state.js",
       "src/provider-lifecycle.js",
       "src/qualification-contract.js",
       "src/qualification-lab.js",
       "src/release-name-checks.js",
       "src/safe-files.js",
+      "src/v0.3/leaf-domain.js",
+      "src/v0.3/leaf-mcp-composition.js",
+      "src/v0.3/leaf-runtime-registry.js",
+      "src/v0.3/leaf-session-service.js",
+      "src/v0.3/leaf-state-store.js",
+      "src/v0.3/mcp-app-entry.js",
+      "src/v0.3/mcp-app-server.js",
+      "src/v0.3/pi-rpc-adapter.js",
       "src/workflow-assets.js",
       "src/workflow-error.js",
     ].sort();
@@ -360,7 +374,7 @@ test("packed CLI exposes stable help and version output", () => {
     );
     assert.equal(help.stderr, "");
     assert.equal(version.status, 0);
-    assert.equal(version.stdout, "0.2.0\n");
+    assert.equal(version.stdout, "0.3.0-rc.0\n");
     assert.equal(version.stderr, "");
   });
 });
@@ -419,7 +433,7 @@ test("packed CLI completes an offline reversible lifecycle", () => {
       assert.deepEqual(initialized.receipt, {
         schemaVersion: "1",
         product: "codex-ground-control",
-        version: "0.2.0",
+        version: "0.3.0-rc.0",
         command: "init",
         status: "ok",
         exitCode: 0,
@@ -1619,7 +1633,7 @@ test("packed CLI distinguishes invalid usage in human and JSON modes", () => {
     assert.deepEqual(JSON.parse(machine.stdout), {
       schemaVersion: "1",
       product: "codex-ground-control",
-      version: "0.2.0",
+      version: "0.3.0-rc.0",
       command: null,
       status: "invalid-usage",
       exitCode: 64,

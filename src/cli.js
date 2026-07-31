@@ -11,8 +11,9 @@ import {
   validateQualificationDocument,
   validateQualificationReceiptBehavior,
 } from "./qualification-contract.js";
+import { PACKAGE_VERSION } from "./package-metadata.js";
 
-export const VERSION = "0.2.0";
+export const VERSION = PACKAGE_VERSION;
 export const EXIT_SUCCESS = 0;
 export const EXIT_BLOCKED = 2;
 export const EXIT_USAGE = 64;

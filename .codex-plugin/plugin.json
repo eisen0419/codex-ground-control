@@ -1,8 +1,8 @@
 {
   "name": "codex-ground-control",
-  "version": "0.2.0",
+  "version": "0.3.0-rc.0",
   "description": "App-native Pi LeafRun status and Codex-native permission surfaces for Ground Control.",
-  "mcpServers": "./.mcp.json",
+  "mcpServers": "./.mcp.v0.3.json",
   "skills": "./assets/overlays/",
   "interface": {
     "displayName": "Ground Control for Codex",

@@ -625,26 +625,37 @@ test("MCP App repeat self-test uses the available Host tool-call capability", as
   assert.equal(elements.start.disabled, false);
 });
 
-test("npm artifact carries the local Ground Control plugin manifest", () => {
+test("npm prerelease plugin defaults to v0.3 and retains the v0.2 rollback config", () => {
   const plugin = JSON.parse(
     readFileSync(
       join(repositoryRoot, ".codex-plugin", "plugin.json"),
       "utf8",
     ),
   );
-  const mcp = JSON.parse(
+  const prereleaseMcp = JSON.parse(
+    readFileSync(join(repositoryRoot, ".mcp.v0.3.json"), "utf8"),
+  );
+  const rollbackMcp = JSON.parse(
     readFileSync(join(repositoryRoot, ".mcp.json"), "utf8"),
   );
   assert.equal(plugin.name, "codex-ground-control");
-  assert.equal(plugin.version, "0.2.0");
-  assert.equal(plugin.mcpServers, "./.mcp.json");
+  assert.equal(plugin.version, "0.3.0-rc.0");
+  assert.equal(plugin.mcpServers, "./.mcp.v0.3.json");
   assert.equal(plugin.skills, "./assets/overlays/");
   assert.deepEqual(
-    mcp.mcpServers["codex-ground-control"].args,
+    prereleaseMcp.mcpServers["codex-ground-control-v0.3"].args,
+    ["src/v0.3/mcp-app-entry.js"],
+  );
+  assert.equal(
+    prereleaseMcp.mcpServers["codex-ground-control-v0.3"].cwd,
+    ".",
+  );
+  assert.deepEqual(
+    rollbackMcp.mcpServers["codex-ground-control"].args,
     ["src/mcp-app-server.js"],
   );
   assert.equal(
-    mcp.mcpServers["codex-ground-control"].cwd,
+    rollbackMcp.mcpServers["codex-ground-control"].cwd,
     ".",
   );
   assert.equal(

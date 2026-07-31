@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ground-control-v0-3-host-spike": {
+      "command": "node",
+      "args": ["standalone-server.mjs"],
+      "cwd": "."
+    }
+  }
+}

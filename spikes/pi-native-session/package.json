@@ -1,0 +1,11 @@
+{
+  "name": "codex-ground-control-pi-native-session-spike",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "node run.mjs",
+    "prototype:surface": "node product-surface-tui.mjs",
+    "prototype:mcp": "node product-surface-mcp-prototype/server.mjs",
+    "prototype:mcp:validate": "node product-surface-mcp-prototype/validate.mjs"
+  }
+}

@@ -97,7 +97,7 @@ test("npm release name check accepts an existing package only when the target ve
   );
 });
 
-test("public docs describe the App-native v0.2 release and preserve the audited v0.1 history", () => {
+test("public docs preserve stable v0.2 while describing the unpublished v0.3 prerelease", () => {
   const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
   const readmeZh = readFileSync(
     new URL("../docs/readme/README.zh-CN.md", import.meta.url),
@@ -118,6 +118,10 @@ test("public docs describe the App-native v0.2 release and preserve the audited 
   );
   const appNativeContract = readFileSync(
     new URL("../docs/specs/app-native-v0.2.md", import.meta.url),
+    "utf8",
+  );
+  const appNativeV03Contract = readFileSync(
+    new URL("../docs/specs/app-native-v0.3.md", import.meta.url),
     "utf8",
   );
   const groundControlSkill = readFileSync(
@@ -150,6 +154,18 @@ test("public docs describe the App-native v0.2 release and preserve the audited 
   );
   assert.match(
     readme,
+    /unpublished candidate: v0\.3\.0-rc\.0/i,
+  );
+  assert.match(
+    readme,
+    /\.mcp\.v0\.3\.json[\s\S]*\.mcp\.json[\s\S]*v0\.2\.0\s+rollback/i,
+  );
+  assert.match(
+    readme,
+    /npm `latest` remains v0\.2\.0/i,
+  );
+  assert.match(
+    readme,
     /npx --yes codex-ground-control@0\.2\.0 init --dry-run/,
   );
   assert.match(
@@ -157,13 +173,17 @@ test("public docs describe the App-native v0.2 release and preserve the audited 
     /不需要单独安装 Codex CLI/,
   );
   assert.match(readmeZh, /最新正式版：v0\.2\.0/);
-  assert.doesNotMatch(
-    readme,
-    /unreleased development target/i,
-  );
-  assert.doesNotMatch(
+  assert.match(
     readmeZh,
-    /尚未发布的开发目标/,
+    /尚未发布的候选版：v0\.3\.0-rc\.0/,
+  );
+  assert.match(
+    readmeZh,
+    /\.mcp\.v0\.3\.json[\s\S]*\.mcp\.json[\s\S]*v0\.2\.0\s+回滚/,
+  );
+  assert.match(
+    readmeZh,
+    /npm `latest` 仍为 v0\.2\.0/,
   );
   assert.match(
     readme,
@@ -276,7 +296,18 @@ test("public docs describe the App-native v0.2 release and preserve the audited 
     releasing,
     /npm run release-candidate -- --allow-live/,
   );
+  assert.match(releasing, /codex-ground-control-0\.3\.0-rc\.0\.tgz/);
+  assert.match(releasing, /npm `latest` remains\s+v0\.2\.0/i);
+  assert.match(releasing, /non-`latest` dist-tag/i);
   assert.match(releasing, /release-report\.json/);
+  assert.match(
+    appNativeV03Contract,
+    /Status: local v0\.3\.0-rc\.0 candidate assembled; published production remains v0\.2\.0/,
+  );
+  assert.match(
+    appNativeV03Contract,
+    /\.mcp\.v0\.3\.json[\s\S]*\.mcp\.json[\s\S]*stable v0\.2\.0 rollback/i,
+  );
   assert.match(releasing, /exit code `2`/);
   assert.match(
     releasing,
@@ -331,10 +362,10 @@ test("release candidate is reproducible at the packed CLI seam and skipped gates
     assert.deepEqual(summary, {
       schemaVersion: "1",
       status: "blocked",
-      version: "0.2.0",
+      version: "0.3.0-rc.0",
       report: "release-report.json",
       markdownReport: "RELEASE_CANDIDATE.md",
-      tarball: "codex-ground-control-0.2.0.tgz",
+      tarball: "codex-ground-control-0.3.0-rc.0.tgz",
     });
 
     const reportBytes = readFileSync(
@@ -343,7 +374,7 @@ test("release candidate is reproducible at the packed CLI seam and skipped gates
     const report = JSON.parse(reportBytes);
     assert.equal(report.schemaVersion, "1");
     assert.equal(report.product, "codex-ground-control");
-    assert.equal(report.version, "0.2.0");
+    assert.equal(report.version, "0.3.0-rc.0");
     assert.equal(report.status, "blocked");
     assert.deepEqual(report.publication, {
       npm: "not-published",
@@ -372,6 +403,26 @@ test("release candidate is reproducible at the packed CLI seam and skipped gates
       report.package.licenses.bundledLicenseFiles >=
         report.package.licenses.bundledPackages,
     );
+    assert.deepEqual(report.hostSurface, {
+      status: "passed",
+      pluginVersion: "0.3.0-rc.0",
+      defaultMcpConfig: ".mcp.v0.3.json",
+      rollbackMcpConfig: ".mcp.json",
+      serverId: "codex-ground-control-v0.3",
+      tools: [
+        "delegate_leaf",
+        "inspect_leaf",
+        "cancel_leaf",
+        "render_leaf_card",
+      ],
+      resourceUri:
+        "ui://codex-ground-control/v0.3/leaf-session.html",
+      widgetMarker: "compact-progress",
+      stateRootMode: "0700",
+      providerProcessStarted: false,
+      providerSessionDirectoryCreated: false,
+      persistedSecretMatches: 0,
+    });
 
     assert.deepEqual(report.repositoryChecks, {
       status: "not-run",
@@ -438,7 +489,8 @@ test("release candidate is reproducible at the packed CLI seam and skipped gates
       join(outputDirectory, "RELEASE_CANDIDATE.md"),
       "utf8",
     );
-    assert.match(markdown, /^# Ground Control for Codex v0\.2\.0 release candidate/m);
+    assert.match(markdown, /^# Ground Control for Codex v0\.3\.0-rc\.0 release candidate/m);
+    assert.match(markdown, /Packed v0\.3 Host surface: \*\*PASSED\*\*/);
     assert.match(markdown, /Overall gate: \*\*BLOCKED\*\*/);
     assert.match(markdown, /Offline evidence: \*\*PASSED \(17\/17\)\*\*/);
     assert.match(markdown, /Live provider evidence: \*\*NOT RUN\*\*/);

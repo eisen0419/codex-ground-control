@@ -1,0 +1,20 @@
+{
+  "name": "codex-ground-control-v0-3-spike",
+  "interface": {
+    "displayName": "Ground Control v0.3 local spike"
+  },
+  "plugins": [
+    {
+      "name": "app-host-prototype",
+      "source": {
+        "source": "local",
+        "path": "./plugins/app-host-prototype"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "0.3-prototype",
+  "kind": "provider-native-leaf-card",
+  "card": {
+    "schemaVersion": "0.3",
+    "taskId": "3bf13088-e1f0-4b89-8972-3fa3cc234e48",
+    "adapterId": "pi-rpc",
+    "profile": "pi-glm",
+    "activity": "testing",
+    "provider": "pi",
+    "modelProvider": "zai-coding-cn",
+    "model": "glm-5.2",
+    "nativeSession": {
+      "id": "82f31f62-07fe-4aff-be8a-26601d37a57f",
+      "inspectable": true
+    },
+    "state": "cancelled",
+    "stage": "provider-cancelled",
+    "latestEvent": {
+      "sequence": 3,
+      "type": "turn.cancelled",
+      "source": "provider-native",
+      "observedAt": "2026-07-27T21:52:38.558Z"
+    },
+    "canCancel": false,
+    "result": null
+  },
+  "proof": {
+    "probe": "pi-glm / no-tools / allow-live",
+    "nativeStartObserved": true,
+    "exactCancellationSettled": true,
+    "siblingStillResponsive": true,
+    "sourceEvidenceSha256": "d9082b32dcd83d7b0c4e72f761e8d4c5bbc2a4912f2517dd69c3b236c38b3064"
+  },
+  "surface": {
+    "authority": "provider-native-session",
+    "nativeCodexSubagent": false,
+    "readOnlySnapshot": true
+  }
+}
