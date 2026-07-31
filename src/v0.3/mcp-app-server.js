@@ -1,4 +1,9 @@
-import { readFileSync } from "node:fs";
+import {
+  lstatSync,
+  readFileSync,
+  realpathSync,
+} from "node:fs";
+import { dirname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
@@ -74,6 +79,40 @@ function selectedCheckoutFromRoots(result) {
   return Object.freeze({
     selectedCheckout: fileURLToPath(root),
   });
+}
+
+function selectedCheckoutFromWorkingDirectory(workingDirectory) {
+  if (workingDirectory === undefined) {
+    return null;
+  }
+  if (
+    typeof workingDirectory !== "string" ||
+    workingDirectory.trim() === "" ||
+    !isAbsolute(workingDirectory)
+  ) {
+    throw new TypeError(
+      "The Host stdio working directory must be an absolute path.",
+    );
+  }
+  let selectedCheckout;
+  let metadata;
+  try {
+    selectedCheckout = realpathSync(workingDirectory);
+    metadata = lstatSync(selectedCheckout);
+  } catch {
+    throw new TypeError(
+      "The Host stdio working directory must exist.",
+    );
+  }
+  if (
+    !metadata.isDirectory() ||
+    dirname(selectedCheckout) === selectedCheckout
+  ) {
+    throw new TypeError(
+      "The Host stdio working directory must be a bounded directory.",
+    );
+  }
+  return Object.freeze({ selectedCheckout });
 }
 
 export function createLeafMcpAppServer({
@@ -178,20 +217,34 @@ export function createLeafMcpAppServer({
 export function createLeafProductionMcpAppServer(
   productionOptions = {},
 ) {
+  const {
+    hostWorkingDirectory,
+    ...compositionOptions
+  } = productionOptions;
+  const configuredCheckout =
+    selectedCheckoutFromWorkingDirectory(hostWorkingDirectory);
   let server = null;
   const composition = createLeafProductionComposition({
-    ...productionOptions,
+    ...compositionOptions,
     async hostDispatchFromCall(callContext) {
-      if (!server) {
+      if (!server || callContext?.requestId === undefined) {
         throw new TypeError(
           "The v0.3 MCP App Host lifecycle is not connected.",
         );
       }
-      const roots = await server.server.listRoots(undefined, {
-        signal: callContext?.signal,
-        relatedRequestId: callContext?.requestId,
-      });
-      return selectedCheckoutFromRoots(roots);
+      if (server.server.getClientCapabilities()?.roots) {
+        const roots = await server.server.listRoots(undefined, {
+          signal: callContext.signal,
+          relatedRequestId: callContext.requestId,
+        });
+        return selectedCheckoutFromRoots(roots);
+      }
+      if (configuredCheckout) {
+        return configuredCheckout;
+      }
+      throw new TypeError(
+        "The Codex Host exposed no trusted checkout capability.",
+      );
     },
   });
   server = createLeafMcpAppServer({ composition });

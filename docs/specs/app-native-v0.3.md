@@ -405,6 +405,65 @@ a network request, or use `--allow-live`. It proves the read-only Host rendering
 seam and production card pixels only; it does not add live runtime evidence for
 the remaining v0.3 product operations.
 
+### Production delegation attempts
+
+On 2026-08-01, one explicitly authorized production `delegate_leaf` call used
+the bounded `pi-glm / glm-5.2` profile. It failed closed with
+`LEAF_PRODUCTION_HOST_DISPATCH_REQUIRED` before Pi, Provider, or worker startup.
+The connected Codex Desktop client had not advertised the MCP `roots`
+capability, so the SDK rejected the server's attempted `roots/list` request.
+The production state root contained no task record or `pi-sessions` directory
+after the call.
+
+The production entry then passed its explicit Host-configured STDIO working
+directory into the server. A roots-capable Host still takes precedence and must
+return exactly one local selected checkout; a Host without roots may use only
+the canonical, existing, bounded STDIO directory. Missing, relative,
+nonexistent, or filesystem-root directories fail closed before process startup.
+Contract tests cover all three cases, including roots precedence over the
+configured fallback.
+
+After a Host restart, a second separately authorized and unique production
+delegation, `p06-live-gate-20260801-02`, started the bounded
+`pi-glm / glm-5.2` profile. Pi returned native session
+`38ca9201-2538-4abf-b726-b4079dcf6e86`. The private append-only journal then
+recorded only the matching Provider-native transitions:
+
+1. `session.created #1` at `2026-07-31T19:57:12.276Z`;
+2. `turn.started #2` at `2026-07-31T19:57:12.293Z`;
+3. `turn.progress #3` at `2026-07-31T19:57:14.288Z`;
+4. `turn.completed #4` at `2026-07-31T19:57:14.289Z`.
+
+The same read-only production `render_leaf_card` adapter returned
+`completed / provider-completed / turn.completed #4`, `canCancel: false`, and
+`result.disposition: candidate-evidence`. All five task commit files had mode
+`0600`. The public projection exposed no process incarnation, PID, state path,
+credential, prompt, transcript, reasoning, or raw Provider output.
+
+The user retained the resulting real Codex Host terminal card as
+[app-native-v0.3-production-live-completed-host-card.png](../assets/evidence/app-native-v0.3-production-live-completed-host-card.png)
+(1678 x 678, SHA-256
+`7c8a401409cfb93c5dfb2b795dedd9bbc7209f5a2c76851569e21b538a771e10`).
+The visible `Pi · GLM 5.2` title, activity/profile, completed status, all three
+lifecycle stages, `turn.completed #4`, task and native-session suffixes,
+`provider-completed` stage, and action row match the structured projection.
+The complete card remains inside the Host container without clipping, overlap,
+or horizontal overflow.
+
+This run proves the repaired no-roots Host dispatch, real Pi/Provider start,
+native session creation, Provider-native running/progress/normal-settle events,
+durable completion, final sanitized production projection, and a matching real
+Host terminal-card pixel observation. It does not add exact-cancellation
+evidence: the Provider completed in about two seconds before the foreground
+cancel button could be used. No second delegation was attempted.
+
+The STDIO fallback supports the controlled canary only when the MCP server's
+configured `cwd` is the current checkout; it does not prove dynamic
+App-selected checkout resolution across arbitrary tasks or linked worktrees.
+The remaining production live gaps are a fresh running-card pixel observation,
+exact Host-card cancellation and matching cancelled settle, and dynamic
+checkout proof beyond this configured canary.
+
 ## Migration gate
 
 Gate verdict: passed on 2026-07-31. Existing v0.2 remains the production

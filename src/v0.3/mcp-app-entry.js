@@ -87,6 +87,7 @@ function ensurePrivateStateParent(rootDirectory) {
 
 export function createLeafProductionEntryOptions(
   environment = process.env,
+  workingDirectory = process.cwd(),
 ) {
   if (
     environment === null ||
@@ -120,6 +121,7 @@ export function createLeafProductionEntryOptions(
   );
   return Object.freeze({
     rootDirectory,
+    hostWorkingDirectory: workingDirectory,
     command: "pi",
     profiles: Object.freeze({
       "pi-glm": Object.freeze({
@@ -146,9 +148,13 @@ export function createLeafProductionEntryOptions(
 
 export async function runLeafProductionMcpAppServer({
   environment = process.env,
+  workingDirectory = process.cwd(),
 } = {}) {
   const productionOptions =
-    createLeafProductionEntryOptions(environment);
+    createLeafProductionEntryOptions(
+      environment,
+      workingDirectory,
+    );
   ensurePrivateStateParent(productionOptions.rootDirectory);
   const server =
     createLeafProductionMcpAppServer(productionOptions);

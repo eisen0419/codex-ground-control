@@ -44,19 +44,26 @@ test("v0.3 production entry derives only the bounded Pi profile and private stat
     join(tmpdir(), "ground-control-v03-entry-options-"),
   );
   t.after(() => rm(sandbox, { recursive: true, force: true }));
-  const options = createLeafProductionEntryOptions({
-    HOME: sandbox,
-    PATH: "/safe/bin",
-    LANG: "zh_CN.UTF-8",
-    ZAI_CODING_CN_API_KEY: "provider-owned-secret",
-    AMBIENT_CREDENTIAL: "must-not-cross",
-  });
+  const options = createLeafProductionEntryOptions(
+    {
+      HOME: sandbox,
+      PATH: "/safe/bin",
+      LANG: "zh_CN.UTF-8",
+      ZAI_CODING_CN_API_KEY: "provider-owned-secret",
+      AMBIENT_CREDENTIAL: "must-not-cross",
+    },
+    sandbox,
+  );
 
   assert.equal(
     options.rootDirectory,
     join(sandbox, ".codex-ground-control", "v0.3"),
   );
   assert.equal(options.command, "pi");
+  assert.equal(
+    options.hostWorkingDirectory,
+    sandbox,
+  );
   assert.deepEqual(
     options.profiles["pi-glm"],
     {

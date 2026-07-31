@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   mkdtemp,
   readFile,
+  realpath,
   rm,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -72,6 +73,61 @@ function widgetElement() {
     dispatch(type) {
       return listeners.get(type)?.({ type });
     },
+  };
+}
+
+function productionFixtureOptions({
+  starts,
+  sessionRoot,
+  sessionId,
+  processIncarnation,
+  timestamp,
+}) {
+  return {
+    processBoundary: {
+      async start(options) {
+        starts.push(options);
+        return {
+          write(line) {
+            const request = JSON.parse(line);
+            options.onLine(
+              JSON.stringify({
+                type: "response",
+                id: request.id,
+                success: true,
+                data:
+                  request.type === "get_state"
+                    ? {
+                        sessionId:
+                          options.nativeSessionBinding.sessionId,
+                      }
+                    : { accepted: true },
+              }),
+            );
+          },
+          async stop() {},
+        };
+      },
+      async recover() {
+        return null;
+      },
+      async close() {},
+    },
+    command: "/offline/node-fixture",
+    profiles: {
+      "offline-fixture": {
+        adapterId: "pi-rpc",
+        modelProvider: "offline",
+        model: "deterministic",
+        environment: {},
+        environmentAllowlist: [],
+      },
+    },
+    sessionIdFactory: () => sessionId,
+    sessionDirectoryFromSessionId: (currentSessionId) =>
+      join(sessionRoot, "sessions", currentSessionId),
+    processIncarnationFactory: () => processIncarnation,
+    clock: () => timestamp,
   };
 }
 
@@ -556,56 +612,22 @@ test("production MCP App resolves one Host root as the selected checkout and fai
   const rootDirectory = await mkdtemp(
     join(tmpdir(), "ground-control-v03-mcp-app-"),
   );
+  const fallbackDirectory = await mkdtemp(
+    join(tmpdir(), "ground-control-v03-mcp-fallback-"),
+  );
   t.after(() => rm(rootDirectory, { recursive: true, force: true }));
+  t.after(() => rm(fallbackDirectory, { recursive: true, force: true }));
   const starts = [];
-  const processBoundary = {
-    async start(options) {
-      starts.push(options);
-      return {
-        write(line) {
-          const request = JSON.parse(line);
-          options.onLine(
-            JSON.stringify({
-              type: "response",
-              id: request.id,
-              success: true,
-              data:
-                request.type === "get_state"
-                  ? {
-                      sessionId:
-                        options.nativeSessionBinding.sessionId,
-                    }
-                  : { accepted: true },
-            }),
-          );
-        },
-        async stop() {},
-      };
-    },
-    async recover() {
-      return null;
-    },
-    async close() {},
-  };
   const server = createLeafProductionMcpAppServer({
     rootDirectory,
-    processBoundary,
-    command: "/offline/node-fixture",
-    profiles: {
-      "offline-fixture": {
-        adapterId: "pi-rpc",
-        modelProvider: "offline",
-        model: "deterministic",
-        environment: {},
-        environmentAllowlist: [],
-      },
-    },
-    sessionIdFactory: () =>
-      "00000000-0000-4000-8000-000000000305",
-    sessionDirectoryFromSessionId: (sessionId) =>
-      join(rootDirectory, "sessions", sessionId),
-    processIncarnationFactory: () => "incarnation-305",
-    clock: () => "2026-07-31T04:10:00.000Z",
+    hostWorkingDirectory: fallbackDirectory,
+    ...productionFixtureOptions({
+      starts,
+      sessionRoot: rootDirectory,
+      sessionId: "00000000-0000-4000-8000-000000000305",
+      processIncarnation: "incarnation-305",
+      timestamp: "2026-07-31T04:10:00.000Z",
+    }),
   });
   const client = new Client(
     {
@@ -662,4 +684,107 @@ test("production MCP App resolves one Host root as the selected checkout and fai
   assert.equal(delegated.structuredContent.taskId, "leaf-roots-exact");
   assert.equal(starts.length, 1);
   assert.equal(starts[0].cwd, rootDirectory);
+});
+
+test("production MCP App uses an explicit Host stdio working directory when the client has no roots capability", async (t) => {
+  const temporaryDirectory = await mkdtemp(
+    join(tmpdir(), "ground-control-v03-mcp-cwd-"),
+  );
+  t.after(() => rm(temporaryDirectory, { recursive: true, force: true }));
+  const starts = [];
+  const productionOptions = productionFixtureOptions({
+    starts,
+    sessionRoot: temporaryDirectory,
+    sessionId: "00000000-0000-4000-8000-000000000306",
+    processIncarnation: "incarnation-306",
+    timestamp: "2026-08-01T03:40:00.000Z",
+  });
+
+  assert.throws(
+    () => createLeafProductionMcpAppServer({
+      ...productionOptions,
+      rootDirectory: join(temporaryDirectory, "relative-state"),
+      hostWorkingDirectory: "relative",
+    }),
+    /working directory/,
+  );
+  assert.throws(
+    () => createLeafProductionMcpAppServer({
+      ...productionOptions,
+      rootDirectory: join(temporaryDirectory, "root-state"),
+      hostWorkingDirectory: "/",
+    }),
+    /working directory/,
+  );
+  assert.throws(
+    () => createLeafProductionMcpAppServer({
+      ...productionOptions,
+      rootDirectory: join(temporaryDirectory, "missing-state"),
+      hostWorkingDirectory: join(temporaryDirectory, "missing-checkout"),
+    }),
+    /working directory/,
+  );
+
+  const unconfigured = createLeafProductionMcpAppServer({
+    ...productionOptions,
+    rootDirectory: join(temporaryDirectory, "unconfigured-state"),
+  });
+  const unconfiguredClient = new Client({
+    name: "ground-control-v0.3-no-roots-unconfigured-test",
+    version: "0.3.0",
+  });
+  const [firstClientTransport, firstServerTransport] =
+    InMemoryTransport.createLinkedPair();
+  t.after(() => unconfiguredClient.close());
+  t.after(() => unconfigured.close());
+  await Promise.all([
+    unconfigured.connect(firstServerTransport),
+    unconfiguredClient.connect(firstClientTransport),
+  ]);
+  const blocked = await unconfiguredClient.callTool({
+    name: "delegate_leaf",
+    arguments: {
+      taskId: "leaf-cwd-unconfigured",
+      adapterId: "pi-rpc",
+      profile: "offline-fixture",
+      activity: "offline Host cwd",
+    },
+  });
+  assert.equal(blocked.isError, true);
+  assert.equal(
+    blocked.content[0].text,
+    "LEAF_PRODUCTION_HOST_DISPATCH_REQUIRED",
+  );
+  assert.equal(starts.length, 0);
+
+  const configured = createLeafProductionMcpAppServer({
+    ...productionOptions,
+    rootDirectory: join(temporaryDirectory, "configured-state"),
+    hostWorkingDirectory: temporaryDirectory,
+  });
+  const configuredClient = new Client({
+    name: "ground-control-v0.3-no-roots-configured-test",
+    version: "0.3.0",
+  });
+  const [secondClientTransport, secondServerTransport] =
+    InMemoryTransport.createLinkedPair();
+  t.after(() => configuredClient.close());
+  t.after(() => configured.close());
+  await Promise.all([
+    configured.connect(secondServerTransport),
+    configuredClient.connect(secondClientTransport),
+  ]);
+  const delegated = await configuredClient.callTool({
+    name: "delegate_leaf",
+    arguments: {
+      taskId: "leaf-cwd-configured",
+      adapterId: "pi-rpc",
+      profile: "offline-fixture",
+      activity: "offline Host cwd",
+    },
+  });
+  assert.equal(delegated.isError, undefined);
+  assert.equal(delegated.structuredContent.taskId, "leaf-cwd-configured");
+  assert.equal(starts.length, 1);
+  assert.equal(starts[0].cwd, await realpath(temporaryDirectory));
 });
