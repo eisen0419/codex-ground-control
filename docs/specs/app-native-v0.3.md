@@ -509,10 +509,49 @@ checkout resolution across arbitrary tasks or linked worktrees. The production
 MCP seam has fresh offline evidence that an exact Host root takes precedence,
 is canonicalized, and fails closed before adapter start when it is ambiguous,
 missing, or the filesystem root. That offline evidence does not replace a
-roots-capable real Host. The remaining live evidence gaps are a retained clean
-running-card pixel artifact and dynamic checkout proof beyond this configured
-canary. A cropped card-only image is still required if the cancelled terminal
-observation must also be retained as a repository audit artifact.
+roots-capable real Host.
+
+The exact-cancel foreground observation is now retained as
+[app-native-v0.3-production-live-cancelled-host-card.png](../assets/evidence/app-native-v0.3-production-live-cancelled-host-card.png)
+(750 x 275, SHA-256
+`c0214a9309941c59079fe19ad9d90cdad54c146743c13cbe83f64598b5b615bc`).
+It is a PNG card-only crop from the Chronicle frame captured during the
+same exact-cancel run. The crop shows `Pi · GLM 5.2`, the exact activity and
+profile, red cancelled status, all three lifecycle stages, `turn.cancelled #4`,
+matching task and native-session suffixes, `provider-cancelled`, and the action
+row. No unrelated desktop content is retained in the artifact.
+
+The remaining pixel gap is a retained clean running-card artifact. The
+remaining checkout gap is dynamic root selection beyond this configured
+canary.
+
+### Current Host roots gate
+
+Gate verdict on 2026-08-01:
+`blocked_external_host_capability`.
+
+The post-restart Codex Desktop Host runs bundled
+`codex-cli 0.146.0-alpha.9.2` and the production Ground Control MCP server is
+still configured with this repository as its static STDIO `cwd`. The current
+Host surface and Desktop logs expose tool/resource calls but no authoritative
+MCP initialize payload or roots diagnostic. They therefore cannot be used as
+positive roots evidence.
+
+The decisive production observation remains the connected Host rejection
+recorded above: its client capabilities did not contain `roots`, so an attempted
+`roots/list` failed before Pi, Provider, or worker startup. As a current
+implementation cross-check, the official Codex MCP client constructor at
+[openai/codex@dc60dad](https://github.com/openai/codex/blob/dc60dadce6b5911b9b5852365f6eb9829ec14442/codex-rs/codex-mcp/src/rmcp_client.rs#L887-L904)
+starts from `ClientCapabilities::default()` and adds elicitation and optional
+OpenAI-form extensions only; it does not set `roots`.
+
+No production delegation was executed for this recheck because the existing
+STDIO fallback would only repeat the bounded canary and cannot distinguish a
+dynamic Host root from the configured `cwd`. Closing this gate requires a Host
+release that advertises MCP `roots` and returns exactly one local checkout, then
+a live linked-worktree dispatch proving that the returned root, rather than the
+static fallback, selected the task checkout. This dependency is external to the
+Ground Control repository.
 
 ## Migration gate
 
