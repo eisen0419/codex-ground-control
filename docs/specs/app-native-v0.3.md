@@ -569,6 +569,57 @@ settled normally as `completed / provider-completed / turn.completed #4`.
 This closes the retained clean running-card pixel gap. The remaining checkout
 gap is dynamic root selection beyond this configured canary.
 
+### Final v0.3 acceptance matrix
+
+Final matrix verdict on 2026-08-01:
+`conditionally_complete_with_external_blocker`.
+
+| ID | Verdict | Current evidence | Remaining action |
+| --- | --- | --- | --- |
+| V3-01 | `passed` | The production Host exposes the three App operations; live delegation, app-only inspection, and one exact Host cancellation have all executed through the same product widget. | None. |
+| V3-02 | `blocked_external_host_capability` | The exact checkout validator, roots precedence, and bounded STDIO fallback pass contract tests, but the current Host does not advertise MCP `roots`; the static `cwd` canary is not dynamic linked-worktree proof. | Wait for a roots-capable Host, then run the linked-worktree gate defined below. |
+| V3-03 | `passed` | Production delegation uses Codex native plugin permission routing and creates no second Ground Control authorization lease. | None. |
+| V3-04 | `passed` | Pi RPC returned an exact native session identity before prompt execution in production and executable adapter tests. | None. |
+| V3-05 | `passed` | The retained running Host card shows `turn.started #2`, `provider-running`, and enabled exact cancellation for the matching native session. | None. |
+| V3-06 | `passed` | The retained completed Host card and matching durable journal show `turn.completed #4 / provider-completed` for only the bound task. | None. |
+| V3-07 | `passed` | Exact-cancel tests and production evidence require equality of task, adapter, provider, model, session, and process incarnation before abort. | None. |
+| V3-08 | `passed` | The production Host exact-cancel run recorded one accepted abort and matching `turn.cancelled #4 / provider-cancelled` settle. | None. |
+| V3-09 | `passed` | The hardened live gate and process-boundary tests preserve a responsive sibling Pi RPC session after exact cancellation. | None. |
+| V3-10 | `passed` | Stale or mismatched bindings fail closed before abort in domain, service, adapter, and production-composition tests. | None. |
+| V3-11 | `passed` | Public projections and retained card crops expose no process incarnation, PID, state path, credential, prompt, transcript, raw Provider output, or hidden reasoning. | None. |
+| V3-12 | `passed` | Degraded fallback paths remain non-authoritative and cannot synthesize completion without matching Provider-native evidence. | None. |
+| V3-13 | `passed` | The post-evidence repository suite passes 198/198 while v0.2 remains the stable rollback target. | None. |
+| V3-14 | `passed` | Real production Codex Host pixels are retained for running, completed, and cancelled projections; each visible state matches the same sanitized projection returned by the production state seam. | None. |
+| V3-15 | `passed` | Production entry and process-boundary tests constrain the Pi child to the profile-scoped environment allowlist. | None. |
+
+The Host pixel gate is complete. Its retained production evidence set is:
+
+- [app-native-v0.3-production-live-running-host-card.png](../assets/evidence/app-native-v0.3-production-live-running-host-card.png)
+  for `running / provider-running`;
+- [app-native-v0.3-production-live-completed-host-card.png](../assets/evidence/app-native-v0.3-production-live-completed-host-card.png)
+  for `completed / provider-completed`;
+- [app-native-v0.3-production-live-cancelled-host-card.png](../assets/evidence/app-native-v0.3-production-live-cancelled-host-card.png)
+  for `cancelled / provider-cancelled`.
+
+No additional production live delegation is required or permitted for the
+already-passed rows while V3-02 remains blocked. The only live re-entry is the
+linked-worktree exact-routing gate after the Host exposes MCP roots:
+
+1. observe an MCP initialize result that advertises `roots` and a successful
+   `roots/list` transaction;
+2. select exactly one canonical local `file:` root belonging to a linked
+   worktree that differs from the MCP server's configured STDIO `cwd`;
+3. execute one bounded delegation from that Host-selected task and prove the
+   child repository identity resolves to the linked worktree root rather than
+   the static fallback;
+4. verify that Ground Control created, switched, deleted, or otherwise managed
+   no worktree and that all existing isolation and sanitized-projection gates
+   remain unchanged.
+
+Until all four observations are available, V3-02 remains an external blocker;
+static `cwd`, a path in model input, offline roots fixtures, or a Provider
+self-report cannot close it.
+
 ### Current Host roots gate
 
 Gate verdict on 2026-08-01:
